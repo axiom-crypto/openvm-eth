@@ -152,7 +152,7 @@ openvm-pairing = { git = "https://github.com/openvm-org/openvm.git", tag = "v1.4
 ] }
 openvm-sha2 = { git = "https://github.com/openvm-org/openvm.git", tag = "v1.4.2", default-features = false }
 
-openvm-kzg = { git = "https://github.com/axiom-crypto/openvm-kzg.git", branch = "openvm-main", default-features = false }
+openvm-kzg = { git = "https://github.com/axiom-crypto/openvm-kzg.git", branch = "openvm-1-4-2", default-features = false }
 
 openvm-k256 = { git = "https://github.com/openvm-org/openvm.git", package = "k256", tag = "v1.4.2" }
 openvm-p256 = { git = "https://github.com/openvm-org/openvm.git", package = "p256", tag = "v1.4.2" }
