@@ -92,8 +92,7 @@ impl CryptoProvider for OpenVmK256Provider {
             VerifyingKey::from_sec1_bytes(pubkey).map_err(|_| RecoveryError::new())?;
 
         // Parse the signature (r || s, 64 bytes)
-        let mut signature =
-            Signature::from_slice(&sig[0..64]).map_err(|_| RecoveryError::new())?;
+        let mut signature = Signature::from_slice(&sig[0..64]).map_err(|_| RecoveryError::new())?;
 
         // Normalize signature if needed
         if let Some(sig_normalized) = signature.normalize_s() {
@@ -101,9 +100,7 @@ impl CryptoProvider for OpenVmK256Provider {
         }
 
         // Verify the signature against the message hash using OpenVM
-        verifying_key
-            .verify_prehash(&msg[..], &signature)
-            .map_err(|_| RecoveryError::new())?;
+        verifying_key.verify_prehash(&msg[..], &signature).map_err(|_| RecoveryError::new())?;
 
         Ok(verifying_key_to_address(&verifying_key))
     }
