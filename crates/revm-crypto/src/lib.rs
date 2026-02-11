@@ -76,18 +76,48 @@ impl CryptoProvider for OpenVmK256Provider {
             VerifyingKey::recover_from_prehash_noverify(msg, &signature.to_bytes(), recovery_id)
                 .map_err(|_| RecoveryError::new())?;
 
-        // Get public key coordinates
-        let public_key = recovered_key.as_affine();
-        let mut encoded_pubkey = [0u8; 64];
-        encoded_pubkey[..32].copy_from_slice(&WeierstrassPoint::x(public_key).to_be_bytes());
-        encoded_pubkey[32..].copy_from_slice(&WeierstrassPoint::y(public_key).to_be_bytes());
-
-        // Hash to get Ethereum address
-        let pubkey_hash = keccak256(&encoded_pubkey);
-        let address_bytes = &pubkey_hash[12..32]; // Last 20 bytes
-
-        Ok(Address::from_slice(address_bytes))
+        Ok(verifying_key_to_address(&recovered_key))
     }
+
+    fn verify_and_compute_signer_unchecked(
+        &self,
+        pubkey: &[u8; 65],
+        sig: &[u8; 64],
+        msg: &[u8; 32],
+    ) -> Result<Address, RecoveryError> {
+        use openvm_k256::ecdsa::signature::hazmat::PrehashVerifier;
+
+        // Parse the verifying key from uncompressed SEC1 bytes (0x04 || x || y)
+        let verifying_key =
+            VerifyingKey::from_sec1_bytes(pubkey).map_err(|_| RecoveryError::new())?;
+
+        // Parse the signature (r || s, 64 bytes)
+        let mut signature =
+            Signature::from_slice(&sig[0..64]).map_err(|_| RecoveryError::new())?;
+
+        // Normalize signature if needed
+        if let Some(sig_normalized) = signature.normalize_s() {
+            signature = sig_normalized;
+        }
+
+        // Verify the signature against the message hash using OpenVM
+        verifying_key
+            .verify_prehash(&msg[..], &signature)
+            .map_err(|_| RecoveryError::new())?;
+
+        Ok(verifying_key_to_address(&verifying_key))
+    }
+}
+
+/// Compute an Ethereum address from an OpenVM k256 verifying key.
+fn verifying_key_to_address(vk: &VerifyingKey) -> Address {
+    let public_key = vk.as_affine();
+    let mut encoded_pubkey = [0u8; 64];
+    encoded_pubkey[..32].copy_from_slice(&WeierstrassPoint::x(public_key).to_be_bytes());
+    encoded_pubkey[32..].copy_from_slice(&WeierstrassPoint::y(public_key).to_be_bytes());
+
+    let pubkey_hash = keccak256(&encoded_pubkey);
+    Address::from_slice(&pubkey_hash[12..32])
 }
 
 /// OpenVM custom crypto implementation for faster precompiles
