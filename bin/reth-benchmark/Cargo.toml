@@ -44,15 +44,15 @@ reth-primitives.workspace = true
 # Note: the openvm-sdk commit does not need to be exactly the same as the `openvm` commit used in the guest program: as long as
 # the openvm-sdk commit doesn't change any guest libraries, they are compatible
 # This allows us to not update revm and openvm-kzg each time we change openvm-sdk
-openvm-stark-sdk = { git = "https://github.com/openvm-org/stark-backend.git", branch = "develop-v2", default-features = false }
-openvm-cuda-backend = { git = "https://github.com/openvm-org/stark-backend.git", branch = "develop-v2", default-features = false, optional = true }
-openvm-transpiler = { git = "https://github.com/openvm-org/openvm.git", branch = "develop-v2.0.0-beta", default-features = false }
+openvm-stark-sdk = { git = "https://github.com/openvm-org/stark-backend.git", tag = "v2.0.0-alpha", default-features = false }
+openvm-cuda-backend = { git = "https://github.com/openvm-org/stark-backend.git", tag = "v2.0.0-alpha", default-features = false, optional = true }
+openvm-transpiler = { git = "https://github.com/openvm-org/openvm.git", tag = "v2.0.0-alpha", default-features = false }
 # TODO: temporary so we don't need to change workspace openvm commit
-openvm-v2 = { git = "https://github.com/openvm-org/openvm.git", branch = "develop-v2.0.0-beta", package = "openvm", default-features = false }
-openvm-circuit = { git = "https://github.com/openvm-org/openvm.git", branch = "develop-v2.0.0-beta", default-features = false }
-verify-stark = { git = "https://github.com/openvm-org/openvm.git", branch = "develop-v2.0.0-beta", default-features = false }
-sdk-v2 = { git = "https://github.com/openvm-org/openvm.git", branch = "develop-v2.0.0-beta", default-features = false }
-openvm-sdk-config = { git = "https://github.com/openvm-org/openvm.git", branch = "develop-v2.0.0-beta", default-features = false }
+openvm-v2 = { git = "https://github.com/openvm-org/openvm.git", tag = "v2.0.0-alpha", package = "openvm", default-features = false }
+openvm-circuit = { git = "https://github.com/openvm-org/openvm.git", tag = "v2.0.0-alpha", default-features = false }
+verify-stark = { git = "https://github.com/openvm-org/openvm.git", tag = "v2.0.0-alpha", default-features = false }
+sdk-v2 = { git = "https://github.com/openvm-org/openvm.git", tag = "v2.0.0-alpha", default-features = false }
+openvm-sdk-config = { git = "https://github.com/openvm-org/openvm.git", tag = "v2.0.0-alpha", default-features = false }
 
 # halo2
 halo2-axiom = { version = "0.5.0", default-features = false, optional = true }
