@@ -249,7 +249,7 @@ jobs:
           ssh-keyscan github.com >> ~/.ssh/known_hosts
 
       - name: Checkout openvm-eth (for guest program build)
-        run: git clone --depth=1 --branch="develop-new-hintstore" https://github.com/axiom-crypto/openvm-eth.git
+        run: git clone --depth=1 --branch="develop-new-hintstore" https://github.com/axiom-crypto/openvm-eth.git openvm-eth-v1
       - name: Checkout openvm (for scripts)
         run: git clone --depth=1 --branch="develop-v2.0.0-beta" https://github.com/openvm-org/openvm.git
       - name: Install openvm-prof
@@ -328,7 +328,7 @@ jobs:
             HOST_TAG="$(git rev-parse HEAD)-${CARGO_LOCK_HASH}"
 
             # guest only depends on guest program code and openvm guest dependencies
-            cd openvm-eth/bin/stateless-guest
+            cd openvm-eth-v1/bin/stateless-guest
             CARGO_LOCK_HASH=$(sha256sum Cargo.lock | cut -d' ' -f1 | cut -c1-8)
             # openvm-eth's commit SHA and guest program's Cargo.lock hash
             GUEST_TAG="$(git rev-parse HEAD)-${CARGO_LOCK_HASH}"
@@ -368,7 +368,7 @@ jobs:
           WORK_DIR=$(pwd)
           mkdir -p bin/reth-benchmark/elf
           # TODO: This is openvm-eth on develop-new-hintstore branch. Revert at CLI enabled in v2
-          cd openvm-eth/bin/stateless-guest
+          cd openvm-eth-v1/bin/stateless-guest
           GUEST_PROFILE=${{ steps.set-build-profiles.outputs.guest_profile }}
           RUSTFLAGS="" cargo openvm build --no-transpile --profile=$GUEST_PROFILE
           cp target/riscv32im-risc0-zkvm-elf/$GUEST_PROFILE/openvm-stateless-guest $WORK_DIR/bin/reth-benchmark/elf/
@@ -486,7 +486,7 @@ jobs:
             # Start GPU memory monitoring
             start_gpu_monitor "$GPU_LOG_FILE" 5
 
-            ./openvm-eth/ci/monitor_memory.sh ./run_benchmark.sh
+            ./ci/monitor_memory.sh ./run_benchmark.sh
 
             # Finalize GPU monitoring and capture peak
             finalize_gpu_monitor
