@@ -53,6 +53,7 @@ tracing-actix-web = "0.7"
 clap = "4.5.54"
 tower = "0.5"
 metrics = "0.24"
+zstd = { version = "0.13", default-features = false }
 
 # workspace
 openvm-mpt = { path = "./crates/mpt" }

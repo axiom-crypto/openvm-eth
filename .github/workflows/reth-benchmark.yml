@@ -6,33 +6,29 @@ on:
     # github workflow dispatch inputs has 10 input limit...
     # > you may only define up to 10 `inputs` for a `workflow_dispatch` event
     inputs:
-      # Default runner is not big enough for this
-      # https://aws.amazon.com/ec2/instance-types/
       instance_family:
         type: string
         required: false
-        description: The family of the instance, can be multiple ones concat with "+" e.g. r8g+r7g
+        description: The family of the instance, can be multiple ones concat with "+" e.g. g6+g5
         default: g6e.2xlarge
       block_number:
         type: number
         required: false
         description: Block number to run the benchmark on
         default: 23992138
-      app_log_blowup:
-        type: number
-        required: false
-        description: Application level log blowup
-        default: 1
+      # app_log_blowup:
+      #   type: number
+      #   required: false
+      #   description: Application level log blowup
+      #   default: 1
       leaf_log_blowup:
         type: number
         required: false
         description: Aggregation (leaf) level log blowup
-        default: 1
       internal_log_blowup:
         type: number
         required: false
         description: Internal level log blowup
-        default: 2
       # root_log_blowup:
       #   type: number
       #   required: false
@@ -43,13 +39,9 @@ on:
         required: false
         description: Running mode
         options:
-          - execute-host
-          - execute
-          - execute-metered
           - prove-app
           - prove-stark
-          - prove-evm
-          - generate-fixtures
+          # - prove-evm
         default: prove-stark
       profiling:
         type: choice
@@ -57,30 +49,35 @@ on:
         description: Profiling mode
         options:
           - none
-          - host # host profiling (samply, flamegraphs, etc)
-          - guest # guest profiling (circuit flamegraphs)
+          # - host # host profiling (samply, flamegraphs, etc)
+          # - guest # guest profiling (circuit flamegraphs)
           - nsys # nsys profiling (cuda)
         default: none
       max_segment_length:
         type: number
         required: false
         description: Max segment length for continuations
-        default: 4194304 # 2^22, but the main criteria should be segment_max_cells
-      segment_max_cells:
+        default: 4194304 # 2**22, but the main criteria should be segment_max_memory
+      segment_max_memory:
         type: string
         required: false
-        description: Total main trace cells (excluding memory)
-        default: "1200000000"
+        description: GPU memory soft limit for segmentation
+        default: "16106127360" # 15gb
+      app_l_skip:
+        type: number
+        required: false
+        description: Log of univariate skip domain size
+        default: 4
       # num_children_leaf:
       #   type: number
       #   required: false
       #   description: Number of app proofs that leaf verifier aggregates
       #   default: 1
-      num_children_internal:
-        type: number
-        required: false
-        description: Number of proofs that internal verifier aggregates
-        default: 3
+      # num_children_internal:
+      #   type: number
+      #   required: false
+      #   description: Number of proofs that internal verifier aggregates
+      #   default: 3
   workflow_call:
     inputs:
       ref:
@@ -90,7 +87,7 @@ on:
       instance_family:
         type: string
         required: false
-        description: The family of the instance, can be multiple ones concat with "+" e.g. r8g+r7g
+        description: The family of the instance, can be multiple ones concat with "+" e.g. g6+g5
         default: g6e.2xlarge
       memory_allocator:
         type: string
@@ -102,30 +99,28 @@ on:
         required: false
         description: Block number to run the benchmark on
         default: 23992138
-      app_log_blowup:
-        type: number
-        required: false
-        description: Application level log blowup
-        default: 1
+      # app_log_blowup:
+      #   type: number
+      #   required: false
+      #   description: Application level log blowup
+      #   default: 1
       leaf_log_blowup:
         type: number
         required: false
         description: Aggregation (leaf) level log blowup
-        default: 1
       internal_log_blowup:
         type: number
         required: false
         description: Internal level log blowup (only for e2e)
-        default: 2
-      root_log_blowup:
-        type: number
-        required: false
-        description: Root level log blowup (only for e2e)
-        default: 3
+      # root_log_blowup:
+      #   type: number
+      #   required: false
+      #   description: Root level log blowup (only for e2e)
+      #   default: 3
       mode:
         type: string
         required: false
-        description: Running mode, one of {execute, execute-metered, prove-app, prove-stark, prove-evm}
+        description: Running mode, one of {prove-app, prove-stark}
         default: prove-stark
       profiling:
         type: string
@@ -136,22 +131,26 @@ on:
         type: number
         required: false
         description: Max segment length for continuations
-        default: 4194304 # 2^22, but the main criteria should be segment_max_cells
-      segment_max_cells:
+        default: 4194304 # 2**22, but the main criteria should be segment_max_memory
+      segment_max_memory:
         type: string
         required: false
-        description: Total main trace cells (excluding memory)
-        default: "1200000000"
-      num_children_leaf:
+        default: "16106127360"
+      app_l_skip:
         type: number
         required: false
-        description: Number of app proofs that leaf verifier aggregates
-        default: 1
-      num_children_internal:
-        type: number
-        required: false
-        description: Number of proofs that internal verifier aggregates
-        default: 3
+        description: Log of univariate skip domain size
+        default: 4
+      # num_children_leaf:
+      #   type: number
+      #   required: false
+      #   description: Number of app proofs that leaf verifier aggregates
+      #   default: 1
+      # num_children_internal:
+      #   type: number
+      #   required: false
+      #   description: Number of proofs that internal verifier aggregates
+      #   default: 3
       tag:
         type: string
         required: false
@@ -165,37 +164,39 @@ on:
       metric_name:
         description: "Name of the metric"
         value: ${{ jobs.run-reth.outputs.metric_name }}
+      gpu_peak_memory_mib:
+        description: "Peak GPU memory usage in MiB"
+        value: ${{ jobs.run-reth.outputs.gpu_peak_memory_mib }}
 
 env:
-  S3_PATH: s3://axiom-public-data-sandbox-us-east-1/benchmark/github/results
+  S3_MD_PATH: s3://axiom-workflow-data-sandbox-us-east-1/benchmark/github/results
   S3_FIXTURE_PATH: s3://axiom-public-data-sandbox-us-east-1/benchmark/github/fixtures
-  S3_METRICS_PATH: s3://axiom-public-data-sandbox-us-east-1/benchmark/github/metrics
-  S3_FLAMEGRAPHS_PATH: s3://axiom-public-data-sandbox-us-east-1/benchmark/github/flamegraphs
-  S3_FLAMEGRAPHS_URL: https://axiom-public-data-sandbox-us-east-1.s3.us-east-1.amazonaws.com/benchmark/github/flamegraphs
+  S3_METRICS_PATH: s3://axiom-workflow-data-sandbox-us-east-1/benchmark/github/metrics
+  S3_PUBLIC_PATH_BASE: s3://axiom-public-data-sandbox-us-east-1/benchmark/github
+  S3_PUBLIC_URL_BASE: https://axiom-public-data-sandbox-us-east-1.s3.us-east-1.amazonaws.com/benchmark/github
   S3_SAMPLY_PROFILE_PATH: s3://axiom-public-data-sandbox-us-east-1/benchmark/github/samply
   CMD_ARGS: ""
   INPUT_ARGS: ""
   CARGO_NET_GIT_FETCH_WITH_CLI: "true"
+  BIN_NAME: openvm-reth-benchmark
 
 jobs:
   run-reth:
     name: Run Reth benchmark
     runs-on:
-      - runs-on
-      - run-id=${{ github.run_id }}
-      - family=${{ inputs.instance_family || github.event.inputs.instance_family }}
-      - disk=large
-      - tag=bench-reth-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}
-      - extras=s3-cache
-      - image=${{ startsWith(github.event.inputs.instance_family || inputs.instance_family, 'g') && 'ubuntu24-gpu-x64' || contains(github.event.inputs.instance_family || inputs.instance_family, 'g.') && 'ubuntu24-full-arm64' || 'ubuntu24-full-x64' }}
+      - runs-on=${{ github.run_id }}/family=${{ inputs.instance_family || github.event.inputs.instance_family }}/disk=large/tag=bench-reth-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}/extras=s3-cache/spot=false/image=${{ startsWith(github.event.inputs.instance_family || inputs.instance_family, 'g') && 'ubuntu24-gpu-x64' || contains(github.event.inputs.instance_family || inputs.instance_family, 'g.') && 'ubuntu24-full-arm64' || 'ubuntu24-full-x64' }}
     outputs:
       metric_name: ${{ steps.set-metric-name.outputs.name }}
+      gpu_memory_svg_url: ${{ steps.set-metric-name.outputs.memory_svg_url }}
+      gpu_peak_memory_mib: ${{ steps.report-gpu-memory.outputs.peak_memory_mib }}
     steps:
       - uses: runs-on/action@v2
       - uses: actions/checkout@v5
         with:
           ref: ${{ inputs.ref || github.head_ref || github.ref }}
       - uses: dtolnay/rust-toolchain@nightly
+        env:
+          RUSTUP_PERMIT_COPY_RENAME: "1"
       - uses: Swatinem/rust-cache@v2
         with:
           cache-on-failure: true
@@ -218,7 +219,10 @@ jobs:
           fi
 
       - name: Get current commit hash
-        run: echo "current_sha=$(git rev-parse HEAD)" >> $GITHUB_ENV
+        run: |
+          echo "current_sha=$(git rev-parse HEAD)" >> $GITHUB_ENV
+          # for add_metadata function
+          echo "CURRENT_SHA=$(git rev-parse HEAD)" >> $GITHUB_ENV
 
       - name: Set metric name
         id: set-metric-name
@@ -227,62 +231,87 @@ jobs:
           input_hash=$(echo $input_json_str | sha256sum | cut -d' ' -f1)
           METRIC_NAME=reth-$current_sha-${input_hash}
           echo "METRIC_NAME=${METRIC_NAME}" >> $GITHUB_ENV
-          mkdir -p .bench_metrics/${METRIC_NAME}
-          METRIC_PATH=".bench_metrics/${METRIC_NAME}"
+          METRIC_PATH=".bench_metrics/${METRIC_NAME}.json"
           echo "METRIC_PATH=${METRIC_PATH}" >> $GITHUB_ENV
           echo "name=${METRIC_NAME}" >> $GITHUB_OUTPUT
+          # depends on add_metadata util function and openvm-prof file naming
+          GPU_MEMORY_SVG_URL="${S3_PUBLIC_URL_BASE}/charts/${CURRENT_SHA}/${METRIC_NAME}.memory.svg"
+          echo "memory_svg_url=${GPU_MEMORY_SVG_URL}" >> $GITHUB_OUTPUT
+      - name: Load SSH key
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: |
+            ${{ secrets.GH_ACTIONS_DEPLOY_PRIVATE_KEY }}
+      # needed only for patching
+      - name: Ensure GitHub.com is a known host
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan github.com >> ~/.ssh/known_hosts
+
+      - name: Checkout openvm-eth (for guest program build)
+        run: git clone --depth=1 --branch="develop-new-hintstore" https://github.com/axiom-crypto/openvm-eth.git openvm-eth-v1
+      - name: Checkout openvm (for scripts)
+        run: git clone --depth=1 --branch="develop-v2.0.0-beta" https://github.com/openvm-org/openvm.git
+      - name: Install openvm-prof
+        working-directory: openvm/crates/prof
+        run: cargo install --force --profile=dev --path .
+      - name: Install architecture specific tools
+        run: |
+          source openvm/ci/scripts/utils.sh
+          install_s5cmd
+          sudo apt update && sudo apt install -y gnuplot
+
+      # - name: Setup halo2
+      #   if: ${{ (github.event.inputs.mode == 'prove-evm') || (inputs.mode == 'prove-evm') }}
+      #   run: |
+      #     bash ./ci/trusted_setup_s3.sh
+      #     PARAMS_DIR=$(pwd)/params
+      #     echo "PARAMS_DIR=$PARAMS_DIR" >> $GITHUB_ENV
+      #     OPTIONAL_ARGS="--kzg-params-dir $PARAMS_DIR --halo2-outer-k 22"
+      #     echo "OPTIONAL_ARGS=${OPTIONAL_ARGS}" >> $GITHUB_ENV
+
+      - name: Verify GPU setup
+        run: |
+          nvidia-smi
+          nvidia-smi -L
+          nvcc --version
 
       - name: Set build profiles
         id: set-build-profiles
         run: |
           GUEST_PROFILE="release"
           HOST_PROFILE="maxperf"
-          if [[ "${{ inputs.profiling || github.event.inputs.profiling }}" == "guest" ]]; then
-            GUEST_PROFILE="profiling"
-            HOST_PROFILE="profiling"
-          fi
-          if [[ "${{ inputs.profiling || github.event.inputs.profiling }}" == "host" ]]; then
-            HOST_PROFILE="profiling"
-          fi
           echo "guest_profile=${GUEST_PROFILE}" >> $GITHUB_OUTPUT
           echo "host_profile=${HOST_PROFILE}" >> $GITHUB_OUTPUT
-
       - name: Set build args
         id: set-build-args
         run: |
-          FEATURES="metrics,unprotected,${{ inputs.memory_allocator || github.event.inputs.memory_allocator || 'jemalloc' }}"
-          if [[ "${{ inputs.profiling || github.event.inputs.profiling }}" == "guest" ]]; then
-            FEATURES="${FEATURES},perf-metrics"
-          fi
-          if [[ ! "${{ inputs.instance_family || github.event.inputs.instance_family }}" =~ ^g ]]; then
-            JEMALLOC_SYS_WITH_MALLOC_CONF="retain:true,background_thread:true,metadata_thp:always,thp:always,dirty_decay_ms:-1,muzzy_decay_ms:-1,abort_conf:true"
-          else
+          FEATURES="parallel,metrics,aot,unprotected"
+          FEATURES="${FEATURES},${{ inputs.memory_allocator || github.event.inputs.memory_allocator || 'jemalloc' }}"
+          if [[ "${{ inputs.instance_family || github.event.inputs.instance_family }}" =~ ^g ]]; then
             FEATURES="${FEATURES},cuda"
-            JEMALLOC_SYS_WITH_MALLOC_CONF="retain:true,background_thread:true,metadata_thp:always,thp:always,dirty_decay_ms:10000,muzzy_decay_ms:10000,abort_conf:true"
           fi
-          if [[ "${{ inputs.mode || github.event.inputs.mode }}" == "prove-evm" ]]; then
-            FEATURES="${FEATURES},evm-verify"
-          fi
+
           arch=$(uname -m)
           case $arch in
             arm64|aarch64)
               RUSTFLAGS="-Ctarget-cpu=native"
-              FEATURES="${FEATURES},tco"
               ;;
             x86_64|amd64)
               RUSTFLAGS="-Ctarget-cpu=native"
-              FEATURES="${FEATURES},aot,halo2-asm"
+              # FEATURES="${FEATURES},halo2-asm"
               ;;
             *)
               echo "Unsupported architecture: $arch"
               exit 1
               ;;
           esac
-          if [[ "${{ inputs.profiling || github.event.inputs.profiling }}" == "host" ]]; then
-            RUSTFLAGS="${RUSTFLAGS} -C force-frame-pointers=yes"
+
+          if [[ "${{ inputs.profiling || github.event.inputs.profiling }}" != "nsys" ]]; then
+            # Jemalloc sometimes causes nsys to hang forever (unknown reason)
+            JEMALLOC_SYS_WITH_MALLOC_CONF="retain:true,background_thread:true,metadata_thp:always,thp:always,dirty_decay_ms:10000,muzzy_decay_ms:10000,abort_conf:true"
+            echo "JEMALLOC_SYS_WITH_MALLOC_CONF=${JEMALLOC_SYS_WITH_MALLOC_CONF}" >> $GITHUB_ENV
           fi
-          echo "RUSTFLAGS=${RUSTFLAGS}" >> $GITHUB_ENV
-          echo "JEMALLOC_SYS_WITH_MALLOC_CONF=${JEMALLOC_SYS_WITH_MALLOC_CONF}" >> $GITHUB_ENV
           echo "FEATURES=${FEATURES}" >> $GITHUB_ENV
 
       - name: Set cache keys
@@ -290,69 +319,29 @@ jobs:
         run: |
           arch=$(uname -m)
           # Use inputs.tag if defined, otherwise use current commit SHA
-          TAG="${{ inputs.tag || env.current_sha }}"
+          if [[ -n "${{ inputs.tag }}" ]]; then
+            GUEST_TAG="${{ inputs.tag }}"
+            HOST_TAG="${{ inputs.tag }}"
+          else
+            # host depends on GPU repo
+            CARGO_LOCK_HASH=$(sha256sum Cargo.lock | cut -d' ' -f1 | cut -c1-8)
+            HOST_TAG="$(git rev-parse HEAD)-${CARGO_LOCK_HASH}"
+
+            # guest only depends on guest program code and openvm guest dependencies
+            cd openvm-eth-v1/bin/stateless-guest
+            CARGO_LOCK_HASH=$(sha256sum Cargo.lock | cut -d' ' -f1 | cut -c1-8)
+            # openvm-eth's commit SHA and guest program's Cargo.lock hash
+            GUEST_TAG="$(git rev-parse HEAD)-${CARGO_LOCK_HASH}"
+          fi
+
           GUEST_PROFILE=${{ steps.set-build-profiles.outputs.guest_profile }}
-          echo "elf_cache_key=elf-${TAG}-${arch}-${GUEST_PROFILE}" >> $GITHUB_OUTPUT
+          echo "elf_cache_key=elf-${GUEST_TAG}-${arch}-${GUEST_PROFILE}" >> $GITHUB_OUTPUT
+
           RUSTFLAGS_HASH=$(echo "${RUSTFLAGS}" | sha256sum | cut -d' ' -f1 | head -c8)
           JEMALLOC_CONF_HASH=$(echo "${JEMALLOC_SYS_WITH_MALLOC_CONF}" | sha256sum | cut -d' ' -f1 | head -c8)
           FEATURES_HASH=$(echo "${FEATURES}" | sha256sum | cut -d' ' -f1 | head -c8)
           HOST_PROFILE=${{ steps.set-build-profiles.outputs.host_profile }}
-          echo "host_cache_key=host-${TAG}-${arch}-${HOST_PROFILE}-${RUSTFLAGS_HASH}-${JEMALLOC_CONF_HASH}-${FEATURES_HASH}" >> $GITHUB_OUTPUT
-
-      - name: Load SSH key
-        uses: webfactory/ssh-agent@v0.9.0
-        with:
-          ssh-private-key: |
-            ${{ secrets.GH_ACTIONS_DEPLOY_PRIVATE_KEY }}
-
-      - name: Get openvm REV
-        id: get-openvm-rev
-        run: |
-          RESULT=$(cargo metadata --format-version=1 | jq -r '.packages[] | select(.name=="openvm-sdk") | .source | split("#") | .[1]')
-          echo "result=${RESULT}" >> "$GITHUB_OUTPUT"
-
-      - name: Install openvm-prof
-        run: |
-          cargo install --git https://github.com/openvm-org/openvm.git --rev ${{ steps.get-openvm-rev.outputs.result }} --profile=dev --force openvm-prof
-
-      - name: Checkout openvm (for scripts)
-        run: |
-          git clone --rev ${{ steps.get-openvm-rev.outputs.result }} --depth=1 https://github.com/openvm-org/openvm.git
-
-      - name: Install architecture specific tools
-        run: |
-          rustup install nightly-2025-08-05
-          source openvm/ci/scripts/utils.sh
-          install_s5cmd
-          sudo apt update
-          sudo apt install gnuplot
-          sudo apt install -y linux-tools-common linux-tools-generic linux-tools-$(uname -r) || \
-            sudo apt install -y linux-tools-aws linux-cloud-tools-aws || true
-
-          # Workaround for https://bugs.launchpad.net/ubuntu/+source/linux-hwe-6.14/+bug/2117159
-          if ! command -v perf &> /dev/null || ! perf --version &> /dev/null; then
-            echo "Applying workaround for missing perf in HWE 6.14 packages..."
-            # Find available perf binary
-            PERF_PATH=$(find /usr/lib/linux-tools* -name perf -executable 2>/dev/null | head -n1)
-            if [ -n "$PERF_PATH" ]; then
-              KERNEL_VERSION=$(uname -r)
-              TARGET_DIR="/usr/lib/linux-tools/${KERNEL_VERSION}"
-              sudo mkdir -p "$TARGET_DIR"
-              sudo ln -sf "$PERF_PATH" "$TARGET_DIR/perf"
-              echo "Symlinked $PERF_PATH to $TARGET_DIR/perf"
-            else
-              echo "Warning: Could not find any perf binary to symlink"
-            fi
-          fi
-
-      - name: Setup halo2
-        if: ${{ (github.event.inputs.mode == 'prove-evm') || (inputs.mode == 'prove-evm') }}
-        run: |
-          bash openvm/extensions/native/recursion/trusted_setup_s3.sh
-          PARAMS_DIR="$HOME/.openvm/params/"
-          echo "PARAMS_DIR=$PARAMS_DIR" >> $GITHUB_ENV
-          OPTIONAL_ARGS="--kzg-params-dir $PARAMS_DIR --halo2-outer-k 22"
-          echo "OPTIONAL_ARGS=${OPTIONAL_ARGS}" >> $GITHUB_ENV
+          echo "host_cache_key=host-${HOST_TAG}-${arch}-${HOST_PROFILE}-${RUSTFLAGS_HASH}-${JEMALLOC_CONF_HASH}-${FEATURES_HASH}" >> $GITHUB_OUTPUT
 
       - name: Restore Guest ELF from cache
         id: cache-guest-elf-restore
@@ -361,17 +350,11 @@ jobs:
           path: bin/reth-benchmark/elf/openvm-stateless-guest
           key: ${{ steps.set-cache-keys.outputs.elf_cache_key }}
 
-      - name: Restore cargo-openvm from cache
-        id: cache-cargo-openvm-restore
-        uses: runs-on/cache/restore@v4
-        with:
-          path: ~/.cargo/bin/cargo-openvm
-          key: cargo-openvm-${{ steps.get-openvm-rev.outputs.result }}-${{ runner.os }}-${{ runner.arch }}
-
       - name: Install cargo-openvm
         if: steps.cache-guest-elf-restore.outputs.cache-hit != 'true' && steps.cache-cargo-openvm-restore.outputs.cache-hit != 'true'
         run: |
-          cargo install --git https://github.com/openvm-org/openvm.git --rev ${{ steps.get-openvm-rev.outputs.result }} --locked --force cargo-openvm
+          # Build using v1 cargo-openvm until v2 CLI is stable
+          cargo install --git https://github.com/openvm-org/openvm.git --branch "main" --locked --force cargo-openvm
 
       - name: Save cargo-openvm to cache
         if: steps.cache-guest-elf-restore.outputs.cache-hit != 'true' && steps.cache-cargo-openvm-restore.outputs.cache-hit != 'true'
@@ -381,12 +364,14 @@ jobs:
           key: ${{ steps.cache-cargo-openvm-restore.outputs.cache-primary-key }}
       - name: Build Guest ELF
         if: steps.cache-guest-elf-restore.outputs.cache-hit != 'true'
-        working-directory: bin/stateless-guest
         run: |
+          WORK_DIR=$(pwd)
+          mkdir -p bin/reth-benchmark/elf
+          # TODO: This is openvm-eth on develop-new-hintstore branch. Revert at CLI enabled in v2
+          cd openvm-eth-v1/bin/stateless-guest
           GUEST_PROFILE=${{ steps.set-build-profiles.outputs.guest_profile }}
           RUSTFLAGS="" cargo openvm build --no-transpile --profile=$GUEST_PROFILE
-          mkdir -p ../reth-benchmark/elf
-          cp target/riscv32im-risc0-zkvm-elf/$GUEST_PROFILE/openvm-stateless-guest ../reth-benchmark/elf/
+          cp target/riscv32im-risc0-zkvm-elf/$GUEST_PROFILE/openvm-stateless-guest $WORK_DIR/bin/reth-benchmark/elf/
 
       - name: Save Guest ELF to cache
         if: steps.cache-guest-elf-restore.outputs.cache-hit != 'true'
@@ -399,114 +384,135 @@ jobs:
         id: cache-host-binary-restore
         uses: runs-on/cache/restore@v4
         with:
-          path: target/${{ steps.set-build-profiles.outputs.host_profile }}/openvm-reth-benchmark
+          path: target/${{ steps.set-build-profiles.outputs.host_profile }}/${{ env.BIN_NAME }}
           key: ${{ steps.set-cache-keys.outputs.host_cache_key }}
 
       - name: Build Host Binary
         if: steps.cache-host-binary-restore.outputs.cache-hit != 'true'
+        working-directory: bin/reth-benchmark
         run: |
           export JEMALLOC_SYS_WITH_MALLOC_CONF=${JEMALLOC_SYS_WITH_MALLOC_CONF}
           HOST_PROFILE=${{ steps.set-build-profiles.outputs.host_profile }}
           TOOLCHAIN="+nightly-2025-08-19"
-          RUSTFLAGS=$RUSTFLAGS cargo $TOOLCHAIN build --bin openvm-reth-benchmark --profile=$HOST_PROFILE --no-default-features --features=$FEATURES
+          RUSTFLAGS=$RUSTFLAGS cargo $TOOLCHAIN build --bin ${{ env.BIN_NAME }} --profile=$HOST_PROFILE --no-default-features --features=$FEATURES
 
       - name: Save Host Binary to cache
         if: steps.cache-host-binary-restore.outputs.cache-hit != 'true'
         uses: runs-on/cache/save@v4
         with:
-          path: target/${{ steps.set-build-profiles.outputs.host_profile }}/openvm-reth-benchmark
+          path: target/${{ steps.set-build-profiles.outputs.host_profile }}/${{ env.BIN_NAME }}
           key: ${{ steps.cache-host-binary-restore.outputs.cache-primary-key }}
 
       - name: Set up run benchmark script
         run: |
           mkdir -p rpc-cache
           mkdir -p .bench_metrics
-          mkdir -p fixtures
           RPC_1=${{ secrets.RPC_URL_1 }}
           MODE=${{ inputs.mode || github.event.inputs.mode }}
           BLOCK_NUMBER=${{ inputs.block_number || github.event.inputs.block_number }}
-          echo "BLOCK_NUMBER=${BLOCK_NUMBER}" >> $GITHUB_ENV
-          APP_LOG_BLOWUP=${{ inputs.app_log_blowup || github.event.inputs.app_log_blowup }}
-          LEAF_LOG_BLOWUP=${{ inputs.leaf_log_blowup || github.event.inputs.leaf_log_blowup }}
-          echo "APP_LOG_BLOWUP=${APP_LOG_BLOWUP}" >> $GITHUB_ENV
-          echo "LEAF_LOG_BLOWUP=${LEAF_LOG_BLOWUP}" >> $GITHUB_ENV
           HOST_PROFILE=${{ steps.set-build-profiles.outputs.host_profile }}
-          if [[ "${{ inputs.profiling || github.event.inputs.profiling }}" == "guest" ]]; then
-            OPTIONAL_ARGS="${OPTIONAL_ARGS} --profiling"
+          LEAF_LOG_BLOWUP="${{ inputs.leaf_log_blowup || github.event.inputs.leaf_log_blowup }}"
+          INTERNAL_LOG_BLOWUP="${{ inputs.internal_log_blowup || github.event.inputs.internal_log_blowup }}"
+          if [[ -n $LEAF_LOG_BLOWUP ]]; then
+            OPTIONAL_ARGS="$OPTIONAL_ARGS --leaf-log-blowup $LEAF_LOG_BLOWUP"
           fi
-          if [[ "${{ inputs.mode || github.event.inputs.mode }}" == "generate-fixtures" ]]; then
-            FIXTURES_PATH="--fixtures-path ./fixtures/"
+          if [[ -n $INTERNAL_LOG_BLOWUP ]]; then
+            OPTIONAL_ARGS="$OPTIONAL_ARGS --internal-log-blowup $INTERNAL_LOG_BLOWUP"
           fi
+          # TODO: make these configurable again when needed:
+          # OPTIONAL_ARGS="$OPTIONAL_ARGS --app-log-blowup <value>"
+          # OPTIONAL_ARGS="$OPTIONAL_ARGS --root-log-blowup <value>"
+          # OPTIONAL_ARGS="$OPTIONAL_ARGS --num-children-leaf <value>"
+          # OPTIONAL_ARGS="$OPTIONAL_ARGS --num-children-internal <value>"
           cat > run_benchmark.sh <<EOF
           #!/bin/bash
-          ./target/$HOST_PROFILE/openvm-reth-benchmark \
+          /usr/bin/time -v ./target/$HOST_PROFILE/${{ env.BIN_NAME }} \
             --mode $MODE --block-number $BLOCK_NUMBER --rpc-url $RPC_1 --cache-dir rpc-cache \
-            --app-log-blowup ${{ inputs.app_log_blowup || github.event.inputs.app_log_blowup }} \
-            --leaf-log-blowup ${{ inputs.leaf_log_blowup || github.event.inputs.leaf_log_blowup }} \
-            --internal-log-blowup ${{ inputs.internal_log_blowup || github.event.inputs.internal_log_blowup || 2 }} \
-            --root-log-blowup ${{ inputs.root_log_blowup || github.event.inputs.root_log_blowup || 3 }} \
             --max-segment-length ${{ inputs.max_segment_length || github.event.inputs.max_segment_length }} \
-            --segment-max-cells ${{ inputs.segment_max_cells || github.event.inputs.segment_max_cells }} \
-            --num-children-leaf ${{ inputs.num_children_leaf || github.event.inputs.num_children_leaf || 1 }} \
-            --num-children-internal ${{ inputs.num_children_internal || github.event.inputs.num_children_internal }} \
-            $OPTIONAL_ARGS $FIXTURES_PATH
+            --segment-max-memory ${{ inputs.segment_max_memory || github.event.inputs.segment_max_memory }} \
+            --app-l-skip ${{ inputs.app_l_skip || github.event.inputs.app_l_skip || 4 }} \
+            $OPTIONAL_ARGS
           EOF
           chmod +x run_benchmark.sh
 
       - name: Run benchmark
+        id: run-benchmark
         run: |
-          VPMM_PAGE_SIZE=$((4<<20))
-          MAX_SEGMENT_LENGTH=${{ inputs.max_segment_length || github.event.inputs.max_segment_length }}
-          VPMM_PAGES=$((12 * $MAX_SEGMENT_LENGTH/ $VPMM_PAGE_SIZE))
-          export VPMM_PAGES=$VPMM_PAGES
-          export VPMM_PAGE_SIZE=$VPMM_PAGE_SIZE
+          MAX_MEMORY=${{ inputs.segment_max_memory || github.event.inputs.segment_max_memory }}
+          export VPMM_PAGE_SIZE=$((4<<20))
+          export VPMM_PAGES=$((MAX_MEMORY / VPMM_PAGE_SIZE))
           export JEMALLOC_SYS_WITH_MALLOC_CONF=${JEMALLOC_SYS_WITH_MALLOC_CONF}
           export RUST_LOG="info,p3_=warn"
-          export OUTPUT_PATH=${METRIC_PATH}/metrics.json
-          if [[ "${{ inputs.profiling || github.event.inputs.profiling }}" == "guest" ]]; then
-            export GUEST_SYMBOLS_PATH=${METRIC_PATH}/guest.syms
-          fi
+          export OUTPUT_PATH=${METRIC_PATH}
 
-          if [[ "${{ inputs.profiling || github.event.inputs.profiling }}" == "host" ]]; then
-            echo -1 | sudo tee /proc/sys/kernel/perf_event_paranoid
-            echo 0 | sudo tee /proc/sys/kernel/kptr_restrict
+          # Source GPU monitoring utilities
+          source "$GITHUB_WORKSPACE/scripts/gpu_monitor.sh"
+          GPU_LOG_FILE="gpu_memory_usage.csv"
 
-            # Set sampling frequency based on mode
-            MODE="${{ inputs.mode || github.event.inputs.mode }}"
-            if [[ "$MODE" == "execute-host" || "$MODE" == "execute" || "$MODE" == "execute-metered" ]]; then
-              PERF_FREQ=4000
-            else
-              PERF_FREQ=100
-            fi
-
-            perf --version
-            perf record -F $PERF_FREQ --call-graph=fp -g -o perf.data -- ./run_benchmark.sh
-          elif [[ "${{ inputs.profiling || github.event.inputs.profiling }}" == "nsys" ]]; then
+          if [[ "${{ inputs.profiling || github.event.inputs.profiling }}" == "nsys" ]]; then
             nsys profile --trace=cuda,osrt,nvtx \
              --cuda-memory-usage=true \
              --force-overwrite=true \
-             --stats=true \
              -o reth.nsys-rep \
              ./run_benchmark.sh
+            echo "=== CUDA GPU Kernel Summary ==="
+            nsys stats --report cuda_gpu_kern_sum reth.nsys-rep
+            echo "=== CUDA Memory Time Summary ==="
+            nsys stats --report cuda_gpu_mem_time_sum reth.nsys-rep
+            echo "=== CUDA Memory Size Summary ==="
+            nsys stats --report cuda_gpu_mem_size_sum reth.nsys-rep
+            echo "=== NCU Top Kernel Analysis ==="
+            TOP_KERNEL=$(nsys stats --report cuda_gpu_kern_sum reth.nsys-rep 2>/dev/null | \
+              awk '/--------/{getline; print; exit}' | \
+              sed -E 's/.*::([a-zA-Z_][a-zA-Z0-9_]*)[<(].*/\1/; t; s/.*[[:space:]]([a-zA-Z_][a-zA-Z0-9_]*)[<(].*/\1/')
+            echo "Top kernel: $TOP_KERNEL"
+
+            if [[ -n "$TOP_KERNEL" ]]; then
+              sudo env PATH=$PATH ncu --target-processes all \
+                --kernel-name "$TOP_KERNEL" \
+                -f -o reth.ncu-rep \
+                --launch-skip 4 \
+                --launch-count 1 \
+                --set full \
+                ./run_benchmark.sh
+              echo "=== NCU Kernel Report ==="
+              ncu -i reth.ncu-rep
+            else
+              echo "Warning: Could not extract top kernel name"
+            fi
+            # nsys has its own memory tracking, set peak to 0
+            echo "GPU_PEAK_MEMORY_MIB=0" >> $GITHUB_ENV
           else
+            # Start GPU memory monitoring
+            start_gpu_monitor "$GPU_LOG_FILE" 5
+
             ./ci/monitor_memory.sh ./run_benchmark.sh
+
+            # Finalize GPU monitoring and capture peak
+            finalize_gpu_monitor
+            echo "GPU_PEAK_MEMORY_MIB=${GPU_PEAK_MEMORY}" >> $GITHUB_ENV
+            echo "GPU_LOG_FILE=${GPU_LOG_FILE}" >> $GITHUB_ENV
+
             echo "MEM_USAGE_PATH=memory_usage.png" >> $GITHUB_ENV
           fi
 
-      - name: Upload metric artifacts
-        id: upload-metric-artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ steps.set-metric-name.outputs.name }}
-          path: ${{ env.METRIC_PATH }}
-          retention-days: 1
+      - name: Report GPU peak memory
+        id: report-gpu-memory
+        run: |
+          echo "peak_memory_mib=${GPU_PEAK_MEMORY_MIB}" >> $GITHUB_OUTPUT
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### GPU Memory" >> $GITHUB_STEP_SUMMARY
+          echo "Peak GPU memory usage: **${GPU_PEAK_MEMORY_MIB} MiB**" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
 
       - name: Upload memory usage graph
         if: ${{ (inputs.profiling || github.event.inputs.profiling) == 'none' }}
         uses: actions/upload-artifact@v4
         with:
           name: ${{ steps.set-metric-name.outputs.name }}-memory-usage
-          path: ${{ env.MEM_USAGE_PATH }}
+          path: |
+            ${{ env.MEM_USAGE_PATH }}
+            ${{ env.GPU_LOG_FILE }}
           retention-days: 1
 
       - name: Upload nsys report
@@ -518,74 +524,13 @@ jobs:
           retention-days: 1
 
       - name: Upload Benchmark Metrics
-        run: |
-          s5cmd cp ${METRIC_PATH}/metrics.json ${{ env.S3_METRICS_PATH }}/${METRIC_NAME}/metrics.json
-          if [[ "${{ inputs.profiling || github.event.inputs.profiling }}" == "guest" ]]; then
-            s5cmd cp ${METRIC_PATH}/guest.syms ${{ env.S3_METRICS_PATH }}/${METRIC_NAME}/guest.syms
-          fi
+        run: s5cmd cp ${METRIC_PATH} ${{ env.S3_METRICS_PATH }}/${METRIC_NAME}.json
 
       - name: Generate markdown
         run: |
-          openvm-prof --json-paths ${METRIC_PATH}/metrics.json
-          MD_PATH=${METRIC_PATH}/metrics.md
+          openvm-prof --json-paths $METRIC_PATH --num-devices 16 --proofs-per-device 1
+          MD_PATH=${METRIC_PATH%.json}.md
           echo "MD_PATH=${MD_PATH}" >> $GITHUB_ENV
-
-      - name: Generate circuit flamegraphs
-        if: ${{ inputs.profiling == 'guest' || github.event.inputs.profiling == 'guest' }}
-        run: |
-          cargo install inferno
-
-          python3 openvm/ci/scripts/metric_unify/flamegraph.py ${METRIC_PATH}/metrics.json --guest-symbols ${METRIC_PATH}/guest.syms
-          s5cmd cp '.bench_metrics/flamegraphs/*.svg' "${{ env.S3_FLAMEGRAPHS_PATH }}/${METRIC_NAME}/"
-
-          echo "" >> $MD_PATH
-          echo "<details>" >> $MD_PATH
-          echo "<summary>Circuit Flamegraphs</summary>" >> $MD_PATH
-          echo "" >> $MD_PATH
-          for file in .bench_metrics/flamegraphs/*.svg; do
-            filename=$(basename "$file")
-            flamegraph_url=${{ env.S3_FLAMEGRAPHS_URL }}/${METRIC_NAME}/${filename}
-            echo "[![]($flamegraph_url)]($flamegraph_url)" >> $MD_PATH
-          done
-          rm -f .bench_metrics/flamegraphs/*.svg
-          echo "" >> $MD_PATH
-          echo "</details>" >> $MD_PATH
-          echo "" >> $MD_PATH
-
-      - name: Generate samply profile artifacts
-        if: ${{ inputs.profiling == 'host' || github.event.inputs.profiling == 'host' }}
-        run: |
-          cargo install --git https://github.com/mstange/samply.git samply --force
-
-          mkdir -p samply_profile
-          SAMPLY_PROFILE_PATH=samply_profile
-
-          samply import perf.data --presymbolicate --save-only --output $SAMPLY_PROFILE_PATH/profile.json.gz
-          echo "SAMPLY_PROFILE_PATH=${SAMPLY_PROFILE_PATH}" >> $GITHUB_ENV
-
-          s5cmd cp $SAMPLY_PROFILE_PATH/profile.json.gz ${{ env.S3_SAMPLY_PROFILE_PATH }}/${METRIC_NAME}/profile.json.gz
-
-          MODE=${{ inputs.mode || github.event.inputs.mode }}
-          if [[ "$MODE" == "execute-host" || "$MODE" == "execute" || "$MODE" == "execute-metered" ]]; then
-            FIREFOX_PROFILER_TOKEN=$(curl 'https://api.profiler.firefox.com/compressed-store' -X POST -H 'Accept: application/vnd.firefox-profiler+json;version=1.0' --data-binary @"$SAMPLY_PROFILE_PATH/profile.json.gz" | python3 -c "import sys,base64,json; t=sys.stdin.read().strip().split('.')[1]; t+='='*(4-len(t)%4)if len(t)%4 else''; print(json.loads(base64.urlsafe_b64decode(t))['profileToken'])")
-
-            if [ -n "$FIREFOX_PROFILER_TOKEN" ]; then
-              FIREFOX_PROFILER_URL="https://profiler.firefox.com/public/$FIREFOX_PROFILER_TOKEN"
-              echo "FIREFOX_PROFILER_URL=$FIREFOX_PROFILER_URL" >> $GITHUB_ENV
-              echo "" >> $MD_PATH
-              echo "**[Firefox Profiler]($FIREFOX_PROFILER_URL)**" >> $MD_PATH
-            fi
-          fi
-          echo "S3_SAMPLY_PROFILE_PATH=${S3_SAMPLY_PROFILE_PATH}" >> $GITHUB_ENV
-
-      - name: Upload samply profile artifacts
-        if: ${{ inputs.profiling == 'host' || github.event.inputs.profiling == 'host' }}
-        id: upload-samply-profile-artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ steps.set-metric-name.outputs.name }}-samply-profile
-          path: ${{ env.SAMPLY_PROFILE_PATH }}
-          retention-days: 1
 
       - name: Add benchmark metadata to markdown
         run: |
@@ -601,16 +546,37 @@ jobs:
             $COMMIT_URL \
             $BENCHMARK_WORKFLOW_URL
 
+          # Add GPU peak memory to the markdown if available
+          if [[ -n "${GPU_PEAK_MEMORY_MIB}" && "${GPU_PEAK_MEMORY_MIB}" != "0" ]]; then
+            echo "" >> $MD_PATH
+            echo "**Peak GPU Memory (nvidia-smi):** ${GPU_PEAK_MEMORY_MIB} MiB" >> $MD_PATH
+          fi
+
       - name: Upload markdown
         run: |
-          S3_MD_PATH="${{ env.S3_PATH }}/${METRIC_NAME}.md"
+          S3_MD_PATH="${{ env.S3_MD_PATH }}/${METRIC_NAME}.md"
           s5cmd cp $MD_PATH $S3_MD_PATH
-          echo "S3_MD_PATH=${S3_MD_PATH}" >> $GITHUB_ENV
 
-      - name: Upload fixtures
-        if: ${{ inputs.mode == 'generate-fixtures' || github.event.inputs.mode == 'generate-fixtures' }}
-        run: |
-          s5cmd cp "./fixtures/*" "${S3_FIXTURE_PATH}/reth-app${APP_LOG_BLOWUP}-leaf${LEAF_LOG_BLOWUP}-${BLOCK_NUMBER}/"
+          DETAILED_MD_PATH=${MD_PATH%.md}.detailed.md
+          s5cmd cp $DETAILED_MD_PATH "${{ env.S3_MD_PATH }}/${METRIC_NAME}.detailed.md"
+
+          GPU_MEMORY_SVG_PATH=${MD_PATH%.md}.memory.svg
+
+          echo "S3_MD_PATH=${S3_MD_PATH}" >> $GITHUB_ENV
+          echo "DETAILED_MD_PATH=${DETAILED_MD_PATH}" >> $GITHUB_ENV
+          echo "GPU_MEMORY_SVG_PATH=${GPU_MEMORY_SVG_PATH}" >> $GITHUB_ENV
+
+      - name: Upload metric artifacts
+        id: upload-metric-artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.set-metric-name.outputs.name }}
+          path: |
+            ${{ env.METRIC_PATH }}
+            ${{ env.DETAILED_MD_PATH }}
+            ${{ env.GPU_MEMORY_SVG_PATH }}
+          if-no-files-found: warn
+          retention-days: 1
 
       ### Update gh-pages
       - uses: actions/checkout@v4
@@ -655,7 +621,7 @@ jobs:
 
       - name: Update summary with results
         run: |
-          RESULT_URL="https://github.com/axiom-crypto/openvm-reth-benchmark/blob/gh-pages/${GH_PAGES_PATH}/${METRIC_NAME}.md"
+          RESULT_URL="https://github.com/${{ github.repository }}/blob/gh-pages/${GH_PAGES_PATH}/${METRIC_NAME}.md"
           echo "### Results" >> $GITHUB_STEP_SUMMARY
           echo "[${METRIC_NAME}](${RESULT_URL})" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
@@ -663,4 +629,4 @@ jobs:
 
       - name: Path to result
         run: |
-          echo "https://github.com/axiom-crypto/openvm-reth-benchmark/blob/gh-pages/${GH_PAGES_PATH}/${METRIC_NAME}.md"
+          echo "https://github.com/${{ github.repository }}/blob/gh-pages/${GH_PAGES_PATH}/${METRIC_NAME}.md"
