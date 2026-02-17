@@ -364,12 +364,14 @@ jobs:
           key: ${{ steps.cache-cargo-openvm-restore.outputs.cache-primary-key }}
       - name: Build Guest ELF
         if: steps.cache-guest-elf-restore.outputs.cache-hit != 'true'
-        working-directory: bin/stateless-guest
         run: |
+          WORK_DIR=$(pwd)
+          mkdir -p bin/reth-benchmark/elf
+          # TODO: This is openvm-eth on develop-new-hintstore branch. Revert at CLI enabled in v2
+          cd openvm-eth/bin/stateless-guest
           GUEST_PROFILE=${{ steps.set-build-profiles.outputs.guest_profile }}
           RUSTFLAGS="" cargo openvm build --no-transpile --profile=$GUEST_PROFILE
-          mkdir -p ../reth-benchmark/elf
-          cp target/riscv32im-risc0-zkvm-elf/$GUEST_PROFILE/openvm-stateless-guest ../reth-benchmark/elf/
+          cp target/riscv32im-risc0-zkvm-elf/$GUEST_PROFILE/openvm-stateless-guest $WORK_DIR/bin/reth-benchmark/elf/
 
       - name: Save Guest ELF to cache
         if: steps.cache-guest-elf-restore.outputs.cache-hit != 'true'
