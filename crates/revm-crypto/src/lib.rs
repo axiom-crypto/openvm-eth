@@ -13,7 +13,7 @@ use openvm_ecc_guest::{
     weierstrass::{IntrinsicCurve, WeierstrassPoint},
     AffinePoint, Group,
 };
-use openvm_k256::ecdsa::{RecoveryId, Signature, VerifyingKey};
+use openvm_k256::ecdsa::{signature::hazmat::PrehashVerifier, RecoveryId, Signature, VerifyingKey};
 use openvm_keccak256::keccak256;
 use openvm_kzg::{Bytes32, Bytes48, KzgProof};
 #[allow(unused_imports, clippy::single_component_path_imports)]
@@ -87,6 +87,26 @@ impl CryptoProvider for OpenVmK256Provider {
         let address_bytes = &pubkey_hash[12..32]; // Last 20 bytes
 
         Ok(Address::from_slice(address_bytes))
+    }
+
+    fn verify_and_compute_signer_unchecked(
+        &self,
+        pubkey: &[u8; 65],
+        sig: &[u8; 64],
+        msg: &[u8; 32],
+    ) -> Result<Address, RecoveryError> {
+        let vk = VerifyingKey::from_sec1_bytes(pubkey).map_err(|_| RecoveryError::new())?;
+
+        let mut signature = Signature::from_slice(sig).map_err(|_| RecoveryError::new())?;
+        if let Some(sig_normalized) = signature.normalize_s() {
+            signature = sig_normalized;
+        }
+
+        vk.verify_prehash(msg.as_ref(), &signature).map_err(|_| RecoveryError::new())?;
+
+        // Compute address directly from the provided pubkey bytes (skip 0x04 prefix)
+        let pubkey_hash = keccak256(&pubkey[1..65]);
+        Ok(Address::from_slice(&pubkey_hash[12..32]))
     }
 }
 

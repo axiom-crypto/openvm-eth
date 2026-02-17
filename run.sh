@@ -154,7 +154,7 @@ mkdir -p rpc-cache
 source .env
 
 cd "$WORKDIR/bin/stateless-guest"
-cargo openvm build
+OPENVM_RUST_TOOLCHAIN=nightly-2026-01-01 cargo openvm build
 mkdir -p ../reth-benchmark/elf
 SRC="target/riscv32im-risc0-zkvm-elf/release/openvm-stateless-guest"
 DEST="../reth-benchmark/elf/openvm-stateless-guest"
@@ -177,8 +177,7 @@ case "${PROFILE_OVERRIDE:-release}" in
 esac
 FEATURES="metrics,jemalloc,unprotected"
 BLOCK_NUMBER="${BLOCK_NUMBER_OVERRIDE:-23992138}"
-# switch to +nightly-2025-08-19 if using tco
-TOOLCHAIN="+nightly-2025-08-19" # "+stable"
+TOOLCHAIN="+nightly-2026-01-01"
 BIN_NAME="openvm-reth-benchmark"
 MAX_SEGMENT_LENGTH=$((1 << 22))
 SEGMENT_MAX_CELLS=1200000000
