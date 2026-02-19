@@ -16,6 +16,14 @@ openvm = { git = "https://github.com/openvm-org/openvm.git", branch = "perf/sw-e
 openvm-algebra-guest = { git = "https://github.com/openvm-org/openvm.git", branch = "perf/sw-ec-projective-INT-6136" }
 openvm-ecc-guest = { git = "https://github.com/openvm-org/openvm.git", branch = "perf/sw-ec-projective-INT-6136" }
 
+# Pin alloy to 1.6.x: >=1.6 adds verify_and_compute_signer_unchecked to CryptoProvider,
+# but 1.7+ requires rustc 1.91 while cargo-openvm guest build uses rustc 1.90
+alloy-consensus = { version = ">=1.6, <1.7", default-features = false, features = ["crypto-backend"] }
+alloy-eips = { version = ">=1.6, <1.7", default-features = false }
+alloy-serde = { version = ">=1.6, <1.7", default-features = false }
+alloy-tx-macros = { version = ">=1.6, <1.7", default-features = false }
+alloy-genesis = { version = ">=1.6, <1.7", default-features = false }
+
 # Enable std feature for host builds (provides critical-section implementation)
 [target.'cfg(not(target_os = "zkvm"))'.dependencies]
 openvm-stateless-executor = { path = "../../crates/stateless-executor", features = ["openvm", "std"] }
