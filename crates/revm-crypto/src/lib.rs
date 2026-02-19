@@ -76,17 +76,41 @@ impl CryptoProvider for OpenVmK256Provider {
             VerifyingKey::recover_from_prehash_noverify(msg, &signature.to_bytes(), recovery_id)
                 .map_err(|_| RecoveryError::new())?;
 
-        // Get public key coordinates
-        let public_key = recovered_key.as_affine();
+        // Get public key coordinates (normalize to get affine coords)
+        let public_key = recovered_key.as_affine().normalize();
         let mut encoded_pubkey = [0u8; 64];
-        encoded_pubkey[..32].copy_from_slice(&WeierstrassPoint::x(public_key).to_be_bytes());
-        encoded_pubkey[32..].copy_from_slice(&WeierstrassPoint::y(public_key).to_be_bytes());
+        encoded_pubkey[..32].copy_from_slice(&WeierstrassPoint::x(&public_key).to_be_bytes());
+        encoded_pubkey[32..].copy_from_slice(&WeierstrassPoint::y(&public_key).to_be_bytes());
 
         // Hash to get Ethereum address
         let pubkey_hash = keccak256(&encoded_pubkey);
         let address_bytes = &pubkey_hash[12..32]; // Last 20 bytes
 
         Ok(Address::from_slice(address_bytes))
+    }
+
+    fn verify_and_compute_signer_unchecked(
+        &self,
+        pubkey: &[u8; 65],
+        sig: &[u8; 64],
+        msg: &[u8; 32],
+    ) -> Result<Address, RecoveryError> {
+        use openvm_k256::ecdsa::signature::hazmat::PrehashVerifier;
+
+        let vk = VerifyingKey::from_sec1_bytes(pubkey).map_err(|_| RecoveryError::new())?;
+        let mut signature = Signature::from_slice(sig).map_err(|_| RecoveryError::new())?;
+        if let Some(sig_normalized) = signature.normalize_s() {
+            signature = sig_normalized;
+        }
+        vk.verify_prehash(msg, &signature)
+            .map_err(|_| RecoveryError::new())?;
+
+        let public_key = vk.as_affine().normalize();
+        let mut encoded_pubkey = [0u8; 64];
+        encoded_pubkey[..32].copy_from_slice(&WeierstrassPoint::x(&public_key).to_be_bytes());
+        encoded_pubkey[32..].copy_from_slice(&WeierstrassPoint::y(&public_key).to_be_bytes());
+        let pubkey_hash = keccak256(&encoded_pubkey);
+        Ok(Address::from_slice(&pubkey_hash[12..32]))
     }
 }
 
@@ -97,15 +121,16 @@ struct OpenVmCrypto;
 impl Crypto for OpenVmCrypto {
     /// Custom SHA-256 implementation with openvm optimization
     fn sha256(&self, input: &[u8]) -> [u8; 32] {
-        openvm_sha2::sha256(input)
+        use openvm_sha2::Digest;
+        openvm_sha2::Sha256::digest(input).into()
     }
 
     /// Custom BN254 G1 addition with openvm optimization
     fn bn254_g1_add(&self, p1_bytes: &[u8], p2_bytes: &[u8]) -> Result<[u8; 64], PrecompileError> {
         let p1 = read_bn_g1_point(p1_bytes)?;
         let p2 = read_bn_g1_point(p2_bytes)?;
-        let result = p1 + p2;
-        Ok(encode_bn_g1_point(result))
+        let result = (p1 + p2).normalize();
+        Ok(encode_bn_g1_point(&result))
     }
 
     /// Custom BN254 G1 scalar multiplication with openvm optimization
@@ -116,8 +141,8 @@ impl Crypto for OpenVmCrypto {
     ) -> Result<[u8; 64], PrecompileError> {
         let p = read_bn_g1_point(point_bytes)?;
         let s = read_bn_scalar(scalar_bytes);
-        let result = Bn254::msm(&[s], &[p]);
-        Ok(encode_bn_g1_point(result))
+        let result = Bn254::msm(&[s], &[p]).normalize();
+        Ok(encode_bn_g1_point(&result))
     }
 
     /// Custom BN254 pairing check with openvm optimization
@@ -132,14 +157,23 @@ impl Crypto for OpenVmCrypto {
             let g1 = read_bn_g1_point(g1_bytes)?;
             let g2 = read_bn_g2_point(g2_bytes)?;
 
-            let (g1_x, g1_y) = g1.into_coords();
+            // Skip pairs with identity points: e(O, Q) = e(P, O) = 1
+            if WeierstrassPoint::is_identity(&g1) || WeierstrassPoint::is_identity(&g2) {
+                continue;
+            }
+
+            let (g1_x, g1_y, _) = g1.into_coords();
             let g1 = AffinePoint::new(g1_x, g1_y);
 
-            let (g2_x, g2_y) = g2.into_coords();
+            let (g2_x, g2_y, _) = g2.into_coords();
             let g2 = AffinePoint::new(g2_x, g2_y);
 
             g1_points.push(g1);
             g2_points.push(g2);
+        }
+
+        if g1_points.is_empty() {
+            return Ok(true);
         }
 
         let pairing_result = Bn254::pairing_check(&g1_points, &g2_points).is_ok();
@@ -154,7 +188,7 @@ impl Crypto for OpenVmCrypto {
     ) -> Result<[u8; BLS_G1_LEN], PrecompileError> {
         let p1 = read_bls_g1_point(&a)?;
         let p2 = read_bls_g1_point(&b)?;
-        let sum = p1 + p2;
+        let sum = (p1 + p2).normalize();
         Ok(encode_bls_g1_point(&sum))
     }
 
@@ -176,7 +210,7 @@ impl Crypto for OpenVmCrypto {
             return Ok([0u8; BLS_G1_LEN]);
         }
 
-        let result = Bls12_381::msm(&scalars, &points);
+        let result = Bls12_381::msm(&scalars, &points).normalize();
         Ok(encode_bls_g1_point(&result))
     }
 
@@ -188,7 +222,7 @@ impl Crypto for OpenVmCrypto {
     ) -> Result<[u8; BLS_G2_LEN], PrecompileError> {
         let p1 = read_bls_g2_point(&a)?;
         let p2 = read_bls_g2_point(&b)?;
-        let sum = p1 + p2;
+        let sum = (p1 + p2).normalize();
         Ok(encode_bls_g2_point(&sum))
     }
 
@@ -211,7 +245,7 @@ impl Crypto for OpenVmCrypto {
         }
 
         // directly using openvm_ecc_guest::msm here
-        let result = openvm_ecc_guest::msm(&scalars, &points);
+        let result = openvm_ecc_guest::msm(&scalars, &points).normalize();
         Ok(encode_bls_g2_point(&result))
     }
 
@@ -231,11 +265,20 @@ impl Crypto for OpenVmCrypto {
             let g1 = read_bls_g1_point(g1_bytes)?;
             let g2 = read_bls_g2_point(g2_bytes)?;
 
-            let (g1_x, g1_y) = g1.into_coords();
-            let (g2_x, g2_y) = g2.into_coords();
+            // Skip pairs with identity points: e(O, Q) = e(P, O) = 1
+            if WeierstrassPoint::is_identity(&g1) || WeierstrassPoint::is_identity(&g2) {
+                continue;
+            }
+
+            let (g1_x, g1_y, _) = g1.into_coords();
+            let (g2_x, g2_y, _) = g2.into_coords();
 
             g1_points.push(AffinePoint::new(g1_x, g1_y));
             g2_points.push(AffinePoint::new(g2_x, g2_y));
+        }
+
+        if g1_points.is_empty() {
+            return Ok(true);
         }
 
         let pairing_result = Bls12_381::pairing_check(&g1_points, &g2_points).is_ok();
@@ -264,10 +307,10 @@ impl Crypto for OpenVmCrypto {
             VerifyingKey::recover_from_prehash_noverify(msg_hash, &sig.to_bytes(), recovery_id)
                 .map_err(|_| PrecompileError::other("Key recovery failed"))?;
 
-        let public_key = recovered_key.as_affine();
+        let public_key = recovered_key.as_affine().normalize();
         let mut encoded_pubkey = [0u8; 64];
-        encoded_pubkey[..32].copy_from_slice(&WeierstrassPoint::x(public_key).to_be_bytes());
-        encoded_pubkey[32..].copy_from_slice(&WeierstrassPoint::y(public_key).to_be_bytes());
+        encoded_pubkey[..32].copy_from_slice(&WeierstrassPoint::x(&public_key).to_be_bytes());
+        encoded_pubkey[32..].copy_from_slice(&WeierstrassPoint::y(&public_key).to_be_bytes());
 
         let pubkey_hash = keccak256(&encoded_pubkey);
         let mut address = [0u8; 32];
@@ -358,7 +401,11 @@ fn read_bn_g2_point(input: &[u8]) -> Result<bn::G2Affine, PrecompileError> {
 }
 
 #[inline]
-fn encode_bn_g1_point(point: bn::G1Affine) -> [u8; BN_G1_LEN] {
+fn encode_bn_g1_point(point: &bn::G1Affine) -> [u8; BN_G1_LEN] {
+    if WeierstrassPoint::is_identity(point) {
+        return [0u8; BN_G1_LEN];
+    }
+
     let mut output = [0u8; BN_G1_LEN];
 
     let x_bytes: &[u8] = point.x().as_le_bytes();
@@ -435,7 +482,7 @@ fn read_bls_scalar(input: &[u8]) -> bls::Scalar {
 
 #[inline]
 fn encode_bls_g1_point(point: &bls::G1Affine) -> [u8; BLS_G1_LEN] {
-    if point.is_identity() {
+    if WeierstrassPoint::is_identity(point) {
         return [0u8; BLS_G1_LEN];
     }
 
@@ -451,7 +498,7 @@ fn encode_bls_g1_point(point: &bls::G1Affine) -> [u8; BLS_G1_LEN] {
 
 #[inline]
 fn encode_bls_g2_point(point: &bls::G2Affine) -> [u8; BLS_G2_LEN] {
-    if point.is_identity() {
+    if WeierstrassPoint::is_identity(point) {
         return [0u8; BLS_G2_LEN];
     }
 
