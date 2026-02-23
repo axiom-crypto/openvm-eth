@@ -10,11 +10,11 @@ edition = "2021"
 openvm-stateless-executor = { path = "../../crates/stateless-executor", features = ["openvm"] }
 
 # openvm
-openvm = { git = "https://github.com/openvm-org/openvm.git", branch = "perf/sw-ec-projective-INT-6136", features = [
+openvm = { git = "https://github.com/openvm-org/openvm.git", branch = "perf/optimize-modexp-INT-6295", features = [
     "std",
 ] }
-openvm-algebra-guest = { git = "https://github.com/openvm-org/openvm.git", branch = "perf/sw-ec-projective-INT-6136" }
-openvm-ecc-guest = { git = "https://github.com/openvm-org/openvm.git", branch = "perf/sw-ec-projective-INT-6136" }
+openvm-algebra-guest = { git = "https://github.com/openvm-org/openvm.git", branch = "perf/optimize-modexp-INT-6295" }
+openvm-ecc-guest = { git = "https://github.com/openvm-org/openvm.git", branch = "perf/optimize-modexp-INT-6295" }
 
 # Pin alloy to 1.6.x: >=1.6 adds verify_and_compute_signer_unchecked to CryptoProvider,
 # but 1.7+ requires rustc 1.91 while cargo-openvm guest build uses rustc 1.90
@@ -44,3 +44,6 @@ strip = true
 inherits = "release"
 debug = 2
 strip = false
+
+[patch.crates-io]
+aurora-engine-modexp = { git = "https://github.com/openvm-org/openvm.git", branch = "perf/optimize-modexp-INT-6295" }

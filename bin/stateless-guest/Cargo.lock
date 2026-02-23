@@ -350,7 +350,7 @@ checksum = "ce8849c74c9ca0f5a03da1c865e3eb6f768df816e67dd3721a398a8a7e398011"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.116",
+ "syn 2.0.117",
 ]
 
 [[package]]
@@ -461,7 +461,7 @@ dependencies = [
  "proc-macro-error2",
  "proc-macro2",
  "quote",
- "syn 2.0.116",
+ "syn 2.0.117",
 ]
 
 [[package]]
@@ -478,7 +478,7 @@ dependencies = [
  "proc-macro2",
  "quote",
  "sha3",
- "syn 2.0.116",
+ "syn 2.0.117",
  "syn-solidity",
 ]
 
@@ -494,7 +494,7 @@ dependencies = [
  "macro-string",
  "proc-macro2",
  "quote",
- "syn 2.0.116",
+ "syn 2.0.117",
  "syn-solidity",
 ]
 
@@ -569,7 +569,7 @@ dependencies = [
  "darling 0.21.3",
  "proc-macro2",
  "quote",
- "syn 2.0.116",
+ "syn 2.0.117",
 ]
 
 [[package]]
@@ -583,9 +583,9 @@ dependencies = [
 
 [[package]]
 name = "anyhow"
-version = "1.0.101"
+version = "1.0.102"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5f0e0fee31ef5ed1ba1316088939cea399010ed7731dba877ed44aeb407a75ea"
+checksum = "7f202df86484c868dbad7eaa557ef785d5c66295e41b460ef922eca0723b842c"
 
 [[package]]
 name = "ark-bls12-381"
@@ -717,7 +717,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "62945a2f7e6de02a31fe400aa489f0e0f5b2502e69f95f853adb82a96c7a6b60"
 dependencies = [
  "quote",
- "syn 2.0.116",
+ "syn 2.0.117",
 ]
 
 [[package]]
@@ -755,7 +755,7 @@ dependencies = [
  "num-traits",
  "proc-macro2",
  "quote",
- "syn 2.0.116",
+ "syn 2.0.117",
 ]
 
 [[package]]
@@ -844,7 +844,7 @@ checksum = "213888f660fddcca0d257e88e54ac05bca01885f258ccdf695bafd77031bb69d"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.116",
+ "syn 2.0.117",
 ]
 
 [[package]]
@@ -911,7 +911,7 @@ checksum = "c7c24de15d275a1ecfd47a380fb4d5ec9bfe0933f309ed5e705b775596a3574d"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.116",
+ "syn 2.0.117",
 ]
 
 [[package]]
@@ -922,14 +922,13 @@ checksum = "9035ad2d096bed7955a320ee7e2230574d28fd3c3a0f186cbea1ff3c7eed5dbb"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.116",
+ "syn 2.0.117",
 ]
 
 [[package]]
 name = "aurora-engine-modexp"
 version = "1.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "518bc5745a6264b5fd7b09dffb9667e400ee9e2bbe18555fac75e1fe9afa0df9"
+source = "git+https://github.com/openvm-org/openvm.git?branch=perf%2Foptimize-modexp-INT-6295#f4c4569f5c40e3ec68efb1d84ad3177170e135f0"
 dependencies = [
  "hex",
  "num",
@@ -943,7 +942,7 @@ checksum = "ffdcb70bdbc4d478427380519163274ac86e52916e10f0a8889adf0f96d3fee7"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.116",
+ "syn 2.0.117",
 ]
 
 [[package]]
@@ -1094,14 +1093,14 @@ dependencies = [
  "proc-macro-crate",
  "proc-macro2",
  "quote",
- "syn 2.0.116",
+ "syn 2.0.117",
 ]
 
 [[package]]
 name = "bumpalo"
-version = "3.20.1"
+version = "3.20.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5c6f81257d10a0f602a294ae4182251151ff97dbb504ef9afcdda4a64b24d9b4"
+checksum = "5d20789868f4b01b2f2caec9f5c4e0213b41e3e5702a50157d699ae31ced2fcb"
 
 [[package]]
 name = "byte-slice-cast"
@@ -1171,9 +1170,9 @@ checksum = "613afe47fcd5fac7ccf1db93babcb082c5994d996f20b8b159f2ad1658eb5724"
 
 [[package]]
 name = "chrono"
-version = "0.4.43"
+version = "0.4.44"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fac4744fb15ae8337dc853fee7fb3f4e48c0fbaa23d0afe49c447b4fab126118"
+checksum = "c673075a2e0e5f4a1dde27ce9dee1ea4558c7ffe648f576438a20ca1d2acc4b0"
 dependencies = [
  "iana-time-zone",
  "num-traits",
@@ -1360,7 +1359,7 @@ dependencies = [
  "proc-macro2",
  "quote",
  "strsim",
- "syn 2.0.116",
+ "syn 2.0.117",
 ]
 
 [[package]]
@@ -1375,7 +1374,7 @@ dependencies = [
  "quote",
  "serde",
  "strsim",
- "syn 2.0.116",
+ "syn 2.0.117",
 ]
 
 [[package]]
@@ -1386,7 +1385,7 @@ checksum = "fc34b93ccb385b40dc71c6fceac4b2ad23662c7eeb248cf10d529b7e055b6ead"
 dependencies = [
  "darling_core 0.20.11",
  "quote",
- "syn 2.0.116",
+ "syn 2.0.117",
 ]
 
 [[package]]
@@ -1397,7 +1396,7 @@ checksum = "d38308df82d1080de0afee5d069fa14b0326a88c14f15c5ccda35b4a6c414c81"
 dependencies = [
  "darling_core 0.21.3",
  "quote",
- "syn 2.0.116",
+ "syn 2.0.117",
 ]
 
 [[package]]
@@ -1426,9 +1425,9 @@ dependencies = [
 
 [[package]]
 name = "deranged"
-version = "0.5.6"
+version = "0.5.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cc3dc5ad92c2e2d1c193bbbbdf2ea477cb81331de4f3103f267ca18368b988c4"
+checksum = "7cd812cc2bc1d69d4764bd80df88b4317eaef9e773c75226407d9bc0876b211c"
 dependencies = [
  "powerfmt",
  "serde_core",
@@ -1453,7 +1452,7 @@ checksum = "ef941ded77d15ca19b40374869ac6000af1c9f2a4c0f3d4c70926287e6364a8f"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.116",
+ "syn 2.0.117",
 ]
 
 [[package]]
@@ -1475,7 +1474,7 @@ dependencies = [
  "proc-macro2",
  "quote",
  "rustc_version 0.4.1",
- "syn 2.0.116",
+ "syn 2.0.117",
  "unicode-xid",
 ]
 
@@ -1508,7 +1507,7 @@ checksum = "97369cbbc041bc366949bc74d34658d6cda5621039731c6310521892a3a20ae0"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.116",
+ "syn 2.0.117",
 ]
 
 [[package]]
@@ -1547,7 +1546,7 @@ dependencies = [
  "enum-ordinalize",
  "proc-macro2",
  "quote",
- "syn 2.0.116",
+ "syn 2.0.117",
 ]
 
 [[package]]
@@ -1608,7 +1607,7 @@ checksum = "8ca9601fb2d62598ee17836250842873a413586e5d7ed88b356e38ddbb0ec631"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.116",
+ "syn 2.0.117",
 ]
 
 [[package]]
@@ -1664,7 +1663,7 @@ dependencies = [
  "darling 0.20.11",
  "proc-macro2",
  "quote",
- "syn 2.0.116",
+ "syn 2.0.117",
 ]
 
 [[package]]
@@ -1741,7 +1740,7 @@ checksum = "6dc7a9cb3326bafb80642c5ce99b39a2c0702d4bfa8ee8a3e773791a6cbe2407"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.116",
+ "syn 2.0.117",
 ]
 
 [[package]]
@@ -1833,7 +1832,7 @@ checksum = "e835b70203e41293343137df5c0664546da5745f82ec9b84d40be8336958447b"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.116",
+ "syn 2.0.117",
 ]
 
 [[package]]
@@ -2215,7 +2214,7 @@ checksum = "a0eb5a3343abf848c0984fe4604b2b105da9539376e24fc0a3b0007411ae4fd9"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.116",
+ "syn 2.0.117",
 ]
 
 [[package]]
@@ -2287,9 +2286,9 @@ dependencies = [
 
 [[package]]
 name = "js-sys"
-version = "0.3.85"
+version = "0.3.88"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8c942ebf8e95485ca0d52d97da7c5a2c387d0e7f0ba4c35e93bfcaee045955b3"
+checksum = "c7e709f3e3d22866f9c25b3aff01af289b18422cc8b4262fb19103ee80fe513d"
 dependencies = [
  "once_cell",
  "wasm-bindgen",
@@ -2312,18 +2311,18 @@ dependencies = [
 [[package]]
 name = "k256"
 version = "0.13.4"
-source = "git+https://github.com/openvm-org/openvm.git?branch=perf%2Fsw-ec-projective-INT-6136#382d6cf311ad3d7f16d9b276460dd4d582bab190"
+source = "git+https://github.com/openvm-org/openvm.git?branch=perf%2Foptimize-modexp-INT-6295#f4c4569f5c40e3ec68efb1d84ad3177170e135f0"
 dependencies = [
  "ecdsa",
  "elliptic-curve",
  "ff",
  "hex-literal 0.4.1",
  "num-bigint",
- "openvm",
- "openvm-algebra-guest",
- "openvm-algebra-moduli-macros",
- "openvm-ecc-guest",
- "openvm-ecc-sw-macros",
+ "openvm 1.4.3 (git+https://github.com/openvm-org/openvm.git?branch=perf%2Foptimize-modexp-INT-6295)",
+ "openvm-algebra-guest 1.4.3 (git+https://github.com/openvm-org/openvm.git?branch=perf%2Foptimize-modexp-INT-6295)",
+ "openvm-algebra-moduli-macros 1.4.3 (git+https://github.com/openvm-org/openvm.git?branch=perf%2Foptimize-modexp-INT-6295)",
+ "openvm-ecc-guest 1.4.3 (git+https://github.com/openvm-org/openvm.git?branch=perf%2Foptimize-modexp-INT-6295)",
+ "openvm-ecc-sw-macros 1.4.3 (git+https://github.com/openvm-org/openvm.git?branch=perf%2Foptimize-modexp-INT-6295)",
  "serde",
 ]
 
@@ -2381,9 +2380,9 @@ checksum = "9afa463f5405ee81cdb9cc2baf37e08ec7e4c8209442b5d72c04cfb2cd6e6286"
 
 [[package]]
 name = "linux-raw-sys"
-version = "0.11.0"
+version = "0.12.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "df1d3c3b53da64cf5760482273a98e575c651a67eec7f77df96b5b642de8f039"
+checksum = "32a66949e030da00e8c7d4434b251670a91556f4144941d37452769c25d58a53"
 
 [[package]]
 name = "litemap"
@@ -2432,7 +2431,7 @@ checksum = "1b27834086c65ec3f9387b096d66e99f221cf081c2b738042aa252bcd41204e3"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.116",
+ "syn 2.0.117",
 ]
 
 [[package]]
@@ -2599,7 +2598,7 @@ dependencies = [
  "proc-macro-crate",
  "proc-macro2",
  "quote",
- "syn 2.0.116",
+ "syn 2.0.117",
 ]
 
 [[package]]
@@ -2756,40 +2755,79 @@ dependencies = [
 [[package]]
 name = "openvm"
 version = "1.4.3"
-source = "git+https://github.com/openvm-org/openvm.git?branch=perf%2Fsw-ec-projective-INT-6136#382d6cf311ad3d7f16d9b276460dd4d582bab190"
+source = "git+https://github.com/openvm-org/openvm.git?branch=perf%2Foptimize-modexp-INT-6295#f4c4569f5c40e3ec68efb1d84ad3177170e135f0"
 dependencies = [
  "bytemuck",
  "getrandom 0.2.17",
  "getrandom 0.3.4",
  "num-bigint",
- "openvm-custom-insn",
- "openvm-platform",
- "openvm-rv32im-guest",
+ "openvm-custom-insn 0.1.0 (git+https://github.com/openvm-org/openvm.git?branch=perf%2Foptimize-modexp-INT-6295)",
+ "openvm-platform 1.4.3 (git+https://github.com/openvm-org/openvm.git?branch=perf%2Foptimize-modexp-INT-6295)",
+ "openvm-rv32im-guest 1.4.3 (git+https://github.com/openvm-org/openvm.git?branch=perf%2Foptimize-modexp-INT-6295)",
+ "serde",
+]
+
+[[package]]
+name = "openvm"
+version = "1.4.3"
+source = "git+https://github.com/openvm-org/openvm.git?branch=perf%2Fsw-ec-projective-INT-6136#3a8237f024e19c3cd4c7b25b065e9a73fab8386c"
+dependencies = [
+ "bytemuck",
+ "num-bigint",
+ "openvm-custom-insn 0.1.0 (git+https://github.com/openvm-org/openvm.git?branch=perf%2Fsw-ec-projective-INT-6136)",
+ "openvm-platform 1.4.3 (git+https://github.com/openvm-org/openvm.git?branch=perf%2Fsw-ec-projective-INT-6136)",
+ "openvm-rv32im-guest 1.4.3 (git+https://github.com/openvm-org/openvm.git?branch=perf%2Fsw-ec-projective-INT-6136)",
  "serde",
 ]
 
 [[package]]
 name = "openvm-algebra-complex-macros"
 version = "1.4.3"
-source = "git+https://github.com/openvm-org/openvm.git?branch=perf%2Fsw-ec-projective-INT-6136#382d6cf311ad3d7f16d9b276460dd4d582bab190"
+source = "git+https://github.com/openvm-org/openvm.git?branch=perf%2Foptimize-modexp-INT-6295#f4c4569f5c40e3ec68efb1d84ad3177170e135f0"
 dependencies = [
- "openvm-macros-common",
+ "openvm-macros-common 1.4.3 (git+https://github.com/openvm-org/openvm.git?branch=perf%2Foptimize-modexp-INT-6295)",
  "quote",
- "syn 2.0.116",
+ "syn 2.0.117",
+]
+
+[[package]]
+name = "openvm-algebra-complex-macros"
+version = "1.4.3"
+source = "git+https://github.com/openvm-org/openvm.git?branch=perf%2Fsw-ec-projective-INT-6136#3a8237f024e19c3cd4c7b25b065e9a73fab8386c"
+dependencies = [
+ "openvm-macros-common 1.4.3 (git+https://github.com/openvm-org/openvm.git?branch=perf%2Fsw-ec-projective-INT-6136)",
+ "quote",
+ "syn 2.0.117",
 ]
 
 [[package]]
 name = "openvm-algebra-guest"
 version = "1.4.3"
-source = "git+https://github.com/openvm-org/openvm.git?branch=perf%2Fsw-ec-projective-INT-6136#382d6cf311ad3d7f16d9b276460dd4d582bab190"
+source = "git+https://github.com/openvm-org/openvm.git?branch=perf%2Foptimize-modexp-INT-6295#f4c4569f5c40e3ec68efb1d84ad3177170e135f0"
 dependencies = [
  "halo2curves-axiom",
  "num-bigint",
  "once_cell",
- "openvm-algebra-complex-macros",
- "openvm-algebra-moduli-macros",
- "openvm-custom-insn",
- "openvm-rv32im-guest",
+ "openvm-algebra-complex-macros 1.4.3 (git+https://github.com/openvm-org/openvm.git?branch=perf%2Foptimize-modexp-INT-6295)",
+ "openvm-algebra-moduli-macros 1.4.3 (git+https://github.com/openvm-org/openvm.git?branch=perf%2Foptimize-modexp-INT-6295)",
+ "openvm-custom-insn 0.1.0 (git+https://github.com/openvm-org/openvm.git?branch=perf%2Foptimize-modexp-INT-6295)",
+ "openvm-rv32im-guest 1.4.3 (git+https://github.com/openvm-org/openvm.git?branch=perf%2Foptimize-modexp-INT-6295)",
+ "serde-big-array",
+ "strum_macros 0.26.4",
+]
+
+[[package]]
+name = "openvm-algebra-guest"
+version = "1.4.3"
+source = "git+https://github.com/openvm-org/openvm.git?branch=perf%2Fsw-ec-projective-INT-6136#3a8237f024e19c3cd4c7b25b065e9a73fab8386c"
+dependencies = [
+ "halo2curves-axiom",
+ "num-bigint",
+ "once_cell",
+ "openvm-algebra-complex-macros 1.4.3 (git+https://github.com/openvm-org/openvm.git?branch=perf%2Fsw-ec-projective-INT-6136)",
+ "openvm-algebra-moduli-macros 1.4.3 (git+https://github.com/openvm-org/openvm.git?branch=perf%2Fsw-ec-projective-INT-6136)",
+ "openvm-custom-insn 0.1.0 (git+https://github.com/openvm-org/openvm.git?branch=perf%2Fsw-ec-projective-INT-6136)",
+ "openvm-rv32im-guest 1.4.3 (git+https://github.com/openvm-org/openvm.git?branch=perf%2Fsw-ec-projective-INT-6136)",
  "serde-big-array",
  "strum_macros 0.26.4",
 ]
@@ -2797,13 +2835,25 @@ dependencies = [
 [[package]]
 name = "openvm-algebra-moduli-macros"
 version = "1.4.3"
-source = "git+https://github.com/openvm-org/openvm.git?branch=perf%2Fsw-ec-projective-INT-6136#382d6cf311ad3d7f16d9b276460dd4d582bab190"
+source = "git+https://github.com/openvm-org/openvm.git?branch=perf%2Foptimize-modexp-INT-6295#f4c4569f5c40e3ec68efb1d84ad3177170e135f0"
 dependencies = [
  "num-bigint",
  "num-prime",
- "openvm-macros-common",
+ "openvm-macros-common 1.4.3 (git+https://github.com/openvm-org/openvm.git?branch=perf%2Foptimize-modexp-INT-6295)",
  "quote",
- "syn 2.0.116",
+ "syn 2.0.117",
+]
+
+[[package]]
+name = "openvm-algebra-moduli-macros"
+version = "1.4.3"
+source = "git+https://github.com/openvm-org/openvm.git?branch=perf%2Fsw-ec-projective-INT-6136#3a8237f024e19c3cd4c7b25b065e9a73fab8386c"
+dependencies = [
+ "num-bigint",
+ "num-prime",
+ "openvm-macros-common 1.4.3 (git+https://github.com/openvm-org/openvm.git?branch=perf%2Fsw-ec-projective-INT-6136)",
+ "quote",
+ "syn 2.0.117",
 ]
 
 [[package]]
@@ -2819,28 +2869,57 @@ dependencies = [
 [[package]]
 name = "openvm-custom-insn"
 version = "0.1.0"
-source = "git+https://github.com/openvm-org/openvm.git?branch=perf%2Fsw-ec-projective-INT-6136#382d6cf311ad3d7f16d9b276460dd4d582bab190"
+source = "git+https://github.com/openvm-org/openvm.git?branch=perf%2Foptimize-modexp-INT-6295#f4c4569f5c40e3ec68efb1d84ad3177170e135f0"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.116",
+ "syn 2.0.117",
+]
+
+[[package]]
+name = "openvm-custom-insn"
+version = "0.1.0"
+source = "git+https://github.com/openvm-org/openvm.git?branch=perf%2Fsw-ec-projective-INT-6136#3a8237f024e19c3cd4c7b25b065e9a73fab8386c"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.117",
 ]
 
 [[package]]
 name = "openvm-ecc-guest"
 version = "1.4.3"
-source = "git+https://github.com/openvm-org/openvm.git?branch=perf%2Fsw-ec-projective-INT-6136#382d6cf311ad3d7f16d9b276460dd4d582bab190"
+source = "git+https://github.com/openvm-org/openvm.git?branch=perf%2Foptimize-modexp-INT-6295#f4c4569f5c40e3ec68efb1d84ad3177170e135f0"
 dependencies = [
  "ecdsa",
  "elliptic-curve",
  "group",
  "halo2curves-axiom",
  "once_cell",
- "openvm",
- "openvm-algebra-guest",
- "openvm-custom-insn",
- "openvm-ecc-sw-macros",
- "openvm-rv32im-guest",
+ "openvm 1.4.3 (git+https://github.com/openvm-org/openvm.git?branch=perf%2Foptimize-modexp-INT-6295)",
+ "openvm-algebra-guest 1.4.3 (git+https://github.com/openvm-org/openvm.git?branch=perf%2Foptimize-modexp-INT-6295)",
+ "openvm-custom-insn 0.1.0 (git+https://github.com/openvm-org/openvm.git?branch=perf%2Foptimize-modexp-INT-6295)",
+ "openvm-ecc-sw-macros 1.4.3 (git+https://github.com/openvm-org/openvm.git?branch=perf%2Foptimize-modexp-INT-6295)",
+ "openvm-rv32im-guest 1.4.3 (git+https://github.com/openvm-org/openvm.git?branch=perf%2Foptimize-modexp-INT-6295)",
+ "serde",
+ "strum_macros 0.26.4",
+]
+
+[[package]]
+name = "openvm-ecc-guest"
+version = "1.4.3"
+source = "git+https://github.com/openvm-org/openvm.git?branch=perf%2Fsw-ec-projective-INT-6136#3a8237f024e19c3cd4c7b25b065e9a73fab8386c"
+dependencies = [
+ "ecdsa",
+ "elliptic-curve",
+ "group",
+ "halo2curves-axiom",
+ "once_cell",
+ "openvm 1.4.3 (git+https://github.com/openvm-org/openvm.git?branch=perf%2Fsw-ec-projective-INT-6136)",
+ "openvm-algebra-guest 1.4.3 (git+https://github.com/openvm-org/openvm.git?branch=perf%2Fsw-ec-projective-INT-6136)",
+ "openvm-custom-insn 0.1.0 (git+https://github.com/openvm-org/openvm.git?branch=perf%2Fsw-ec-projective-INT-6136)",
+ "openvm-ecc-sw-macros 1.4.3 (git+https://github.com/openvm-org/openvm.git?branch=perf%2Fsw-ec-projective-INT-6136)",
+ "openvm-rv32im-guest 1.4.3 (git+https://github.com/openvm-org/openvm.git?branch=perf%2Fsw-ec-projective-INT-6136)",
  "serde",
  "strum_macros 0.26.4",
 ]
@@ -2848,17 +2927,27 @@ dependencies = [
 [[package]]
 name = "openvm-ecc-sw-macros"
 version = "1.4.3"
-source = "git+https://github.com/openvm-org/openvm.git?branch=perf%2Fsw-ec-projective-INT-6136#382d6cf311ad3d7f16d9b276460dd4d582bab190"
+source = "git+https://github.com/openvm-org/openvm.git?branch=perf%2Foptimize-modexp-INT-6295#f4c4569f5c40e3ec68efb1d84ad3177170e135f0"
 dependencies = [
- "openvm-macros-common",
+ "openvm-macros-common 1.4.3 (git+https://github.com/openvm-org/openvm.git?branch=perf%2Foptimize-modexp-INT-6295)",
  "quote",
- "syn 2.0.116",
+ "syn 2.0.117",
+]
+
+[[package]]
+name = "openvm-ecc-sw-macros"
+version = "1.4.3"
+source = "git+https://github.com/openvm-org/openvm.git?branch=perf%2Fsw-ec-projective-INT-6136#3a8237f024e19c3cd4c7b25b065e9a73fab8386c"
+dependencies = [
+ "openvm-macros-common 1.4.3 (git+https://github.com/openvm-org/openvm.git?branch=perf%2Fsw-ec-projective-INT-6136)",
+ "quote",
+ "syn 2.0.117",
 ]
 
 [[package]]
 name = "openvm-keccak256"
 version = "1.4.3"
-source = "git+https://github.com/openvm-org/openvm.git?branch=perf%2Fsw-ec-projective-INT-6136#382d6cf311ad3d7f16d9b276460dd4d582bab190"
+source = "git+https://github.com/openvm-org/openvm.git?branch=perf%2Foptimize-modexp-INT-6295#f4c4569f5c40e3ec68efb1d84ad3177170e135f0"
 dependencies = [
  "openvm-keccak256-guest",
  "spin 0.10.0",
@@ -2868,9 +2957,9 @@ dependencies = [
 [[package]]
 name = "openvm-keccak256-guest"
 version = "1.4.3"
-source = "git+https://github.com/openvm-org/openvm.git?branch=perf%2Fsw-ec-projective-INT-6136#382d6cf311ad3d7f16d9b276460dd4d582bab190"
+source = "git+https://github.com/openvm-org/openvm.git?branch=perf%2Foptimize-modexp-INT-6295#f4c4569f5c40e3ec68efb1d84ad3177170e135f0"
 dependencies = [
- "openvm-platform",
+ "openvm-platform 1.4.3 (git+https://github.com/openvm-org/openvm.git?branch=perf%2Foptimize-modexp-INT-6295)",
 ]
 
 [[package]]
@@ -2881,9 +2970,9 @@ dependencies = [
  "bls12_381",
  "hex",
  "hex-literal 1.1.0",
- "openvm-algebra-guest",
- "openvm-ecc-guest",
- "openvm-pairing",
+ "openvm-algebra-guest 1.4.3 (git+https://github.com/openvm-org/openvm.git?branch=perf%2Fsw-ec-projective-INT-6136)",
+ "openvm-ecc-guest 1.4.3 (git+https://github.com/openvm-org/openvm.git?branch=perf%2Fsw-ec-projective-INT-6136)",
+ "openvm-pairing 1.4.3 (git+https://github.com/openvm-org/openvm.git?branch=perf%2Fsw-ec-projective-INT-6136)",
  "serde",
  "serde-big-array",
  "spin 0.10.0",
@@ -2892,9 +2981,17 @@ dependencies = [
 [[package]]
 name = "openvm-macros-common"
 version = "1.4.3"
-source = "git+https://github.com/openvm-org/openvm.git?branch=perf%2Fsw-ec-projective-INT-6136#382d6cf311ad3d7f16d9b276460dd4d582bab190"
+source = "git+https://github.com/openvm-org/openvm.git?branch=perf%2Foptimize-modexp-INT-6295#f4c4569f5c40e3ec68efb1d84ad3177170e135f0"
 dependencies = [
- "syn 2.0.116",
+ "syn 2.0.117",
+]
+
+[[package]]
+name = "openvm-macros-common"
+version = "1.4.3"
+source = "git+https://github.com/openvm-org/openvm.git?branch=perf%2Fsw-ec-projective-INT-6136#3a8237f024e19c3cd4c7b25b065e9a73fab8386c"
+dependencies = [
+ "syn 2.0.117",
 ]
 
 [[package]]
@@ -2915,23 +3012,47 @@ dependencies = [
 [[package]]
 name = "openvm-pairing"
 version = "1.4.3"
-source = "git+https://github.com/openvm-org/openvm.git?branch=perf%2Fsw-ec-projective-INT-6136#382d6cf311ad3d7f16d9b276460dd4d582bab190"
+source = "git+https://github.com/openvm-org/openvm.git?branch=perf%2Foptimize-modexp-INT-6295#f4c4569f5c40e3ec68efb1d84ad3177170e135f0"
 dependencies = [
  "group",
  "hex-literal 0.4.1",
  "itertools 0.14.0",
  "num-bigint",
  "num-traits",
- "openvm",
- "openvm-algebra-complex-macros",
- "openvm-algebra-guest",
- "openvm-algebra-moduli-macros",
- "openvm-custom-insn",
- "openvm-ecc-guest",
- "openvm-ecc-sw-macros",
- "openvm-pairing-guest",
- "openvm-platform",
- "openvm-rv32im-guest",
+ "openvm 1.4.3 (git+https://github.com/openvm-org/openvm.git?branch=perf%2Foptimize-modexp-INT-6295)",
+ "openvm-algebra-complex-macros 1.4.3 (git+https://github.com/openvm-org/openvm.git?branch=perf%2Foptimize-modexp-INT-6295)",
+ "openvm-algebra-guest 1.4.3 (git+https://github.com/openvm-org/openvm.git?branch=perf%2Foptimize-modexp-INT-6295)",
+ "openvm-algebra-moduli-macros 1.4.3 (git+https://github.com/openvm-org/openvm.git?branch=perf%2Foptimize-modexp-INT-6295)",
+ "openvm-custom-insn 0.1.0 (git+https://github.com/openvm-org/openvm.git?branch=perf%2Foptimize-modexp-INT-6295)",
+ "openvm-ecc-guest 1.4.3 (git+https://github.com/openvm-org/openvm.git?branch=perf%2Foptimize-modexp-INT-6295)",
+ "openvm-ecc-sw-macros 1.4.3 (git+https://github.com/openvm-org/openvm.git?branch=perf%2Foptimize-modexp-INT-6295)",
+ "openvm-pairing-guest 1.4.3 (git+https://github.com/openvm-org/openvm.git?branch=perf%2Foptimize-modexp-INT-6295)",
+ "openvm-platform 1.4.3 (git+https://github.com/openvm-org/openvm.git?branch=perf%2Foptimize-modexp-INT-6295)",
+ "openvm-rv32im-guest 1.4.3 (git+https://github.com/openvm-org/openvm.git?branch=perf%2Foptimize-modexp-INT-6295)",
+ "rand 0.8.5",
+ "serde",
+]
+
+[[package]]
+name = "openvm-pairing"
+version = "1.4.3"
+source = "git+https://github.com/openvm-org/openvm.git?branch=perf%2Fsw-ec-projective-INT-6136#3a8237f024e19c3cd4c7b25b065e9a73fab8386c"
+dependencies = [
+ "group",
+ "hex-literal 0.4.1",
+ "itertools 0.14.0",
+ "num-bigint",
+ "num-traits",
+ "openvm 1.4.3 (git+https://github.com/openvm-org/openvm.git?branch=perf%2Fsw-ec-projective-INT-6136)",
+ "openvm-algebra-complex-macros 1.4.3 (git+https://github.com/openvm-org/openvm.git?branch=perf%2Fsw-ec-projective-INT-6136)",
+ "openvm-algebra-guest 1.4.3 (git+https://github.com/openvm-org/openvm.git?branch=perf%2Fsw-ec-projective-INT-6136)",
+ "openvm-algebra-moduli-macros 1.4.3 (git+https://github.com/openvm-org/openvm.git?branch=perf%2Fsw-ec-projective-INT-6136)",
+ "openvm-custom-insn 0.1.0 (git+https://github.com/openvm-org/openvm.git?branch=perf%2Fsw-ec-projective-INT-6136)",
+ "openvm-ecc-guest 1.4.3 (git+https://github.com/openvm-org/openvm.git?branch=perf%2Fsw-ec-projective-INT-6136)",
+ "openvm-ecc-sw-macros 1.4.3 (git+https://github.com/openvm-org/openvm.git?branch=perf%2Fsw-ec-projective-INT-6136)",
+ "openvm-pairing-guest 1.4.3 (git+https://github.com/openvm-org/openvm.git?branch=perf%2Fsw-ec-projective-INT-6136)",
+ "openvm-platform 1.4.3 (git+https://github.com/openvm-org/openvm.git?branch=perf%2Fsw-ec-projective-INT-6136)",
+ "openvm-rv32im-guest 1.4.3 (git+https://github.com/openvm-org/openvm.git?branch=perf%2Fsw-ec-projective-INT-6136)",
  "rand 0.8.5",
  "serde",
 ]
@@ -2939,18 +3060,38 @@ dependencies = [
 [[package]]
 name = "openvm-pairing-guest"
 version = "1.4.3"
-source = "git+https://github.com/openvm-org/openvm.git?branch=perf%2Fsw-ec-projective-INT-6136#382d6cf311ad3d7f16d9b276460dd4d582bab190"
+source = "git+https://github.com/openvm-org/openvm.git?branch=perf%2Foptimize-modexp-INT-6295#f4c4569f5c40e3ec68efb1d84ad3177170e135f0"
 dependencies = [
  "hex-literal 0.4.1",
  "itertools 0.14.0",
  "lazy_static",
  "num-bigint",
  "num-traits",
- "openvm",
- "openvm-algebra-guest",
- "openvm-algebra-moduli-macros",
- "openvm-custom-insn",
- "openvm-ecc-guest",
+ "openvm 1.4.3 (git+https://github.com/openvm-org/openvm.git?branch=perf%2Foptimize-modexp-INT-6295)",
+ "openvm-algebra-guest 1.4.3 (git+https://github.com/openvm-org/openvm.git?branch=perf%2Foptimize-modexp-INT-6295)",
+ "openvm-algebra-moduli-macros 1.4.3 (git+https://github.com/openvm-org/openvm.git?branch=perf%2Foptimize-modexp-INT-6295)",
+ "openvm-custom-insn 0.1.0 (git+https://github.com/openvm-org/openvm.git?branch=perf%2Foptimize-modexp-INT-6295)",
+ "openvm-ecc-guest 1.4.3 (git+https://github.com/openvm-org/openvm.git?branch=perf%2Foptimize-modexp-INT-6295)",
+ "rand 0.8.5",
+ "serde",
+ "strum_macros 0.26.4",
+]
+
+[[package]]
+name = "openvm-pairing-guest"
+version = "1.4.3"
+source = "git+https://github.com/openvm-org/openvm.git?branch=perf%2Fsw-ec-projective-INT-6136#3a8237f024e19c3cd4c7b25b065e9a73fab8386c"
+dependencies = [
+ "hex-literal 0.4.1",
+ "itertools 0.14.0",
+ "lazy_static",
+ "num-bigint",
+ "num-traits",
+ "openvm 1.4.3 (git+https://github.com/openvm-org/openvm.git?branch=perf%2Fsw-ec-projective-INT-6136)",
+ "openvm-algebra-guest 1.4.3 (git+https://github.com/openvm-org/openvm.git?branch=perf%2Fsw-ec-projective-INT-6136)",
+ "openvm-algebra-moduli-macros 1.4.3 (git+https://github.com/openvm-org/openvm.git?branch=perf%2Fsw-ec-projective-INT-6136)",
+ "openvm-custom-insn 0.1.0 (git+https://github.com/openvm-org/openvm.git?branch=perf%2Fsw-ec-projective-INT-6136)",
+ "openvm-ecc-guest 1.4.3 (git+https://github.com/openvm-org/openvm.git?branch=perf%2Fsw-ec-projective-INT-6136)",
  "rand 0.8.5",
  "serde",
  "strum_macros 0.26.4",
@@ -2959,13 +3100,23 @@ dependencies = [
 [[package]]
 name = "openvm-platform"
 version = "1.4.3"
-source = "git+https://github.com/openvm-org/openvm.git?branch=perf%2Fsw-ec-projective-INT-6136#382d6cf311ad3d7f16d9b276460dd4d582bab190"
+source = "git+https://github.com/openvm-org/openvm.git?branch=perf%2Foptimize-modexp-INT-6295#f4c4569f5c40e3ec68efb1d84ad3177170e135f0"
 dependencies = [
  "critical-section",
  "embedded-alloc",
  "libm",
- "openvm-custom-insn",
- "openvm-rv32im-guest",
+ "openvm-custom-insn 0.1.0 (git+https://github.com/openvm-org/openvm.git?branch=perf%2Foptimize-modexp-INT-6295)",
+ "openvm-rv32im-guest 1.4.3 (git+https://github.com/openvm-org/openvm.git?branch=perf%2Foptimize-modexp-INT-6295)",
+]
+
+[[package]]
+name = "openvm-platform"
+version = "1.4.3"
+source = "git+https://github.com/openvm-org/openvm.git?branch=perf%2Fsw-ec-projective-INT-6136#3a8237f024e19c3cd4c7b25b065e9a73fab8386c"
+dependencies = [
+ "libm",
+ "openvm-custom-insn 0.1.0 (git+https://github.com/openvm-org/openvm.git?branch=perf%2Fsw-ec-projective-INT-6136)",
+ "openvm-rv32im-guest 1.4.3 (git+https://github.com/openvm-org/openvm.git?branch=perf%2Fsw-ec-projective-INT-6136)",
 ]
 
 [[package]]
@@ -2974,13 +3125,13 @@ version = "0.4.0"
 dependencies = [
  "alloy-consensus",
  "alloy-primitives",
- "k256 0.13.4 (git+https://github.com/openvm-org/openvm.git?branch=perf%2Fsw-ec-projective-INT-6136)",
- "openvm-ecc-guest",
+ "k256 0.13.4 (git+https://github.com/openvm-org/openvm.git?branch=perf%2Foptimize-modexp-INT-6295)",
+ "openvm-ecc-guest 1.4.3 (git+https://github.com/openvm-org/openvm.git?branch=perf%2Foptimize-modexp-INT-6295)",
  "openvm-keccak256",
  "openvm-kzg",
- "openvm-pairing",
+ "openvm-pairing 1.4.3 (git+https://github.com/openvm-org/openvm.git?branch=perf%2Foptimize-modexp-INT-6295)",
  "openvm-sha2",
- "p256 0.13.2 (git+https://github.com/openvm-org/openvm.git?branch=perf%2Fsw-ec-projective-INT-6136)",
+ "p256 0.13.2 (git+https://github.com/openvm-org/openvm.git?branch=perf%2Foptimize-modexp-INT-6295)",
  "revm",
  "revm-primitives",
 ]
@@ -2988,9 +3139,19 @@ dependencies = [
 [[package]]
 name = "openvm-rv32im-guest"
 version = "1.4.3"
-source = "git+https://github.com/openvm-org/openvm.git?branch=perf%2Fsw-ec-projective-INT-6136#382d6cf311ad3d7f16d9b276460dd4d582bab190"
+source = "git+https://github.com/openvm-org/openvm.git?branch=perf%2Foptimize-modexp-INT-6295#f4c4569f5c40e3ec68efb1d84ad3177170e135f0"
 dependencies = [
- "openvm-custom-insn",
+ "openvm-custom-insn 0.1.0 (git+https://github.com/openvm-org/openvm.git?branch=perf%2Foptimize-modexp-INT-6295)",
+ "p3-field",
+ "strum_macros 0.26.4",
+]
+
+[[package]]
+name = "openvm-rv32im-guest"
+version = "1.4.3"
+source = "git+https://github.com/openvm-org/openvm.git?branch=perf%2Fsw-ec-projective-INT-6136#3a8237f024e19c3cd4c7b25b065e9a73fab8386c"
+dependencies = [
+ "openvm-custom-insn 0.1.0 (git+https://github.com/openvm-org/openvm.git?branch=perf%2Fsw-ec-projective-INT-6136)",
  "p3-field",
  "strum_macros 0.26.4",
 ]
@@ -2998,9 +3159,9 @@ dependencies = [
 [[package]]
 name = "openvm-sha2"
 version = "1.4.3"
-source = "git+https://github.com/openvm-org/openvm.git?branch=perf%2Fsw-ec-projective-INT-6136#382d6cf311ad3d7f16d9b276460dd4d582bab190"
+source = "git+https://github.com/openvm-org/openvm.git?branch=perf%2Foptimize-modexp-INT-6295#f4c4569f5c40e3ec68efb1d84ad3177170e135f0"
 dependencies = [
- "openvm",
+ "openvm 1.4.3 (git+https://github.com/openvm-org/openvm.git?branch=perf%2Foptimize-modexp-INT-6295)",
  "openvm-sha2-guest",
  "sha2",
 ]
@@ -3008,9 +3169,9 @@ dependencies = [
 [[package]]
 name = "openvm-sha2-guest"
 version = "1.4.3"
-source = "git+https://github.com/openvm-org/openvm.git?branch=perf%2Fsw-ec-projective-INT-6136#382d6cf311ad3d7f16d9b276460dd4d582bab190"
+source = "git+https://github.com/openvm-org/openvm.git?branch=perf%2Foptimize-modexp-INT-6295#f4c4569f5c40e3ec68efb1d84ad3177170e135f0"
 dependencies = [
- "openvm-platform",
+ "openvm-platform 1.4.3 (git+https://github.com/openvm-org/openvm.git?branch=perf%2Foptimize-modexp-INT-6295)",
 ]
 
 [[package]]
@@ -3050,9 +3211,9 @@ dependencies = [
  "alloy-genesis",
  "alloy-serde",
  "alloy-tx-macros",
- "openvm",
- "openvm-algebra-guest",
- "openvm-ecc-guest",
+ "openvm 1.4.3 (git+https://github.com/openvm-org/openvm.git?branch=perf%2Foptimize-modexp-INT-6295)",
+ "openvm-algebra-guest 1.4.3 (git+https://github.com/openvm-org/openvm.git?branch=perf%2Foptimize-modexp-INT-6295)",
+ "openvm-ecc-guest 1.4.3 (git+https://github.com/openvm-org/openvm.git?branch=perf%2Foptimize-modexp-INT-6295)",
  "openvm-stateless-executor",
 ]
 
@@ -3071,18 +3232,18 @@ dependencies = [
 [[package]]
 name = "p256"
 version = "0.13.2"
-source = "git+https://github.com/openvm-org/openvm.git?branch=perf%2Fsw-ec-projective-INT-6136#382d6cf311ad3d7f16d9b276460dd4d582bab190"
+source = "git+https://github.com/openvm-org/openvm.git?branch=perf%2Foptimize-modexp-INT-6295#f4c4569f5c40e3ec68efb1d84ad3177170e135f0"
 dependencies = [
  "ecdsa",
  "elliptic-curve",
  "ff",
  "hex-literal 0.4.1",
  "num-bigint",
- "openvm",
- "openvm-algebra-guest",
- "openvm-algebra-moduli-macros",
- "openvm-ecc-guest",
- "openvm-ecc-sw-macros",
+ "openvm 1.4.3 (git+https://github.com/openvm-org/openvm.git?branch=perf%2Foptimize-modexp-INT-6295)",
+ "openvm-algebra-guest 1.4.3 (git+https://github.com/openvm-org/openvm.git?branch=perf%2Foptimize-modexp-INT-6295)",
+ "openvm-algebra-moduli-macros 1.4.3 (git+https://github.com/openvm-org/openvm.git?branch=perf%2Foptimize-modexp-INT-6295)",
+ "openvm-ecc-guest 1.4.3 (git+https://github.com/openvm-org/openvm.git?branch=perf%2Foptimize-modexp-INT-6295)",
+ "openvm-ecc-sw-macros 1.4.3 (git+https://github.com/openvm-org/openvm.git?branch=perf%2Foptimize-modexp-INT-6295)",
  "serde",
 ]
 
@@ -3150,7 +3311,7 @@ dependencies = [
  "proc-macro-crate",
  "proc-macro2",
  "quote",
- "syn 2.0.116",
+ "syn 2.0.117",
 ]
 
 [[package]]
@@ -3244,7 +3405,7 @@ dependencies = [
  "phf_shared",
  "proc-macro2",
  "quote",
- "syn 2.0.116",
+ "syn 2.0.117",
 ]
 
 [[package]]
@@ -3273,7 +3434,7 @@ checksum = "6e918e4ff8c4549eb882f14b3a4bc8c8bc93de829416eacf579f1207a8fbf861"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.116",
+ "syn 2.0.117",
 ]
 
 [[package]]
@@ -3341,7 +3502,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "479ca8adacdd7ce8f1fb39ce9ecccbfe93a3f1344b3d0d97f20bc0196208f62b"
 dependencies = [
  "proc-macro2",
- "syn 2.0.116",
+ "syn 2.0.117",
 ]
 
 [[package]]
@@ -3392,7 +3553,7 @@ dependencies = [
  "proc-macro-error-attr2",
  "proc-macro2",
  "quote",
- "syn 2.0.116",
+ "syn 2.0.117",
 ]
 
 [[package]]
@@ -3523,9 +3684,9 @@ dependencies = [
 
 [[package]]
 name = "rapidhash"
-version = "4.4.0"
+version = "4.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "111325c42c4bafae99e777cd77b40dea9a2b30c69e9d8c74b6eccd7fba4337de"
+checksum = "b5e48930979c155e2f33aa36ab3119b5ee81332beb6482199a8ecd6029b80b59"
 dependencies = [
  "rustversion",
 ]
@@ -3576,7 +3737,7 @@ checksum = "b7186006dcb21920990093f30e3dea63b7d6e977bf1256be20c3563a5db070da"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.116",
+ "syn 2.0.117",
 ]
 
 [[package]]
@@ -3630,7 +3791,7 @@ source = "git+https://github.com/paradigmxyz/reth?tag=v1.10.2#8e3b5e6a99439561b7
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.116",
+ "syn 2.0.117",
 ]
 
 [[package]]
@@ -4281,9 +4442,9 @@ dependencies = [
 
 [[package]]
 name = "rustix"
-version = "1.1.3"
+version = "1.1.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "146c9e247ccc180c1f61615433868c99f3de3ae256a30a43b49f67c2d9171f34"
+checksum = "b6fe4565b9518b83ef4f91bb47ce29620ca828bd32cb7e408f0062e9930ba190"
 dependencies = [
  "bitflags",
  "errno",
@@ -4465,7 +4626,7 @@ checksum = "d540f220d3187173da220f885ab66608367b6574e925011a9353e4badda91d79"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.116",
+ "syn 2.0.117",
 ]
 
 [[package]]
@@ -4510,7 +4671,7 @@ dependencies = [
  "darling 0.21.3",
  "proc-macro2",
  "quote",
- "syn 2.0.116",
+ "syn 2.0.117",
 ]
 
 [[package]]
@@ -4656,7 +4817,7 @@ dependencies = [
  "proc-macro2",
  "quote",
  "rustversion",
- "syn 2.0.116",
+ "syn 2.0.117",
 ]
 
 [[package]]
@@ -4668,7 +4829,7 @@ dependencies = [
  "heck",
  "proc-macro2",
  "quote",
- "syn 2.0.116",
+ "syn 2.0.117",
 ]
 
 [[package]]
@@ -4703,9 +4864,9 @@ dependencies = [
 
 [[package]]
 name = "syn"
-version = "2.0.116"
+version = "2.0.117"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3df424c70518695237746f84cede799c9c58fcb37450d7b23716568cc8bc69cb"
+checksum = "e665b8803e7b1d2a727f4023456bbbbe74da67099c585258af0ad9c5013b9b99"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -4721,7 +4882,7 @@ dependencies = [
  "paste",
  "proc-macro2",
  "quote",
- "syn 2.0.116",
+ "syn 2.0.117",
 ]
 
 [[package]]
@@ -4738,7 +4899,7 @@ checksum = "728a70f3dbaf5bab7f0c4b1ac8d7ae5ea60a4b5549c8a5914361c99147a709d2"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.116",
+ "syn 2.0.117",
 ]
 
 [[package]]
@@ -4777,7 +4938,7 @@ checksum = "ebc4ee7f67670e9b64d05fa4253e753e016c6c95ff35b89b7941d6b856dec1d5"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.116",
+ "syn 2.0.117",
 ]
 
 [[package]]
@@ -4857,7 +5018,7 @@ checksum = "af407857209536a95c8e56f8231ef2c2e2aff839b22e07a1ffcbc617e9db9fa5"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.116",
+ "syn 2.0.117",
 ]
 
 [[package]]
@@ -4960,7 +5121,7 @@ checksum = "7490cfa5ec963746568740651ac6781f701c9c5ea257c58e057f3ba8cf69e8da"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.116",
+ "syn 2.0.117",
 ]
 
 [[package]]
@@ -5111,9 +5272,9 @@ dependencies = [
 
 [[package]]
 name = "wasm-bindgen"
-version = "0.2.108"
+version = "0.2.111"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "64024a30ec1e37399cf85a7ffefebdb72205ca1c972291c51512360d90bd8566"
+checksum = "ec1adf1535672f5b7824f817792b1afd731d7e843d2d04ec8f27e8cb51edd8ac"
 dependencies = [
  "cfg-if",
  "once_cell",
@@ -5124,9 +5285,9 @@ dependencies = [
 
 [[package]]
 name = "wasm-bindgen-macro"
-version = "0.2.108"
+version = "0.2.111"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "008b239d9c740232e71bd39e8ef6429d27097518b6b30bdf9086833bd5b6d608"
+checksum = "19e638317c08b21663aed4d2b9a2091450548954695ff4efa75bff5fa546b3b1"
 dependencies = [
  "quote",
  "wasm-bindgen-macro-support",
@@ -5134,22 +5295,22 @@ dependencies = [
 
 [[package]]
 name = "wasm-bindgen-macro-support"
-version = "0.2.108"
+version = "0.2.111"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5256bae2d58f54820e6490f9839c49780dff84c65aeab9e772f15d5f0e913a55"
+checksum = "2c64760850114d03d5f65457e96fc988f11f01d38fbaa51b254e4ab5809102af"
 dependencies = [
  "bumpalo",
  "proc-macro2",
  "quote",
- "syn 2.0.116",
+ "syn 2.0.117",
  "wasm-bindgen-shared",
 ]
 
 [[package]]
 name = "wasm-bindgen-shared"
-version = "0.2.108"
+version = "0.2.111"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1f01b580c9ac74c8d8f0c0e4afb04eeef2acf145458e52c03845ee9cd23e3d12"
+checksum = "60eecd4fe26177cfa3339eb00b4a36445889ba3ad37080c2429879718e20ca41"
 dependencies = [
  "unicode-ident",
 ]
@@ -5223,7 +5384,7 @@ checksum = "053e2e040ab57b9dc951b72c264860db7eb3b0200ba345b4e4c3b14f67855ddf"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.116",
+ "syn 2.0.117",
 ]
 
 [[package]]
@@ -5234,7 +5395,7 @@ checksum = "3f316c4a2570ba26bbec722032c4099d8c8bc095efccdc15688708623367e358"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.116",
+ "syn 2.0.117",
 ]
 
 [[package]]
@@ -5309,7 +5470,7 @@ dependencies = [
  "heck",
  "indexmap 2.13.0",
  "prettyplease",
- "syn 2.0.116",
+ "syn 2.0.117",
  "wasm-metadata",
  "wit-bindgen-core",
  "wit-component",
@@ -5325,7 +5486,7 @@ dependencies = [
  "prettyplease",
  "proc-macro2",
  "quote",
- "syn 2.0.116",
+ "syn 2.0.117",
  "wit-bindgen-core",
  "wit-bindgen-rust",
 ]
@@ -5401,7 +5562,7 @@ checksum = "b659052874eb698efe5b9e8cf382204678a0086ebf46982b79d6ca3182927e5d"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.116",
+ "syn 2.0.117",
  "synstructure",
 ]
 
@@ -5422,7 +5583,7 @@ checksum = "4122cd3169e94605190e77839c9a40d40ed048d305bfdc146e7df40ab0f3e517"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.116",
+ "syn 2.0.117",
 ]
 
 [[package]]
@@ -5442,7 +5603,7 @@ checksum = "d71e5d6e06ab090c67b5e44993ec16b72dcbaabc526db883a360057678b48502"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.116",
+ "syn 2.0.117",
  "synstructure",
 ]
 
@@ -5463,7 +5624,7 @@ checksum = "85a5b4158499876c763cb03bc4e49185d3cccbabb15b33c627f7884f43db852e"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.116",
+ "syn 2.0.117",
 ]
 
 [[package]]
@@ -5496,7 +5657,7 @@ checksum = "eadce39539ca5cb3985590102671f2567e659fca9666581ad3411d59207951f3"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.116",
+ "syn 2.0.117",
 ]
 
 [[package]]

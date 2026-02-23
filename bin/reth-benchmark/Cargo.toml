@@ -46,11 +46,11 @@ openvm = { workspace = true }
 # This allows us to not update revm and openvm-kzg each time we change openvm-sdk
 # Using main from 10/13/2025 for now
 openvm-stark-sdk = { git = "https://github.com/openvm-org/stark-backend.git", tag = "v1.2.3", default-features = false }
-openvm-transpiler = { git = "https://github.com/openvm-org/openvm.git", branch = "perf/sw-ec-projective-INT-6136", default-features = false }
-openvm-circuit = { git = "https://github.com/openvm-org/openvm.git", branch = "perf/sw-ec-projective-INT-6136", default-features = false }
-openvm-benchmarks-prove = { git = "https://github.com/openvm-org/openvm.git", branch = "perf/sw-ec-projective-INT-6136", default-features = false, features = ["parallel"] }
-openvm-sdk = { git = "https://github.com/openvm-org/openvm.git", branch = "perf/sw-ec-projective-INT-6136", default-features = false }
-openvm-native-circuit = { git = "https://github.com/openvm-org/openvm.git", branch = "perf/sw-ec-projective-INT-6136", default-features = false }
+openvm-transpiler = { git = "https://github.com/openvm-org/openvm.git", branch = "perf/optimize-modexp-INT-6295", default-features = false }
+openvm-circuit = { git = "https://github.com/openvm-org/openvm.git", branch = "perf/optimize-modexp-INT-6295", default-features = false }
+openvm-benchmarks-prove = { git = "https://github.com/openvm-org/openvm.git", branch = "perf/optimize-modexp-INT-6295", default-features = false, features = ["parallel"] }
+openvm-sdk = { git = "https://github.com/openvm-org/openvm.git", branch = "perf/optimize-modexp-INT-6295", default-features = false }
+openvm-native-circuit = { git = "https://github.com/openvm-org/openvm.git", branch = "perf/optimize-modexp-INT-6295", default-features = false }
 toml.workspace = true
 
 # halo2
