@@ -47,6 +47,14 @@ const BN_G2_LEN: usize = 128;
 /// This is an element in the scalar field of BN254.
 const BN_SCALAR_LEN: usize = 32;
 
+/// BN254 Fr modulus in big-endian bytes.
+/// 0x30644e72e131a029b85045b68181585d2833e84879b9709143e1f593f0000001
+const BN254_FR_MODULUS_BE: [u8; 32] = [
+    0x30, 0x64, 0x4e, 0x72, 0xe1, 0x31, 0xa0, 0x29, 0xb8, 0x50, 0x45, 0xb6, 0x81, 0x81, 0x58,
+    0x5d, 0x28, 0x33, 0xe8, 0x48, 0x79, 0xb9, 0x70, 0x91, 0x43, 0xe1, 0xf5, 0x93, 0xf0, 0x00,
+    0x00, 0x01,
+];
+
 /// OpenVM k256 backend for Alloy crypto operations (transaction validation)
 #[derive(Debug, Default)]
 struct OpenVmK256Provider;
@@ -306,6 +314,73 @@ impl Crypto for OpenVmCrypto {
         .map_err(|_| PrecompileError::other("openvm kzg proof verification failed"))?;
         Ok(())
     }
+
+    /// Custom modular exponentiation with BN254 Fr acceleration
+    fn modexp(&self, base: &[u8], exp: &[u8], modulus: &[u8]) -> Result<Vec<u8>, PrecompileError> {
+        if is_bn254_fr(modulus) {
+            return Ok(accelerated_modexp_bn254_fr(base, exp));
+        }
+        Ok(aurora_engine_modexp::modexp(base, exp, modulus))
+    }
+}
+
+/// Returns true if the modulus (big-endian, possibly with leading zeros) equals BN254 Fr.
+fn is_bn254_fr(modulus: &[u8]) -> bool {
+    // Strip leading zeros
+    let stripped = match modulus.iter().position(|&b| b != 0) {
+        Some(i) => &modulus[i..],
+        None => return false, // all zeros
+    };
+    stripped == &BN254_FR_MODULUS_BE[..]
+}
+
+/// Accelerated modexp for BN254 Fr using field arithmetic intrinsics.
+fn accelerated_modexp_bn254_fr(base: &[u8], exp: &[u8]) -> Vec<u8> {
+    use openvm_ecc_guest::algebra::{ExpBytes, IntMod};
+
+    // Handle zero exponent: result is always 1 (for modulus > 1)
+    if exp.iter().all(|&b| b == 0) {
+        let mut result = vec![0u8; 32];
+        result[31] = 1;
+        return result;
+    }
+
+    // Handle zero base
+    if base.iter().all(|&b| b == 0) {
+        return vec![0u8; 32];
+    }
+
+    // For base > 32 bytes, fall back to generic (needs big-int reduction first)
+    if base.len() > 32 {
+        return aurora_engine_modexp::modexp(base, exp, &BN254_FR_MODULUS_BE);
+    }
+
+    // Left-pad base to 32 bytes
+    let mut padded = [0u8; 32];
+    padded[32 - base.len()..].copy_from_slice(base);
+
+    // Use checked from_be_bytes; if base >= Fr, reduce via repeated subtraction
+    let base_fr = match bn::Scalar::from_be_bytes(&padded) {
+        Some(b) => b,
+        None => {
+            let mut val = padded;
+            loop {
+                let mut borrow = 0u16;
+                for i in (0..32).rev() {
+                    let diff = val[i] as u16 + 256 - BN254_FR_MODULUS_BE[i] as u16 - borrow;
+                    val[i] = diff as u8;
+                    borrow = if diff < 256 { 1 } else { 0 };
+                }
+                if let Some(b) = bn::Scalar::from_be_bytes(&val) {
+                    break b;
+                }
+            }
+        }
+    };
+
+    // Accelerated exponentiation using field ops
+    let result = base_fr.exp_bytes(true, exp);
+    result.to_be_bytes().as_ref().to_vec()
 }
 
 /// Install OpenVM crypto implementations globally
