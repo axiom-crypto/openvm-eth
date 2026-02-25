@@ -1,66 +1,55 @@
-# # Copy to config.toml for local patches
-# [net]
-# git-fetch-with-cli = true
+[net]
+git-fetch-with-cli = true
 
-# Patches moved to Cargo.toml
+[patch."https://github.com/openvm-org/openvm.git"]
+openvm = { git = "ssh://git@github.com/openvm-org/openvm.git", rev = "3ef19c07f5b376dd9e224cb9806d5950cd215036" }
+openvm-build = { git = "ssh://git@github.com/openvm-org/openvm.git", rev = "3ef19c07f5b376dd9e224cb9806d5950cd215036" }
+openvm-platform = { git = "ssh://git@github.com/openvm-org/openvm.git", rev = "3ef19c07f5b376dd9e224cb9806d5950cd215036" }
+openvm-macros-common = { git = "ssh://git@github.com/openvm-org/openvm.git", rev = "3ef19c07f5b376dd9e224cb9806d5950cd215036" }
+openvm-instructions = { git = "ssh://git@github.com/openvm-org/openvm.git", rev = "3ef19c07f5b376dd9e224cb9806d5950cd215036" }
+openvm-instructions-derive = { git = "ssh://git@github.com/openvm-org/openvm.git", rev = "3ef19c07f5b376dd9e224cb9806d5950cd215036" }
+openvm-custom-insn = { git = "ssh://git@github.com/openvm-org/openvm.git", rev = "3ef19c07f5b376dd9e224cb9806d5950cd215036" }
+openvm-rv32im-guest = { git = "ssh://git@github.com/openvm-org/openvm.git", rev = "3ef19c07f5b376dd9e224cb9806d5950cd215036" }
+openvm-algebra-guest = { git = "ssh://git@github.com/openvm-org/openvm.git", rev = "3ef19c07f5b376dd9e224cb9806d5950cd215036" }
+openvm-algebra-moduli-macros = { git = "ssh://git@github.com/openvm-org/openvm.git", rev = "3ef19c07f5b376dd9e224cb9806d5950cd215036" }
+openvm-algebra-complex-macros = { git = "ssh://git@github.com/openvm-org/openvm.git", rev = "3ef19c07f5b376dd9e224cb9806d5950cd215036" }
+openvm-ecc-guest = { git = "ssh://git@github.com/openvm-org/openvm.git", rev = "3ef19c07f5b376dd9e224cb9806d5950cd215036" }
+openvm-ecc-sw-macros = { git = "ssh://git@github.com/openvm-org/openvm.git", rev = "3ef19c07f5b376dd9e224cb9806d5950cd215036" }
+openvm-keccak256 = { git = "ssh://git@github.com/openvm-org/openvm.git", rev = "3ef19c07f5b376dd9e224cb9806d5950cd215036" }
+openvm-keccak256-guest = { git = "ssh://git@github.com/openvm-org/openvm.git", rev = "3ef19c07f5b376dd9e224cb9806d5950cd215036" }
+openvm-sha2 = { git = "ssh://git@github.com/openvm-org/openvm.git", rev = "3ef19c07f5b376dd9e224cb9806d5950cd215036" }
+openvm-sha256-guest = { git = "ssh://git@github.com/openvm-org/openvm.git", rev = "3ef19c07f5b376dd9e224cb9806d5950cd215036" }
+openvm-pairing = { git = "ssh://git@github.com/openvm-org/openvm.git", rev = "3ef19c07f5b376dd9e224cb9806d5950cd215036" }
+openvm-pairing-guest = { git = "ssh://git@github.com/openvm-org/openvm.git", rev = "3ef19c07f5b376dd9e224cb9806d5950cd215036" }
+k256 = { git = "ssh://git@github.com/openvm-org/openvm.git", rev = "3ef19c07f5b376dd9e224cb9806d5950cd215036" }
+p256 = { git = "ssh://git@github.com/openvm-org/openvm.git", rev = "3ef19c07f5b376dd9e224cb9806d5950cd215036" }
 
-# # [patch."https://github.com/openvm-org/stark-backend.git"]
-# # openvm-stark-backend = { git = "ssh://git@github.com/openvm-org/stark-backend.git", tag = "v1.2.0" }
-# # openvm-stark-sdk = { git = "ssh://git@github.com/openvm-org/stark-backend.git", tag = "v1.2.0" }
-
-# [patch."https://github.com/openvm-org/openvm.git"]
-# openvm-benchmarks-prove = { git = "ssh://git@github.com/openvm-org/openvm.git", branch = "main" }
-# # OpenVM
-# openvm-sdk = { git = "ssh://git@github.com/openvm-org/openvm.git", branch = "main" }
-# cargo-openvm = { git = "ssh://git@github.com/openvm-org/openvm.git", branch = "main" }
-# openvm-mod-circuit-builder = { git = "ssh://git@github.com/openvm-org/openvm.git", branch = "main" }
-# openvm-poseidon2-air = { git = "ssh://git@github.com/openvm-org/openvm.git", branch = "main" }
-# openvm-circuit-primitives = { git = "ssh://git@github.com/openvm-org/openvm.git", branch = "main" }
-# openvm-circuit-primitives-derive = { git = "ssh://git@github.com/openvm-org/openvm.git", branch = "main" }
-# openvm = { git = "ssh://git@github.com/openvm-org/openvm.git", branch = "main" }
-# openvm-build = { git = "ssh://git@github.com/openvm-org/openvm.git", branch = "main" }
-# openvm-instructions = { git = "ssh://git@github.com/openvm-org/openvm.git", branch = "main" }
-# openvm-instructions-derive = { git = "ssh://git@github.com/openvm-org/openvm.git", branch = "main" }
-# openvm-macros-common = { git = "ssh://git@github.com/openvm-org/openvm.git", branch = "main" }
-# openvm-platform = { git = "ssh://git@github.com/openvm-org/openvm.git", branch = "main" }
-# openvm-transpiler = { git = "ssh://git@github.com/openvm-org/openvm.git", branch = "main" }
-# openvm-circuit = { git = "ssh://git@github.com/openvm-org/openvm.git", branch = "main" }
-# openvm-circuit-derive = { git = "ssh://git@github.com/openvm-org/openvm.git", branch = "main" }
-
-# # Extensions
-# openvm-algebra-circuit = { git = "ssh://git@github.com/openvm-org/openvm.git", branch = "main" }
-# openvm-algebra-transpiler = { git = "ssh://git@github.com/openvm-org/openvm.git", branch = "main" }
-# openvm-algebra-guest = { git = "ssh://git@github.com/openvm-org/openvm.git", branch = "main" }
-# openvm-algebra-moduli-macros = { git = "ssh://git@github.com/openvm-org/openvm.git", branch = "main" }
-# openvm-algebra-complex-macros = { git = "ssh://git@github.com/openvm-org/openvm.git", branch = "main" }
-# openvm-bigint-circuit = { git = "ssh://git@github.com/openvm-org/openvm.git", branch = "main" }
-# openvm-bigint-transpiler = { git = "ssh://git@github.com/openvm-org/openvm.git", branch = "main" }
-# openvm-bigint-guest = { git = "ssh://git@github.com/openvm-org/openvm.git", branch = "main" }
-# openvm-ecc-circuit = { git = "ssh://git@github.com/openvm-org/openvm.git", branch = "main" }
-# openvm-ecc-transpiler = { git = "ssh://git@github.com/openvm-org/openvm.git", branch = "main" }
-# openvm-ecc-guest = { git = "ssh://git@github.com/openvm-org/openvm.git", branch = "main" }
-# openvm-ecc-sw-macros = { git = "ssh://git@github.com/openvm-org/openvm.git", branch = "main" }
-# openvm-keccak256-circuit = { git = "ssh://git@github.com/openvm-org/openvm.git", branch = "main" }
-# openvm-keccak256-transpiler = { git = "ssh://git@github.com/openvm-org/openvm.git", branch = "main" }
-# openvm-keccak256-guest = { git = "ssh://git@github.com/openvm-org/openvm.git", branch = "main" }
-# openvm-sha256-circuit = { git = "ssh://git@github.com/openvm-org/openvm.git", branch = "main" }
-# openvm-sha256-transpiler = { git = "ssh://git@github.com/openvm-org/openvm.git", branch = "main" }
-# openvm-sha256-guest = { git = "ssh://git@github.com/openvm-org/openvm.git", branch = "main" }
-# openvm-native-circuit = { git = "ssh://git@github.com/openvm-org/openvm.git", branch = "main" }
-# openvm-native-compiler = { git = "ssh://git@github.com/openvm-org/openvm.git", branch = "main" }
-# openvm-native-compiler-derive = { git = "ssh://git@github.com/openvm-org/openvm.git", branch = "main" }
-# openvm-native-recursion = { git = "ssh://git@github.com/openvm-org/openvm.git", branch = "main" }
-# openvm-pairing-circuit = { git = "ssh://git@github.com/openvm-org/openvm.git", branch = "main" }
-# openvm-pairing-transpiler = { git = "ssh://git@github.com/openvm-org/openvm.git", branch = "main" }
-# openvm-pairing-guest = { git = "ssh://git@github.com/openvm-org/openvm.git", branch = "main" }
-# openvm-rv32-adapters = { git = "ssh://git@github.com/openvm-org/openvm.git", branch = "main" }
-# openvm-rv32im-circuit = { git = "ssh://git@github.com/openvm-org/openvm.git", branch = "main" }
-# openvm-rv32im-transpiler = { git = "ssh://git@github.com/openvm-org/openvm.git", branch = "main" }
-# openvm-rv32im-guest = { git = "ssh://git@github.com/openvm-org/openvm.git", branch = "main" }
-
-# # Guest Libs
-# k256 = { git = "ssh://git@github.com/openvm-org/openvm.git", branch = "main" }
-# p256 = { git = "ssh://git@github.com/openvm-org/openvm.git", branch = "main" }
-# openvm-keccak256 = { git = "ssh://git@github.com/openvm-org/openvm.git", branch = "main" }
-# openvm-sha2 = { git = "ssh://git@github.com/openvm-org/openvm.git", branch = "main" }
-# openvm-pairing = { git = "ssh://git@github.com/openvm-org/openvm.git", branch = "main" }
+# Host-only crates (needed for bin/reth-benchmark)
+openvm-sdk = { git = "ssh://git@github.com/openvm-org/openvm.git", rev = "3ef19c07f5b376dd9e224cb9806d5950cd215036" }
+openvm-transpiler = { git = "ssh://git@github.com/openvm-org/openvm.git", rev = "3ef19c07f5b376dd9e224cb9806d5950cd215036" }
+openvm-circuit = { git = "ssh://git@github.com/openvm-org/openvm.git", rev = "3ef19c07f5b376dd9e224cb9806d5950cd215036" }
+openvm-circuit-derive = { git = "ssh://git@github.com/openvm-org/openvm.git", rev = "3ef19c07f5b376dd9e224cb9806d5950cd215036" }
+openvm-circuit-primitives = { git = "ssh://git@github.com/openvm-org/openvm.git", rev = "3ef19c07f5b376dd9e224cb9806d5950cd215036" }
+openvm-circuit-primitives-derive = { git = "ssh://git@github.com/openvm-org/openvm.git", rev = "3ef19c07f5b376dd9e224cb9806d5950cd215036" }
+openvm-native-circuit = { git = "ssh://git@github.com/openvm-org/openvm.git", rev = "3ef19c07f5b376dd9e224cb9806d5950cd215036" }
+openvm-native-compiler = { git = "ssh://git@github.com/openvm-org/openvm.git", rev = "3ef19c07f5b376dd9e224cb9806d5950cd215036" }
+openvm-native-compiler-derive = { git = "ssh://git@github.com/openvm-org/openvm.git", rev = "3ef19c07f5b376dd9e224cb9806d5950cd215036" }
+openvm-native-recursion = { git = "ssh://git@github.com/openvm-org/openvm.git", rev = "3ef19c07f5b376dd9e224cb9806d5950cd215036" }
+openvm-mod-circuit-builder = { git = "ssh://git@github.com/openvm-org/openvm.git", rev = "3ef19c07f5b376dd9e224cb9806d5950cd215036" }
+openvm-poseidon2-air = { git = "ssh://git@github.com/openvm-org/openvm.git", rev = "3ef19c07f5b376dd9e224cb9806d5950cd215036" }
+openvm-rv32-adapters = { git = "ssh://git@github.com/openvm-org/openvm.git", rev = "3ef19c07f5b376dd9e224cb9806d5950cd215036" }
+openvm-rv32im-circuit = { git = "ssh://git@github.com/openvm-org/openvm.git", rev = "3ef19c07f5b376dd9e224cb9806d5950cd215036" }
+openvm-rv32im-transpiler = { git = "ssh://git@github.com/openvm-org/openvm.git", rev = "3ef19c07f5b376dd9e224cb9806d5950cd215036" }
+openvm-algebra-circuit = { git = "ssh://git@github.com/openvm-org/openvm.git", rev = "3ef19c07f5b376dd9e224cb9806d5950cd215036" }
+openvm-algebra-transpiler = { git = "ssh://git@github.com/openvm-org/openvm.git", rev = "3ef19c07f5b376dd9e224cb9806d5950cd215036" }
+openvm-bigint-circuit = { git = "ssh://git@github.com/openvm-org/openvm.git", rev = "3ef19c07f5b376dd9e224cb9806d5950cd215036" }
+openvm-bigint-transpiler = { git = "ssh://git@github.com/openvm-org/openvm.git", rev = "3ef19c07f5b376dd9e224cb9806d5950cd215036" }
+openvm-bigint-guest = { git = "ssh://git@github.com/openvm-org/openvm.git", rev = "3ef19c07f5b376dd9e224cb9806d5950cd215036" }
+openvm-ecc-circuit = { git = "ssh://git@github.com/openvm-org/openvm.git", rev = "3ef19c07f5b376dd9e224cb9806d5950cd215036" }
+openvm-ecc-transpiler = { git = "ssh://git@github.com/openvm-org/openvm.git", rev = "3ef19c07f5b376dd9e224cb9806d5950cd215036" }
+openvm-keccak256-circuit = { git = "ssh://git@github.com/openvm-org/openvm.git", rev = "3ef19c07f5b376dd9e224cb9806d5950cd215036" }
+openvm-keccak256-transpiler = { git = "ssh://git@github.com/openvm-org/openvm.git", rev = "3ef19c07f5b376dd9e224cb9806d5950cd215036" }
+openvm-pairing-circuit = { git = "ssh://git@github.com/openvm-org/openvm.git", rev = "3ef19c07f5b376dd9e224cb9806d5950cd215036" }
+openvm-pairing-transpiler = { git = "ssh://git@github.com/openvm-org/openvm.git", rev = "3ef19c07f5b376dd9e224cb9806d5950cd215036" }
+cargo-openvm = { git = "ssh://git@github.com/openvm-org/openvm.git", rev = "3ef19c07f5b376dd9e224cb9806d5950cd215036" }
+openvm-benchmarks-prove = { git = "ssh://git@github.com/openvm-org/openvm.git", rev = "3ef19c07f5b376dd9e224cb9806d5950cd215036" }

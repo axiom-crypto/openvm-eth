@@ -10,11 +10,11 @@ edition = "2021"
 openvm-stateless-executor = { path = "../../crates/stateless-executor", features = ["openvm"] }
 
 # openvm
-openvm = { git = "https://github.com/openvm-org/openvm.git", branch = "main", features = [
+openvm = { git = "https://github.com/openvm-org/openvm.git", rev = "3ef19c07f5b376dd9e224cb9806d5950cd215036", features = [
     "std",
 ] }
-openvm-algebra-guest = { git = "https://github.com/openvm-org/openvm.git", branch = "main" }
-openvm-ecc-guest = { git = "https://github.com/openvm-org/openvm.git", branch = "main" }
+openvm-algebra-guest = { git = "https://github.com/openvm-org/openvm.git", rev = "3ef19c07f5b376dd9e224cb9806d5950cd215036" }
+openvm-ecc-guest = { git = "https://github.com/openvm-org/openvm.git", rev = "3ef19c07f5b376dd9e224cb9806d5950cd215036" }
 
 # Enable std feature for host builds (provides critical-section implementation)
 [target.'cfg(not(target_os = "zkvm"))'.dependencies]
