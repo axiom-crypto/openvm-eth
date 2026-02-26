@@ -39,6 +39,9 @@ use revm::{
 };
 use std::{sync::Arc, vec::Vec};
 
+mod subgroup_check;
+use subgroup_check::SubgroupCheck;
+
 // BN254 constants
 const BN_FQ_LEN: usize = 32;
 const BN_G1_LEN: usize = 64;
@@ -381,7 +384,12 @@ fn read_bn_g1_point(input: &[u8]) -> Result<bn::G1Affine, PrecompileError> {
     }
     let px = read_bn_fq(&input[0..BN_FQ_LEN])?;
     let py = read_bn_fq(&input[BN_FQ_LEN..BN_G1_LEN])?;
-    bn::G1Affine::from_xy(px, py).ok_or(PrecompileError::Bn254AffineGFailedToCreate)
+    let point = bn::G1Affine::from_xy(px, py).ok_or(PrecompileError::Bn254AffineGFailedToCreate)?;
+    if point.is_in_correct_subgroup() {
+        Ok(point)
+    } else {
+        Err(PrecompileError::Bn254AffineGFailedToCreate)
+    }
 }
 
 #[inline]
@@ -391,7 +399,12 @@ fn read_bn_g2_point(input: &[u8]) -> Result<bn::G2Affine, PrecompileError> {
     }
     let c0 = read_bn_fq2(&input[0..BN_G1_LEN])?;
     let c1 = read_bn_fq2(&input[BN_G1_LEN..BN_G2_LEN])?;
-    bn::G2Affine::from_xy(c0, c1).ok_or(PrecompileError::Bn254AffineGFailedToCreate)
+    let point = bn::G2Affine::from_xy(c0, c1).ok_or(PrecompileError::Bn254AffineGFailedToCreate)?;
+    if point.is_in_correct_subgroup() {
+        Ok(point)
+    } else {
+        Err(PrecompileError::Bn254AffineGFailedToCreate)
+    }
 }
 
 #[inline]
@@ -447,16 +460,24 @@ fn read_bls_fp2(c0: &[u8], c1: &[u8]) -> Result<bls::Fp2, PrecompileError> {
 fn read_bls_g1_point(point: &BlsG1Point) -> Result<bls::G1Affine, PrecompileError> {
     let px = read_bls_fp(&point.0)?;
     let py = read_bls_fp(&point.1)?;
-    bls::G1Affine::from_xy(px, py)
-        .ok_or_else(|| PrecompileError::other("failed to create BLS12-381 G1 point"))
+    let point = bls::G1Affine::from_xy(px, py).ok_or(PrecompileError::Bls12381G1NotOnCurve)?;
+    if point.is_in_correct_subgroup() {
+        Ok(point)
+    } else {
+        Err(PrecompileError::Bls12381G1NotInSubgroup)
+    }
 }
 
 #[inline]
 fn read_bls_g2_point(point: &BlsG2Point) -> Result<bls::G2Affine, PrecompileError> {
     let x = read_bls_fp2(&point.0, &point.1)?;
     let y = read_bls_fp2(&point.2, &point.3)?;
-    bls::G2Affine::from_xy(x, y)
-        .ok_or_else(|| PrecompileError::other("failed to create BLS12-381 G2 point"))
+    let point = bls::G2Affine::from_xy(x, y).ok_or(PrecompileError::Bls12381G2NotOnCurve)?;
+    if point.is_in_correct_subgroup() {
+        Ok(point)
+    } else {
+        Err(PrecompileError::Bls12381G2NotInSubgroup)
+    }
 }
 
 #[inline]
