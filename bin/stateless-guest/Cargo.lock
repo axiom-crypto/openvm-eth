@@ -2929,6 +2929,7 @@ version = "0.4.0"
 dependencies = [
  "alloy-consensus",
  "alloy-primitives",
+ "aurora-engine-modexp",
  "k256 0.13.4 (git+https://github.com/openvm-org/openvm.git?branch=main)",
  "openvm-ecc-guest",
  "openvm-keccak256",
