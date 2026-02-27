@@ -332,6 +332,7 @@ fn accelerated_modexp_bn254_fr(base: &[u8], exp: &[u8]) -> Vec<u8> {
     use openvm_ecc_guest::algebra::{ExpBytes, Reduce};
 
     let base_fr = if base.len() <= BN_SCALAR_LEN {
+        // Reduction not needed: arithmetic constraints work on any value in [0, 2^256).
         bn::Scalar::from_be_bytes_unchecked(base)
     } else {
         bn::Scalar::reduce_be_bytes(base)
