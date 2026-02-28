@@ -306,6 +306,43 @@ impl Crypto for OpenVmCrypto {
         .map_err(|_| PrecompileError::other("openvm kzg proof verification failed"))?;
         Ok(())
     }
+
+    /// Custom modular exponentiation with BN254 Fr acceleration
+    fn modexp(&self, base: &[u8], exp: &[u8], modulus: &[u8]) -> Result<Vec<u8>, PrecompileError> {
+        if is_bn254_fr(modulus) {
+            return Ok(accelerated_modexp_bn254_fr(base, exp));
+        }
+        Ok(aurora_engine_modexp::modexp(base, exp, modulus))
+    }
+}
+
+/// Returns true if the modulus (big-endian, possibly with leading zeros) equals BN254 Fr.
+fn is_bn254_fr(modulus: &[u8]) -> bool {
+    // Strip leading zeros
+    let stripped = match modulus.iter().position(|&b| b != 0) {
+        Some(i) => &modulus[i..],
+        None => return false, // all zeros
+    };
+    // bn::Scalar::MODULUS is little-endian; compare against reversed input
+    stripped.len() == BN_SCALAR_LEN && stripped.iter().rev().eq(bn::Scalar::MODULUS.as_ref().iter())
+}
+
+/// Accelerated modexp for BN254 Fr using field arithmetic intrinsics.
+fn accelerated_modexp_bn254_fr(base: &[u8], exp: &[u8]) -> Vec<u8> {
+    use openvm_ecc_guest::algebra::{ExpBytes, Reduce};
+
+    let base_fr = if base.len() <= BN_SCALAR_LEN {
+        // Use checked conversion; reduce if base >= modulus.
+        bn::Scalar::from_be_bytes(base).unwrap_or_else(|| bn::Scalar::reduce_be_bytes(base))
+    } else {
+        // Pad to a multiple of BN_SCALAR_LEN so reduce_be_bytes chunk processing works correctly.
+        let padded_len = base.len().next_multiple_of(BN_SCALAR_LEN);
+        let mut padded = vec![0u8; padded_len];
+        padded[padded_len - base.len()..].copy_from_slice(base);
+        bn::Scalar::reduce_be_bytes(&padded)
+    };
+
+    base_fr.exp_bytes(true, exp).to_be_bytes().as_ref().to_vec()
 }
 
 /// Install OpenVM crypto implementations globally
@@ -469,4 +506,116 @@ fn encode_bls_g2_point(point: &bls::G2Affine) -> [u8; BLS_G2_LEN] {
         output[i + (3 * BLS_FP_LEN)] = y_c1[BLS_FP_LEN - 1 - i];
     }
     output
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// BN254 Fr modulus in big-endian bytes
+    fn bn254_fr_modulus_be() -> Vec<u8> {
+        let m = bn::Scalar::MODULUS;
+        m.as_ref().iter().rev().copied().collect()
+    }
+
+    /// Reference implementation: aurora_engine_modexp
+    fn reference_modexp(base: &[u8], exp: &[u8], modulus: &[u8]) -> Vec<u8> {
+        aurora_engine_modexp::modexp(base, exp, modulus)
+    }
+
+    /// Helper: run accelerated and compare against reference.
+    /// The accelerated path always returns BN_SCALAR_LEN bytes, so we left-pad the
+    /// reference output to match.
+    fn check(base: &[u8], exp: &[u8]) {
+        let modulus = bn254_fr_modulus_be();
+        let expected = reference_modexp(base, exp, &modulus);
+        let actual = accelerated_modexp_bn254_fr(base, exp);
+        let mut expected_padded = vec![0u8; BN_SCALAR_LEN];
+        let offset = BN_SCALAR_LEN - expected.len();
+        expected_padded[offset..].copy_from_slice(&expected);
+        assert_eq!(actual, expected_padded, "base={base:?}, exp={exp:?}");
+    }
+
+    #[test]
+    fn test_is_bn254_fr() {
+        // Exact modulus
+        assert!(is_bn254_fr(&bn254_fr_modulus_be()));
+
+        // With leading zeros
+        let mut padded = vec![0u8; 10];
+        padded.extend_from_slice(&bn254_fr_modulus_be());
+        assert!(is_bn254_fr(&padded));
+
+        // All zeros → false
+        assert!(!is_bn254_fr(&[0u8; 32]));
+
+        // Wrong modulus (flip last bit)
+        let mut m = bn254_fr_modulus_be();
+        *m.last_mut().unwrap() ^= 1;
+        assert!(!is_bn254_fr(&m));
+    }
+
+    #[test]
+    fn test_accelerated_modexp_bn254_fr() {
+        // --- short base (<=32 bytes), value < modulus ---
+        check(&[3], &[5]); // 3^5 mod Fr
+        check(&[0], &[5]); // 0^5 = 0
+        check(&[3], &[0]); // 3^0 = 1
+        check(&[0], &[0]); // 0^0 = 1 by convention
+        check(&[], &[]); // empty inputs
+        check(&[0, 0, 0, 3], &[5]); // leading zeros in base
+
+        // --- short base, value >= modulus (triggers reduce fallback) ---
+        let m = bn254_fr_modulus_be();
+        check(&m, &[1]); // Fr mod Fr = 0, so 0^1 = 0
+        let mut m_plus_1 = m.clone();
+        *m_plus_1.last_mut().unwrap() = m_plus_1.last().unwrap().wrapping_add(1);
+        check(&m_plus_1, &[2]); // (Fr+1)^2 mod Fr = 1
+        check(&[0xff; 32], &[1]); // max 256-bit value, >= modulus
+
+        // --- large base (> 32 bytes, reduce_be_bytes path) ---
+        check(&[0xab; 64], &[3]); // aligned (multiple of 32)
+        check(&[0x42; 100], &[2]); // unaligned (tests padding fix)
+        check(&[0xab; 64], &[0xff; 32]); // large base + large exponent
+
+        // --- larger exponents ---
+        check(&[2], &[0xff; 32]); // 2^(2^256-1) mod Fr
+        check(&[2], &[0, 0, 0, 5]); // leading zeros in exponent
+        check(&[3], &[0xab; 64]); // exponent > 32 bytes
+
+        // --- cross-path consistency: same value through different code paths ---
+        // 33-byte base with leading zero (reduce_be_bytes path) vs 32-byte base (from_be_bytes
+        // path)
+        let base_32 = [0xab; 32];
+        let mut base_33 = vec![0u8];
+        base_33.extend_from_slice(&base_32);
+        let exp = &[7];
+        assert_eq!(
+            accelerated_modexp_bn254_fr(&base_32, exp),
+            accelerated_modexp_bn254_fr(&base_33, exp),
+            "33-byte base with leading zero must match 32-byte base"
+        );
+    }
+
+    /// Test the `Crypto::modexp` dispatch: accelerated path for BN254 Fr,
+    /// aurora fallback for other moduli.
+    #[test]
+    fn test_modexp_dispatch() {
+        let crypto = OpenVmCrypto;
+        let fr_mod = bn254_fr_modulus_be();
+
+        // Accelerated path: BN254 Fr modulus
+        let accel = crypto.modexp(&[3], &[5], &fr_mod).unwrap();
+        let reference = reference_modexp(&[3], &[5], &fr_mod);
+        let mut ref_padded = vec![0u8; BN_SCALAR_LEN];
+        let offset = BN_SCALAR_LEN - reference.len();
+        ref_padded[offset..].copy_from_slice(&reference);
+        assert_eq!(accel, ref_padded, "accelerated path should match reference");
+
+        // Fallback path: non-BN254 modulus (e.g. small prime 7)
+        let other_mod = &[7];
+        let fallback = crypto.modexp(&[3], &[4], other_mod).unwrap();
+        let expected = reference_modexp(&[3], &[4], other_mod);
+        assert_eq!(fallback, expected, "fallback path should match reference");
+    }
 }
