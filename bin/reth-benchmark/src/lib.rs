@@ -327,6 +327,34 @@ pub async fn run_reth_benchmark(args: HostArgs, openvm_client_eth_elf: &[u8]) ->
         }
     };
 
+    if matches!(args.mode, BenchMode::MakeInput) {
+        if let Some(ref path) = args.generated_input_path {
+            let mut file = std::fs::File::create(path)?;
+            bincode::serde::encode_into_std_write(
+                &stateless_input,
+                &mut file,
+                bincode::config::standard(),
+            )?;
+            info!("Input written to {}", path.display());
+        }
+        return Ok(());
+    }
+
+    if matches!(args.mode, BenchMode::ExecuteHost) {
+        let start = Instant::now();
+        let executor = openvm_stateless_executor::StatelessExecutor;
+        let header = executor.execute(
+            openvm_stateless_executor::ChainVariant::Mainnet,
+            stateless_input,
+        )?;
+        info!(
+            "Host execution completed in {:?}, block hash: {:?}",
+            start.elapsed(),
+            header.hash_slow()
+        );
+        return Ok(());
+    }
+
     let encoded_stateless_input: Vec<F> = {
         let words = openvm_v2::serde::to_vec(&stateless_input)?;
         words.into_iter().flat_map(|w| w.to_le_bytes()).map(F::from_u8).collect()
@@ -388,9 +416,55 @@ pub async fn run_reth_benchmark(args: HostArgs, openvm_client_eth_elf: &[u8]) ->
                     info!("  App VK: {}", app_vk_path.display());
                     info!("  Agg PK: {}", agg_pk_path.display());
                 }
-                _ => {
-                    // This case is handled earlier and should not reach here
-                    todo!();
+                BenchMode::Execute => {
+                    let public_values = sdk.execute(exe, stdin)?;
+                    info!(
+                        "Execution completed. Public values: {} bytes",
+                        public_values.len()
+                    );
+                }
+                BenchMode::ExecuteMetered => {
+                    // Pure execution first (emits execute_e1_* metrics)
+                    let _public_values = sdk.execute(exe.clone(), stdin.clone())?;
+                    info!("Pure execution completed.");
+
+                    // Metered execution (emits execute_metered_* metrics)
+                    let (public_values, segments) = sdk.execute_metered(exe, stdin)?;
+                    info!(
+                        "Metered execution completed. Public values: {} bytes",
+                        public_values.len()
+                    );
+                    let mut total_insns: u64 = 0;
+                    let mut total_cells: u64 = 0;
+                    for (i, seg) in segments.iter().enumerate() {
+                        let max_height =
+                            seg.trace_heights.iter().copied().max().unwrap_or(0);
+                        let seg_cells: u64 =
+                            seg.trace_heights.iter().map(|&h| h as u64).sum();
+                        total_insns += seg.num_insns;
+                        total_cells += seg_cells;
+                        info!(
+                            "| Segment {:>4} | {} cells | insns={}, max_trace_height={} |",
+                            i, seg_cells, seg.num_insns, max_height
+                        );
+                    }
+                    info!("Number of segments: {}", segments.len());
+                    info!(
+                        "Total cells: {}, total instructions: {}",
+                        total_cells, total_insns
+                    );
+                }
+                BenchMode::MakeInput | BenchMode::ExecuteHost => {
+                    unreachable!(
+                        "MakeInput and ExecuteHost should be handled before VM setup"
+                    );
+                }
+                #[cfg(feature = "evm-verify")]
+                BenchMode::ProveEvm => {
+                    todo!("EVM proof generation not yet implemented on develop-v2");
+                }
+                BenchMode::DumpAirStats | BenchMode::GenerateVmVkey => {
+                    unreachable!("handled earlier");
                 }
             }
 

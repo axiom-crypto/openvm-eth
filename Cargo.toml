@@ -104,16 +104,16 @@ alloy-rpc-types = { version = "1.4.3", default-features = false }
 alloy-rpc-types-debug = { version = "1.4.3", default-features = false }
 alloy-transport = { version = "1.4.3", default-features = false }
 
-openvm = { git = "https://github.com/openvm-org/openvm.git", branch = "main", default-features = false }
-openvm-ecc-guest = { git = "https://github.com/openvm-org/openvm.git", branch = "main", default-features = false }
-openvm-keccak256 = { git = "https://github.com/openvm-org/openvm.git", branch = "main", default-features = false }
-openvm-pairing = { git = "https://github.com/openvm-org/openvm.git", branch = "main", default-features = false, features = [
+openvm = { git = "https://github.com/openvm-org/openvm.git", rev = "3ef19c07f5b376dd9e224cb9806d5950cd215036", default-features = false }
+openvm-ecc-guest = { git = "https://github.com/openvm-org/openvm.git", rev = "3ef19c07f5b376dd9e224cb9806d5950cd215036", default-features = false }
+openvm-keccak256 = { git = "https://github.com/openvm-org/openvm.git", rev = "3ef19c07f5b376dd9e224cb9806d5950cd215036", default-features = false }
+openvm-pairing = { git = "https://github.com/openvm-org/openvm.git", rev = "3ef19c07f5b376dd9e224cb9806d5950cd215036", default-features = false, features = [
     "bn254",
     "bls12_381",
 ] }
-openvm-sha2 = { git = "https://github.com/openvm-org/openvm.git", branch = "main", default-features = false }
-openvm-k256 = { git = "https://github.com/openvm-org/openvm.git", package = "k256", branch = "main" }
-openvm-p256 = { git = "https://github.com/openvm-org/openvm.git", package = "p256", branch = "main" }
+openvm-sha2 = { git = "https://github.com/openvm-org/openvm.git", rev = "3ef19c07f5b376dd9e224cb9806d5950cd215036", default-features = false }
+openvm-k256 = { git = "https://github.com/openvm-org/openvm.git", package = "k256", rev = "3ef19c07f5b376dd9e224cb9806d5950cd215036" }
+openvm-p256 = { git = "https://github.com/openvm-org/openvm.git", package = "p256", rev = "3ef19c07f5b376dd9e224cb9806d5950cd215036" }
 
 openvm-kzg = { git = "https://github.com/axiom-crypto/openvm-kzg.git", branch = "openvm-main", default-features = false }
 
