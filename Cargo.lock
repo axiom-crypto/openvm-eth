@@ -7975,6 +7975,10 @@ version = "0.4.0"
 dependencies = [
  "alloy-consensus",
  "alloy-primitives",
+ "ark-bls12-381",
+ "ark-bn254",
+ "ark-ec",
+ "ark-ff 0.5.0",
  "aurora-engine-modexp",
  "k256 0.13.4 (git+https://github.com/openvm-org/openvm.git?branch=main)",
  "openvm-ecc-guest",
