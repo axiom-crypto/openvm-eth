@@ -34,7 +34,8 @@
 
 use openvm_ecc_guest::weierstrass::WeierstrassPoint;
 
-fn double_and_add<P: WeierstrassPoint, const CHECK_SETUP: bool>(
+/// Scalar multiplication using simple double-and-add
+fn scalar_mul<P: WeierstrassPoint, const CHECK_SETUP: bool>(
     base: &P,
     scalar: impl AsRef<[u64]>,
 ) -> P {
@@ -121,7 +122,7 @@ mod impl_bn {
             //
             // `CHECK_SETUP=false` since `set_up_once` is a no-op, given that bn254::G2Affine is
             // implemented via [`impl_sw_affine`].
-            let x_times_point = super::double_and_add::<_, false>(self, SIX_X_SQUARED);
+            let x_times_point = super::scalar_mul::<_, false>(self, SIX_X_SQUARED);
 
             // 2. Compute ψ(P), i.e. "untwist-Frobenius-twist".
             //
@@ -311,7 +312,7 @@ mod impl_bls {
             // that does in fact do a setup.
             //
             // If [x]P == P but P != identity then point is not in the right subgroup.
-            let x_times_point = super::double_and_add::<_, true>(self, X);
+            let x_times_point = super::scalar_mul::<_, true>(self, X);
             if self.eq(&x_times_point) && !self.is_identity() {
                 return false;
             }
@@ -320,7 +321,7 @@ mod impl_bls {
             //
             // Here we can assume `CHECK_SETUP=false` since setup has necessarily been done above.
             let minus_x_squared_times_point =
-                super::double_and_add::<_, false>(&x_times_point, X).neg();
+                super::scalar_mul::<_, false>(&x_times_point, X).neg();
 
             // 2. Compute endomorphism
             //
@@ -342,7 +343,7 @@ mod impl_bls {
     impl super::SubgroupCheck for bls::G2Affine {
         fn is_in_correct_subgroup(&self) -> bool {
             // 1. Compute -[x]P using double-and-add (X is negative).
-            let x_times_point = super::double_and_add::<_, true>(self, X).neg();
+            let x_times_point = super::scalar_mul::<_, true>(self, X).neg();
 
             // 2. Compute ψ(P)
             let endomorphism_point = {
