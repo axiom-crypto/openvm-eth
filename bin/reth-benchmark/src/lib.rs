@@ -323,6 +323,25 @@ pub async fn run_reth_benchmark(args: HostArgs, openvm_client_eth_elf: &[u8]) ->
         }
     };
 
+    // MakeInput: encode stateless_input as JSON and write to disk.
+    if matches!(args.mode, BenchMode::MakeInput) {
+        let words = openvm_v2::serde::to_vec(&stateless_input)?;
+        let bytes: Vec<u8> = words.into_iter().flat_map(|w| w.to_le_bytes()).collect();
+        let hex = format!("0x01{}", hex::encode(&bytes));
+        let json = serde_json::json!({ "input": [hex] });
+
+        if let Some(ref path) = args.generated_input_path {
+            if let Some(parent) = path.parent() {
+                fs::create_dir_all(parent)?;
+            }
+            fs::write(path, serde_json::to_string(&json)?)?;
+            info!("Wrote input JSON to {}", path.display());
+        } else {
+            println!("{}", serde_json::to_string_pretty(&json)?);
+        }
+        return Ok(());
+    }
+
     // Host execution: run the stateless executor natively, no VM.
     if matches!(args.mode, BenchMode::ExecuteHost) {
         let program_name = format!("reth.{}.block_{}", args.mode, block_number);
