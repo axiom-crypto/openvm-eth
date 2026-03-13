@@ -30,7 +30,9 @@ use openvm_stark_sdk::{
         p3_field::PrimeCharacteristicRing,
     },
 };
-use openvm_stateless_executor::{io::StatelessExecutorInput, CHAIN_ID_ETH_MAINNET};
+use openvm_stateless_executor::{
+    io::StatelessExecutorInput, ChainVariant, StatelessExecutor, CHAIN_ID_ETH_MAINNET,
+};
 use openvm_transpiler::{elf::Elf, openvm_platform::memory::MEM_SIZE, FromElf};
 use openvm_verify_stark_host::{
     verify_vm_stark_proof_decoded,
@@ -320,6 +322,27 @@ pub async fn run_reth_benchmark(args: HostArgs, openvm_client_eth_elf: &[u8]) ->
             }
         }
     };
+
+    // Host execution: run the stateless executor natively, no VM.
+    if matches!(args.mode, BenchMode::ExecuteHost) {
+        let program_name = format!("reth.{}.block_{}", args.mode, block_number);
+        let executor = StatelessExecutor;
+        let start = Instant::now();
+        let header = info_span!("host.execute", group = program_name).in_scope(|| {
+            info_span!("client.execute")
+                .in_scope(|| executor.execute(ChainVariant::Mainnet, stateless_input))
+        })?;
+        let elapsed = start.elapsed();
+        let block_hash = header.hash_slow();
+        info!(
+            "Host execution: {:.6}s, block hash: {}",
+            elapsed.as_secs_f64(),
+            block_hash,
+        );
+        println!("BENCH_HOST_NS={}", elapsed.as_nanos());
+        println!("BENCH_BLOCK_HASH={block_hash}");
+        return Ok(());
+    }
 
     let encoded_stateless_input: Vec<F> = {
         let words = openvm::serde::to_vec(&stateless_input)?;
