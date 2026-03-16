@@ -24,7 +24,7 @@ openvm-stateless-executor = { path = "../../crates/stateless-executor", default-
 ignored = ["openvm-algebra-guest", "openvm-ecc-guest"]
 
 [features]
-default = ["extensions"]
+default = []
 extensions = [
     "openvm-stateless-executor/openvm",
     "dep:openvm-algebra-guest",
