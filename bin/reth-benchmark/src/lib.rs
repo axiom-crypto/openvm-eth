@@ -21,18 +21,17 @@ use openvm_stark_sdk::{
 };
 use openvm_stateless_executor::{io::StatelessExecutorInput, CHAIN_ID_ETH_MAINNET};
 use openvm_transpiler::{elf::Elf, openvm_platform::memory::MEM_SIZE, FromElf};
-use sdk_v2::{
+use openvm_sdk::{
     config::{
-        default_app_params, default_compression_params, default_internal_params,
-        default_leaf_params, AggregationSystemParams, AppConfig, DEFAULT_APP_LOG_BLOWUP,
-        DEFAULT_APP_L_SKIP, DEFAULT_COMPRESSION_LOG_BLOWUP, DEFAULT_INTERNAL_LOG_BLOWUP,
-        DEFAULT_LEAF_LOG_BLOWUP,
+        AggregationSystemParams, AppConfig, DEFAULT_APP_LOG_BLOWUP, DEFAULT_APP_L_SKIP,
+        DEFAULT_INTERNAL_LOG_BLOWUP, DEFAULT_LEAF_LOG_BLOWUP,
     },
     fs::write_object_to_file,
     Sdk, SC,
 };
+use openvm_stark_sdk::config::app_params_with_100_bits_security;
 use tracing::{info, info_span};
-use verify_stark::{
+use openvm_verify_stark_host::{
     verify_vm_stark_proof_decoded,
     vk::{write_vk_to_file, NonRootStarkVerifyingKey},
 };
@@ -196,8 +195,6 @@ pub async fn run_reth_benchmark(args: HostArgs, openvm_client_eth_elf: &[u8]) ->
 
     let app_log_blowup = args.benchmark.app_log_blowup;
     let app_l_skip = args.benchmark.app_l_skip;
-    let leaf_log_blowup = args.benchmark.leaf_log_blowup;
-    let internal_log_blowup = args.benchmark.internal_log_blowup;
 
     #[cfg(feature = "cuda")]
     println!("CUDA Backend Enabled");
@@ -227,16 +224,11 @@ pub async fn run_reth_benchmark(args: HostArgs, openvm_client_eth_elf: &[u8]) ->
 
     let transpiler = vm_config.transpiler().clone();
 
-    let app_n_stack = DEFAULT_LOG_STACKED_HEIGHT - app_l_skip;
-    let app_params = default_app_params(app_log_blowup, app_l_skip, app_n_stack);
+    let app_params = app_params_with_100_bits_security(DEFAULT_LOG_STACKED_HEIGHT);
 
     // Setup: this can all be done once before receiving proof input
     let app_config = AppConfig::new(vm_config, app_params);
-    let agg_params = AggregationSystemParams {
-        leaf: default_leaf_params(leaf_log_blowup),
-        internal: default_internal_params(internal_log_blowup),
-        compression: Some(default_compression_params(DEFAULT_COMPRESSION_LOG_BLOWUP)),
-    };
+    let agg_params = AggregationSystemParams::default();
     let sdk = Sdk::new(app_config, agg_params)?;
 
     if matches!(args.mode, BenchMode::DumpAirStats) {
@@ -328,7 +320,7 @@ pub async fn run_reth_benchmark(args: HostArgs, openvm_client_eth_elf: &[u8]) ->
     };
 
     let encoded_stateless_input: Vec<F> = {
-        let words = openvm_v2::serde::to_vec(&stateless_input)?;
+        let words = openvm::serde::to_vec(&stateless_input)?;
         words.into_iter().flat_map(|w| w.to_le_bytes()).map(F::from_u8).collect()
     };
 
@@ -345,7 +337,7 @@ pub async fn run_reth_benchmark(args: HostArgs, openvm_client_eth_elf: &[u8]) ->
                     verify_segments(&prover.vm().engine, &app_vk.vk, &app_proof.per_segment)?;
                 }
                 BenchMode::ProveStark => {
-                    let (proof, baseline) = sdk.prove(exe, stdin)?;
+                    let (proof, baseline) = sdk.prove(exe, stdin, &[])?;
                     let vk = NonRootStarkVerifyingKey { mvk: (*sdk.agg_vk()).clone(), baseline };
                     let encoded = proof.encode_to_vec()?;
                     let compressed = zstd::encode_all(&encoded[..], 19)?;
@@ -533,7 +525,7 @@ fn try_load_input_from_path(path: &PathBuf) -> eyre::Result<StatelessExecutorInp
         if bytes.len() % 4 != 0 {
             eyre::bail!("input bytes length must be multiple of 4");
         }
-        let input: StatelessExecutorInput = openvm_v2::serde::from_slice(&bytes)
+        let input: StatelessExecutorInput = openvm::serde::from_slice(&bytes)
             .map_err(|e| eyre::eyre!("failed to decode input words using openvm::serde: {e:?}"))?;
         Ok(input)
     } else {
