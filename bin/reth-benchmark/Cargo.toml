@@ -47,11 +47,10 @@ reth-primitives.workspace = true
 openvm-stark-sdk = { git = "https://github.com/openvm-org/stark-backend.git", branch = "develop-v2", default-features = false }
 openvm-cuda-backend = { git = "https://github.com/openvm-org/stark-backend.git", branch = "develop-v2", default-features = false, optional = true }
 openvm-transpiler = { git = "https://github.com/openvm-org/openvm.git", branch = "develop-v2.0.0-beta", default-features = false }
-# TODO: temporary so we don't need to change workspace openvm commit
-openvm-v2 = { git = "https://github.com/openvm-org/openvm.git", branch = "develop-v2.0.0-beta", package = "openvm", default-features = false }
+openvm.workspace = true
 openvm-circuit = { git = "https://github.com/openvm-org/openvm.git", branch = "develop-v2.0.0-beta", default-features = false }
-verify-stark = { git = "https://github.com/openvm-org/openvm.git", branch = "develop-v2.0.0-beta", default-features = false }
-sdk-v2 = { git = "https://github.com/openvm-org/openvm.git", branch = "develop-v2.0.0-beta", default-features = false }
+openvm-verify-stark-host = { git = "https://github.com/openvm-org/openvm.git", branch = "develop-v2.0.0-beta", default-features = false }
+openvm-sdk = { git = "https://github.com/openvm-org/openvm.git", branch = "develop-v2.0.0-beta", default-features = false }
 openvm-sdk-config = { git = "https://github.com/openvm-org/openvm.git", branch = "develop-v2.0.0-beta", default-features = false }
 
 # halo2
@@ -62,16 +61,16 @@ ignored = ["halo2-axiom"]
 
 [features]
 default = ["parallel", "jemalloc", "metrics"]
-parallel = ["sdk-v2/parallel"]
-metrics = ["sdk-v2/metrics"]
-tco = ["sdk-v2/tco"]
-aot = ["sdk-v2/aot"]
-# evm-prove = ["sdk-v2/evm-prove", "halo2-axiom"]
-# evm-verify = ["evm-prove", "sdk-v2/evm-verify", "halo2-axiom"]
-perf-metrics = ["sdk-v2/perf-metrics"]
-mimalloc = ["sdk-v2/mimalloc"]
-jemalloc = ["sdk-v2/jemalloc"]
+parallel = ["openvm-sdk/parallel"]
+metrics = ["openvm-sdk/metrics"]
+tco = ["openvm-sdk/tco"]
+aot = ["openvm-sdk/aot"]
+# evm-prove = ["openvm-sdk/evm-prove", "halo2-axiom"]
+# evm-verify = ["evm-prove", "openvm-sdk/evm-verify", "halo2-axiom"]
+perf-metrics = ["openvm-sdk/perf-metrics"]
+mimalloc = ["openvm-sdk/mimalloc"]
+jemalloc = ["openvm-sdk/jemalloc"]
 # x86 only:
 halo2-asm = ["halo2-axiom?/asm"]
-cuda = ["dep:openvm-cuda-backend", "sdk-v2/cuda"]
-unprotected = ["sdk-v2/unprotected"]
+cuda = ["dep:openvm-cuda-backend", "openvm-sdk/cuda"]
+unprotected = ["openvm-sdk/unprotected"]
