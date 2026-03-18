@@ -251,7 +251,7 @@ jobs:
       - name: Checkout openvm-eth (for guest program build)
         run: git clone --depth=1 --branch="develop-new-hintstore" https://github.com/axiom-crypto/openvm-eth.git openvm-eth-v1
       - name: Checkout openvm (for scripts)
-        run: git clone --depth=1 --branch="develop-v2.0.0-beta" https://github.com/openvm-org/openvm.git
+        run: git clone --depth=1 --branch="develop-v2.0.0-rc.1" https://github.com/openvm-org/openvm.git
       - name: Install openvm-prof
         working-directory: openvm/crates/prof
         run: cargo install --force --profile=dev --path .
