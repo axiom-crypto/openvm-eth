@@ -186,7 +186,7 @@ case "${PROFILE_OVERRIDE:-profiling}" in
         TARGET_DIR="$PROFILE"
         ;;
 esac
-FEATURES="parallel,metrics,jemalloc,aot,unprotected"
+FEATURES="parallel,metrics,jemalloc,unprotected"
 BLOCK_NUMBER="${BLOCK_NUMBER_OVERRIDE:-23992138}"
 # switch to +nightly-2025-08-19 if using tco
 TOOLCHAIN="+nightly-2025-08-19" # "+stable"
@@ -215,6 +215,8 @@ arm64|aarch64)
     ;;
 x86_64|amd64)
     RUSTFLAGS="-Ctarget-cpu=native"
+    # aot enables halo2curves-axiom/asm which is x86_64-only
+    FEATURES="$FEATURES,aot"
     ;;
 *)
 echo "Unsupported architecture: $arch"

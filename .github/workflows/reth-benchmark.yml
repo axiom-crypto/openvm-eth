@@ -280,7 +280,7 @@ jobs:
       - name: Set build args
         id: set-build-args
         run: |
-          FEATURES="parallel,metrics,aot,unprotected"
+          FEATURES="parallel,metrics,unprotected"
           FEATURES="${FEATURES},${{ inputs.memory_allocator || github.event.inputs.memory_allocator || 'jemalloc' }}"
           if [[ "${{ inputs.instance_family || github.event.inputs.instance_family }}" =~ ^g ]]; then
             FEATURES="${FEATURES},cuda"
@@ -293,7 +293,8 @@ jobs:
               ;;
             x86_64|amd64)
               RUSTFLAGS="-Ctarget-cpu=native"
-              # FEATURES="${FEATURES},halo2-asm"
+              # aot enables halo2curves-axiom/asm which is x86_64-only
+              FEATURES="${FEATURES},aot"
               ;;
             *)
               echo "Unsupported architecture: $arch"
