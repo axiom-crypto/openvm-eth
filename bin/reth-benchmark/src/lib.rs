@@ -8,10 +8,21 @@ use alloy_transport::layers::RetryBackoffLayer;
 use clap::Parser;
 use openvm_circuit::arch::{instructions::exe::VmExe, *};
 use openvm_rpc_proxy::{RpcExecutor, DEFAULT_PREIMAGE_CACHE_NIBBLES};
+use openvm_sdk::{
+    config::{
+        AggregationSystemParams, AppConfig, DEFAULT_APP_LOG_BLOWUP, DEFAULT_APP_L_SKIP,
+        DEFAULT_INTERNAL_LOG_BLOWUP, DEFAULT_LEAF_LOG_BLOWUP,
+    },
+    fs::write_object_to_file,
+    Sdk, SC,
+};
 use openvm_sdk_config::{SdkVmConfig, TranspilerConfig};
 use openvm_stark_sdk::{
     bench::run_with_metric_collection,
-    config::baby_bear_poseidon2::{D_EF, F},
+    config::{
+        app_params_with_100_bits_security,
+        baby_bear_poseidon2::{D_EF, F},
+    },
     openvm_stark_backend::{
         air_builders::symbolic::{SymbolicExpressionDag, SymbolicExpressionNode},
         codec::Encode,
@@ -21,20 +32,11 @@ use openvm_stark_sdk::{
 };
 use openvm_stateless_executor::{io::StatelessExecutorInput, CHAIN_ID_ETH_MAINNET};
 use openvm_transpiler::{elf::Elf, openvm_platform::memory::MEM_SIZE, FromElf};
-use openvm_sdk::{
-    config::{
-        AggregationSystemParams, AppConfig, DEFAULT_APP_LOG_BLOWUP, DEFAULT_APP_L_SKIP,
-        DEFAULT_INTERNAL_LOG_BLOWUP, DEFAULT_LEAF_LOG_BLOWUP,
-    },
-    fs::write_object_to_file,
-    Sdk, SC,
-};
-use openvm_stark_sdk::config::app_params_with_100_bits_security;
-use tracing::{info, info_span};
 use openvm_verify_stark_host::{
     verify_vm_stark_proof_decoded,
     vk::{write_vk_to_file, NonRootStarkVerifyingKey},
 };
+use tracing::{info, info_span};
 
 mod cli;
 use cli::ProviderArgs;
