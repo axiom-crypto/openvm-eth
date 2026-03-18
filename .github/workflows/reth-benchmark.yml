@@ -270,12 +270,6 @@ jobs:
       #     OPTIONAL_ARGS="--kzg-params-dir $PARAMS_DIR --halo2-outer-k 22"
       #     echo "OPTIONAL_ARGS=${OPTIONAL_ARGS}" >> $GITHUB_ENV
 
-      - name: Verify GPU setup
-        run: |
-          nvidia-smi
-          nvidia-smi -L
-          nvcc --version
-
       - name: Set build profiles
         id: set-build-profiles
         run: |
