@@ -39,6 +39,8 @@ on:
         required: false
         description: Running mode
         options:
+          - execute
+          - execute-metered
           - prove-app
           - prove-stark
           - prove-evm
@@ -120,7 +122,7 @@ on:
       mode:
         type: string
         required: false
-        description: Running mode, one of {prove-app, prove-stark, prove-evm}
+        description: Running mode, one of {execute, execute-metered, prove-app, prove-stark, prove-evm}
         default: prove-stark
       profiling:
         type: string
@@ -248,10 +250,8 @@ jobs:
           mkdir -p ~/.ssh
           ssh-keyscan github.com >> ~/.ssh/known_hosts
 
-      - name: Checkout openvm-eth (for guest program build)
-        run: git clone --depth=1 --branch="develop-new-hintstore" https://github.com/axiom-crypto/openvm-eth.git openvm-eth-v1
       - name: Checkout openvm (for scripts)
-        run: git clone --depth=1 --branch="develop-v2.0.0-beta" https://github.com/openvm-org/openvm.git
+        run: git clone --depth=1 --branch="develop-v2.0.0-rc.1" https://github.com/openvm-org/openvm.git
       - name: Install openvm-prof
         working-directory: openvm/crates/prof
         run: cargo install --force --profile=dev --path .
@@ -314,29 +314,15 @@ jobs:
         run: |
           arch=$(uname -m)
           # Use inputs.tag if defined, otherwise use current commit SHA
-          if [[ -n "${{ inputs.tag }}" ]]; then
-            GUEST_TAG="${{ inputs.tag }}"
-            HOST_TAG="${{ inputs.tag }}"
-          else
-            # host depends on GPU repo
-            CARGO_LOCK_HASH=$(sha256sum Cargo.lock | cut -d' ' -f1 | cut -c1-8)
-            HOST_TAG="$(git rev-parse HEAD)-${CARGO_LOCK_HASH}"
-
-            # guest only depends on guest program code and openvm guest dependencies
-            cd openvm-eth-v1/bin/stateless-guest
-            CARGO_LOCK_HASH=$(sha256sum Cargo.lock | cut -d' ' -f1 | cut -c1-8)
-            # openvm-eth's commit SHA and guest program's Cargo.lock hash
-            GUEST_TAG="$(git rev-parse HEAD)-${CARGO_LOCK_HASH}"
-          fi
-
+          # Use inputs.tag if defined, otherwise use current commit SHA
+          TAG="${{ inputs.tag || env.current_sha }}"
           GUEST_PROFILE=${{ steps.set-build-profiles.outputs.guest_profile }}
-          echo "elf_cache_key=elf-${GUEST_TAG}-${arch}-${GUEST_PROFILE}" >> $GITHUB_OUTPUT
-
+          echo "elf_cache_key=elf-${TAG}-${arch}-${GUEST_PROFILE}" >> $GITHUB_OUTPUT
           RUSTFLAGS_HASH=$(echo "${RUSTFLAGS}" | sha256sum | cut -d' ' -f1 | head -c8)
           JEMALLOC_CONF_HASH=$(echo "${JEMALLOC_SYS_WITH_MALLOC_CONF}" | sha256sum | cut -d' ' -f1 | head -c8)
           FEATURES_HASH=$(echo "${FEATURES}" | sha256sum | cut -d' ' -f1 | head -c8)
           HOST_PROFILE=${{ steps.set-build-profiles.outputs.host_profile }}
-          echo "host_cache_key=host-${HOST_TAG}-${arch}-${HOST_PROFILE}-${RUSTFLAGS_HASH}-${JEMALLOC_CONF_HASH}-${FEATURES_HASH}" >> $GITHUB_OUTPUT
+          echo "host_cache_key=host-${TAG}-${arch}-${HOST_PROFILE}-${RUSTFLAGS_HASH}-${JEMALLOC_CONF_HASH}-${FEATURES_HASH}" >> $GITHUB_OUTPUT
 
       - name: Restore Guest ELF from cache
         id: cache-guest-elf-restore
@@ -348,8 +334,7 @@ jobs:
       - name: Install cargo-openvm
         if: steps.cache-guest-elf-restore.outputs.cache-hit != 'true' && steps.cache-cargo-openvm-restore.outputs.cache-hit != 'true'
         run: |
-          # Build using v1 cargo-openvm until v2 CLI is stable
-          cargo install --git https://github.com/openvm-org/openvm.git --branch "main" --locked --force cargo-openvm
+          cargo install --git https://github.com/openvm-org/openvm.git --branch "develop-v2.0.0-rc.1" --locked --force cargo-openvm
 
       - name: Save cargo-openvm to cache
         if: steps.cache-guest-elf-restore.outputs.cache-hit != 'true' && steps.cache-cargo-openvm-restore.outputs.cache-hit != 'true'
@@ -359,14 +344,12 @@ jobs:
           key: ${{ steps.cache-cargo-openvm-restore.outputs.cache-primary-key }}
       - name: Build Guest ELF
         if: steps.cache-guest-elf-restore.outputs.cache-hit != 'true'
+        working-directory: bin/stateless-guest
         run: |
-          WORK_DIR=$(pwd)
-          mkdir -p bin/reth-benchmark/elf
-          # TODO: This is openvm-eth on develop-new-hintstore branch. Revert at CLI enabled in v2
-          cd openvm-eth-v1/bin/stateless-guest
           GUEST_PROFILE=${{ steps.set-build-profiles.outputs.guest_profile }}
           RUSTFLAGS="" cargo openvm build --no-transpile --profile=$GUEST_PROFILE
-          cp target/riscv32im-risc0-zkvm-elf/$GUEST_PROFILE/openvm-stateless-guest $WORK_DIR/bin/reth-benchmark/elf/
+          mkdir -p ../reth-benchmark/elf
+          cp target/riscv32im-risc0-zkvm-elf/$GUEST_PROFILE/openvm-stateless-guest ../reth-benchmark/elf/
 
       - name: Save Guest ELF to cache
         if: steps.cache-guest-elf-restore.outputs.cache-hit != 'true'
@@ -481,7 +464,8 @@ jobs:
             # Start GPU memory monitoring
             start_gpu_monitor "$GPU_LOG_FILE" 5
 
-            ./ci/monitor_memory.sh ./run_benchmark.sh
+            set -o pipefail
+            ./ci/monitor_memory.sh ./run_benchmark.sh 2>&1 | tee benchmark_output.log
 
             # Finalize GPU monitoring and capture peak
             finalize_gpu_monitor
@@ -489,6 +473,11 @@ jobs:
             echo "GPU_LOG_FILE=${GPU_LOG_FILE}" >> $GITHUB_ENV
 
             echo "MEM_USAGE_PATH=memory_usage.png" >> $GITHUB_ENV
+          fi
+
+          # Extract benchmark outputs
+          if grep -q "BENCH_NUM_SEGMENTS=" benchmark_output.log 2>/dev/null; then
+            grep "BENCH_NUM_SEGMENTS=" benchmark_output.log >> $GITHUB_ENV
           fi
 
       - name: Report GPU peak memory
@@ -499,6 +488,11 @@ jobs:
           echo "### GPU Memory" >> $GITHUB_STEP_SUMMARY
           echo "Peak GPU memory usage: **${GPU_PEAK_MEMORY_MIB} MiB**" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
+          if [[ -n "${BENCH_NUM_SEGMENTS}" ]]; then
+            echo "### Segments" >> $GITHUB_STEP_SUMMARY
+            echo "Number of segments: **${BENCH_NUM_SEGMENTS}**" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+          fi
 
       - name: Upload memory usage graph
         if: ${{ (inputs.profiling || github.event.inputs.profiling) == 'none' }}

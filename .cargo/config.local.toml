@@ -62,10 +62,10 @@ openvm-rv32-adapters = { path = "../openvm-org/openvm/extensions/rv32-adapters" 
 openvm-rv32im-circuit = { path = "../openvm-org/openvm/extensions/rv32im/circuit" }
 openvm-rv32im-guest = { path = "../openvm-org/openvm/extensions/rv32im/guest" }
 openvm-rv32im-transpiler = { path = "../openvm-org/openvm/extensions/rv32im/transpiler" }
-openvm-sha256-air = { path = "../openvm-org/openvm/crates/circuits/sha2-air" }
-openvm-sha256-circuit = { path = "../openvm-org/openvm/extensions/sha2/circuit" }
-openvm-sha256-guest = { path = "../openvm-org/openvm/extensions/sha2/guest" }
-openvm-sha256-transpiler = { path = "../openvm-org/openvm/extensions/sha2/transpiler" }
+openvm-sha2-air = { path = "../openvm-org/openvm/crates/circuits/sha2-air" }
+openvm-sha2-circuit = { path = "../openvm-org/openvm/extensions/sha2/circuit" }
+openvm-sha2-guest = { path = "../openvm-org/openvm/extensions/sha2/guest" }
+openvm-sha2-transpiler = { path = "../openvm-org/openvm/extensions/sha2/transpiler" }
 
 # Guest libs
 k256 = { path = "../openvm-org/openvm/guest-libs/k256" }

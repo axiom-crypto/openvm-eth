@@ -61,10 +61,10 @@ openvm-rv32-adapters = { git = "ssh://git@github.com/openvm-org/openvm.git", rev
 openvm-rv32im-circuit = { git = "ssh://git@github.com/openvm-org/openvm.git", rev = "$OPENVM_REV" }
 openvm-rv32im-guest = { git = "ssh://git@github.com/openvm-org/openvm.git", rev = "$OPENVM_REV" }
 openvm-rv32im-transpiler = { git = "ssh://git@github.com/openvm-org/openvm.git", rev = "$OPENVM_REV" }
-openvm-sha256-air = { git = "ssh://git@github.com/openvm-org/openvm.git", rev = "$OPENVM_REV" }
-openvm-sha256-circuit = { git = "ssh://git@github.com/openvm-org/openvm.git", rev = "$OPENVM_REV" }
-openvm-sha256-guest = { git = "ssh://git@github.com/openvm-org/openvm.git", rev = "$OPENVM_REV" }
-openvm-sha256-transpiler = { git = "ssh://git@github.com/openvm-org/openvm.git", rev = "$OPENVM_REV" }
+openvm-sha2-air = { git = "ssh://git@github.com/openvm-org/openvm.git", rev = "$OPENVM_REV" }
+openvm-sha2-circuit = { git = "ssh://git@github.com/openvm-org/openvm.git", rev = "$OPENVM_REV" }
+openvm-sha2-guest = { git = "ssh://git@github.com/openvm-org/openvm.git", rev = "$OPENVM_REV" }
+openvm-sha2-transpiler = { git = "ssh://git@github.com/openvm-org/openvm.git", rev = "$OPENVM_REV" }
 
 # Guest libs
 k256 = { git = "ssh://git@github.com/openvm-org/openvm.git", rev = "$OPENVM_REV" }

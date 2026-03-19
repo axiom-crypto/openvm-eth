@@ -100,7 +100,9 @@ struct OpenVmCrypto;
 impl Crypto for OpenVmCrypto {
     /// Custom SHA-256 implementation with openvm optimization
     fn sha256(&self, input: &[u8]) -> [u8; 32] {
-        openvm_sha2::sha256(input)
+        #[cfg(not(target_os = "zkvm"))]
+        use openvm_sha2::Digest;
+        openvm_sha2::Sha256::digest(input).into()
     }
 
     /// Custom BN254 G1 addition with openvm optimization

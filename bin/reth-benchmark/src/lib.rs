@@ -30,7 +30,9 @@ use openvm_stark_sdk::{
         p3_field::PrimeCharacteristicRing,
     },
 };
-use openvm_stateless_executor::{io::StatelessExecutorInput, CHAIN_ID_ETH_MAINNET};
+use openvm_stateless_executor::{
+    io::StatelessExecutorInput, ChainVariant, StatelessExecutor, CHAIN_ID_ETH_MAINNET,
+};
 use openvm_transpiler::{elf::Elf, openvm_platform::memory::MEM_SIZE, FromElf};
 use openvm_verify_stark_host::{
     verify_vm_stark_proof_decoded,
@@ -321,6 +323,42 @@ pub async fn run_reth_benchmark(args: HostArgs, openvm_client_eth_elf: &[u8]) ->
         }
     };
 
+    // MakeInput: encode stateless_input as JSON and write to disk.
+    if matches!(args.mode, BenchMode::MakeInput) {
+        let words = openvm::serde::to_vec(&stateless_input)?;
+        let bytes: Vec<u8> = words.into_iter().flat_map(|w: u32| w.to_le_bytes()).collect();
+        let hex = format!("0x01{}", hex::encode(&bytes));
+        let json = serde_json::json!({ "input": [hex] });
+
+        if let Some(ref path) = args.generated_input_path {
+            if let Some(parent) = path.parent() {
+                fs::create_dir_all(parent)?;
+            }
+            fs::write(path, serde_json::to_string(&json)?)?;
+            info!("Wrote input JSON to {}", path.display());
+        } else {
+            println!("{}", serde_json::to_string_pretty(&json)?);
+        }
+        return Ok(());
+    }
+
+    // Host execution: run the stateless executor natively, no VM.
+    if matches!(args.mode, BenchMode::ExecuteHost) {
+        let program_name = format!("reth.{}.block_{}", args.mode, block_number);
+        let executor = StatelessExecutor;
+        let start = Instant::now();
+        let header = info_span!("host.execute", group = program_name).in_scope(|| {
+            info_span!("client.execute")
+                .in_scope(|| executor.execute(ChainVariant::Mainnet, stateless_input))
+        })?;
+        let elapsed = start.elapsed();
+        let block_hash = header.hash_slow();
+        info!("Host execution: {:.6}s, block hash: {}", elapsed.as_secs_f64(), block_hash,);
+        println!("BENCH_HOST_NS={}", elapsed.as_nanos());
+        println!("BENCH_BLOCK_HASH={block_hash}");
+        return Ok(());
+    }
+
     let encoded_stateless_input: Vec<F> = {
         let words = openvm::serde::to_vec(&stateless_input)?;
         words.into_iter().flat_map(|w| w.to_le_bytes()).map(F::from_u8).collect()
@@ -331,10 +369,27 @@ pub async fn run_reth_benchmark(args: HostArgs, openvm_client_eth_elf: &[u8]) ->
     run_with_metric_collection("OUTPUT_PATH", move || {
         info_span!("reth-block", block_number = block_number).in_scope(|| -> eyre::Result<()> {
             match args.mode {
+                BenchMode::Execute => {
+                    let public_values = info_span!("sdk.execute", group = program_name)
+                        .in_scope(|| sdk.execute(exe, stdin))?;
+                    let block_hash = hex::encode(&public_values);
+                    info!("Execute completed, block hash: {}", block_hash);
+                    println!("BENCH_BLOCK_HASH={block_hash}");
+                }
+                BenchMode::ExecuteMetered => {
+                    let (public_values, segments) =
+                        info_span!("sdk.execute_metered", group = program_name)
+                            .in_scope(|| sdk.execute_metered(exe, stdin))?;
+                    let block_hash = hex::encode(&public_values);
+                    info!("Execute metered completed, block hash: {}", block_hash);
+                    println!("BENCH_BLOCK_HASH={block_hash}");
+                    println!("BENCH_NUM_SEGMENTS={}", segments.len());
+                }
                 BenchMode::ProveApp => {
                     let mut prover = sdk.app_prover(exe)?;
                     prover.set_program_name(program_name);
                     let app_proof = prover.prove(stdin)?;
+                    println!("BENCH_NUM_SEGMENTS={}", app_proof.per_segment.len());
                     let (_, app_vk) = sdk.app_keygen();
                     verify_segments(&prover.vm().engine, &app_vk.vk, &app_proof.per_segment)?;
                 }
@@ -385,14 +440,14 @@ pub async fn run_reth_benchmark(args: HostArgs, openvm_client_eth_elf: &[u8]) ->
                     info!("Saving agg proving key to: {}", agg_pk_path.display());
                     write_object_to_file(&agg_pk_path, &agg_pk)?;
 
-                    info!("✅ Keygen completed successfully!");
+                    info!("Keygen completed successfully!");
                     info!("  App PK: {}", app_pk_path.display());
                     info!("  App VK: {}", app_vk_path.display());
                     info!("  Agg PK: {}", agg_pk_path.display());
                 }
                 _ => {
-                    // This case is handled earlier and should not reach here
-                    todo!();
+                    // MakeInput, ExecuteHost, GenerateVmVkey, DumpAirStats handled earlier
+                    unreachable!();
                 }
             }
 
