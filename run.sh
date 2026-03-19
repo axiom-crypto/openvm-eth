@@ -29,11 +29,14 @@ set -e
 REPO_ROOT=$(git rev-parse --show-toplevel)
 WORKDIR=$REPO_ROOT
 
-# TODO[jpw]: currently this needs to be built from openvm-eth:develop-new-hintstore because CLI is disabled on openvm v2 branch
-DEST="$REPO_ROOT/bin/reth-benchmark/elf/openvm-stateless-guest"
-if [ ! -f "$DEST" ]; then
-    echo "Guest ELF not found: $DEST"
-    exit 1
+cd "$REPO_ROOT/bin/stateless-guest"
+cargo openvm build
+mkdir -p ../reth-benchmark/elf
+SRC="target/riscv32im-risc0-zkvm-elf/release/openvm-stateless-guest"
+DEST="../reth-benchmark/elf/openvm-stateless-guest"
+
+if [ ! -f "$DEST" ] || ! cmp -s "$SRC" "$DEST"; then
+    cp "$SRC" "$DEST"
 fi
 
 cd $WORKDIR
