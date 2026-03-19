@@ -353,11 +353,7 @@ pub async fn run_reth_benchmark(args: HostArgs, openvm_client_eth_elf: &[u8]) ->
         })?;
         let elapsed = start.elapsed();
         let block_hash = header.hash_slow();
-        info!(
-            "Host execution: {:.6}s, block hash: {}",
-            elapsed.as_secs_f64(),
-            block_hash,
-        );
+        info!("Host execution: {:.6}s, block hash: {}", elapsed.as_secs_f64(), block_hash,);
         println!("BENCH_HOST_NS={}", elapsed.as_nanos());
         println!("BENCH_BLOCK_HASH={block_hash}");
         return Ok(());
@@ -373,10 +369,27 @@ pub async fn run_reth_benchmark(args: HostArgs, openvm_client_eth_elf: &[u8]) ->
     run_with_metric_collection("OUTPUT_PATH", move || {
         info_span!("reth-block", block_number = block_number).in_scope(|| -> eyre::Result<()> {
             match args.mode {
+                BenchMode::Execute => {
+                    let public_values = info_span!("sdk.execute", group = program_name)
+                        .in_scope(|| sdk.execute(exe, stdin))?;
+                    let block_hash = hex::encode(&public_values);
+                    info!("Execute completed, block hash: {}", block_hash);
+                    println!("BENCH_BLOCK_HASH={block_hash}");
+                }
+                BenchMode::ExecuteMetered => {
+                    let (public_values, segments) =
+                        info_span!("sdk.execute_metered", group = program_name)
+                            .in_scope(|| sdk.execute_metered(exe, stdin))?;
+                    let block_hash = hex::encode(&public_values);
+                    info!("Execute metered completed, block hash: {}", block_hash);
+                    println!("BENCH_BLOCK_HASH={block_hash}");
+                    println!("BENCH_NUM_SEGMENTS={}", segments.len());
+                }
                 BenchMode::ProveApp => {
                     let mut prover = sdk.app_prover(exe)?;
                     prover.set_program_name(program_name);
                     let app_proof = prover.prove(stdin)?;
+                    println!("BENCH_NUM_SEGMENTS={}", app_proof.per_segment.len());
                     let (_, app_vk) = sdk.app_keygen();
                     verify_segments(&prover.vm().engine, &app_vk.vk, &app_proof.per_segment)?;
                 }
@@ -419,14 +432,14 @@ pub async fn run_reth_benchmark(args: HostArgs, openvm_client_eth_elf: &[u8]) ->
                     info!("Saving agg proving key to: {}", agg_pk_path.display());
                     write_object_to_file(&agg_pk_path, &agg_pk)?;
 
-                    info!("✅ Keygen completed successfully!");
+                    info!("Keygen completed successfully!");
                     info!("  App PK: {}", app_pk_path.display());
                     info!("  App VK: {}", app_vk_path.display());
                     info!("  Agg PK: {}", agg_pk_path.display());
                 }
                 _ => {
-                    // This case is handled earlier and should not reach here
-                    todo!();
+                    // MakeInput, ExecuteHost, GenerateVmVkey, DumpAirStats handled earlier
+                    unreachable!();
                 }
             }
 
