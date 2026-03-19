@@ -37,3 +37,7 @@ ark-ec = "0.5"
 [target.'cfg(target_os = "zkvm")'.dependencies]
 revm-primitives = { workspace = true, features = ["hashbrown"] }
 alloy-primitives = { workspace = true, features = ["native-keccak"] }
+
+[target.'cfg(not(target_os = "zkvm"))'.dependencies]
+openvm-sha2 = { workspace = true, features = ["import_sha2"] }
+openvm-keccak256 = { workspace = true, features = ["tiny_keccak"] }
