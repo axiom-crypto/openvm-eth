@@ -251,7 +251,7 @@ jobs:
           ssh-keyscan github.com >> ~/.ssh/known_hosts
 
       - name: Checkout openvm (for scripts)
-        run: git clone --depth=1 --branch="develop-v2.0.0-beta" https://github.com/openvm-org/openvm.git
+        run: git clone --depth=1 --branch="develop-v2.0.0-rc.1" https://github.com/openvm-org/openvm.git
       - name: Install openvm-prof
         working-directory: openvm/crates/prof
         run: cargo install --force --profile=dev --path .
@@ -314,6 +314,7 @@ jobs:
         run: |
           arch=$(uname -m)
           # Use inputs.tag if defined, otherwise use current commit SHA
+          # Use inputs.tag if defined, otherwise use current commit SHA
           TAG="${{ inputs.tag || env.current_sha }}"
           GUEST_PROFILE=${{ steps.set-build-profiles.outputs.guest_profile }}
           echo "elf_cache_key=elf-${TAG}-${arch}-${GUEST_PROFILE}" >> $GITHUB_OUTPUT
@@ -333,7 +334,7 @@ jobs:
       - name: Install cargo-openvm
         if: steps.cache-guest-elf-restore.outputs.cache-hit != 'true' && steps.cache-cargo-openvm-restore.outputs.cache-hit != 'true'
         run: |
-          cargo install --git https://github.com/openvm-org/openvm.git --branch "develop-v2.0.0-beta" --locked --force cargo-openvm
+          cargo install --git https://github.com/openvm-org/openvm.git --branch "develop-v2.0.0-rc.1" --locked --force cargo-openvm
 
       - name: Save cargo-openvm to cache
         if: steps.cache-guest-elf-restore.outputs.cache-hit != 'true' && steps.cache-cargo-openvm-restore.outputs.cache-hit != 'true'
