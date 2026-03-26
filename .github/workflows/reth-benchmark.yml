@@ -263,17 +263,7 @@ jobs:
 
       - name: Setup halo2 KZG params
         if: ${{ (github.event.inputs.mode == 'prove-evm') || (inputs.mode == 'prove-evm') }}
-        run: |
-          PARAMS_DIR="$HOME/.openvm/params"
-          mkdir -p "$PARAMS_DIR"
-          for k in $(seq 5 24); do
-            FILE="kzg_bn254_${k}.srs"
-            if [ ! -f "$PARAMS_DIR/$FILE" ]; then
-              echo "Downloading $FILE..."
-              wget -q -O "$PARAMS_DIR/$FILE" "https://axiom-crypto.s3.amazonaws.com/challenge_0085/$FILE"
-            fi
-          done
-          echo "KZG params downloaded to $PARAMS_DIR"
+        run: bash ./ci/trusted_setup_s3.sh
 
       - name: Set build profiles
         id: set-build-profiles
