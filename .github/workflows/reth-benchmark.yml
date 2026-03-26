@@ -305,9 +305,6 @@ jobs:
               RUSTFLAGS="-Ctarget-cpu=native"
               # aot enables halo2curves-axiom/asm which is x86_64-only
               FEATURES="${FEATURES},aot"
-              if [[ "$MODE" == "prove-evm" ]]; then
-                FEATURES="${FEATURES},halo2-asm"
-              fi
               ;;
             *)
               echo "Unsupported architecture: $arch"
