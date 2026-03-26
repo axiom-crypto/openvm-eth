@@ -41,7 +41,7 @@ on:
         options:
           - prove-app
           - prove-stark
-          # - prove-evm
+          - prove-evm
         default: prove-stark
       profiling:
         type: choice
@@ -120,7 +120,7 @@ on:
       mode:
         type: string
         required: false
-        description: Running mode, one of {prove-app, prove-stark}
+        description: Running mode, one of {prove-app, prove-stark, prove-evm}
         default: prove-stark
       profiling:
         type: string
@@ -261,14 +261,19 @@ jobs:
           install_s5cmd
           sudo apt update && sudo apt install -y gnuplot
 
-      # - name: Setup halo2
-      #   if: ${{ (github.event.inputs.mode == 'prove-evm') || (inputs.mode == 'prove-evm') }}
-      #   run: |
-      #     bash ./ci/trusted_setup_s3.sh
-      #     PARAMS_DIR=$(pwd)/params
-      #     echo "PARAMS_DIR=$PARAMS_DIR" >> $GITHUB_ENV
-      #     OPTIONAL_ARGS="--kzg-params-dir $PARAMS_DIR --halo2-outer-k 22"
-      #     echo "OPTIONAL_ARGS=${OPTIONAL_ARGS}" >> $GITHUB_ENV
+      - name: Setup halo2 KZG params
+        if: ${{ (github.event.inputs.mode == 'prove-evm') || (inputs.mode == 'prove-evm') }}
+        run: |
+          PARAMS_DIR="$HOME/.openvm/params"
+          mkdir -p "$PARAMS_DIR"
+          for k in $(seq 5 24); do
+            FILE="kzg_bn254_${k}.srs"
+            if [ ! -f "$PARAMS_DIR/$FILE" ]; then
+              echo "Downloading $FILE..."
+              wget -q -O "$PARAMS_DIR/$FILE" "https://axiom-crypto.s3.amazonaws.com/challenge_0085/$FILE"
+            fi
+          done
+          echo "KZG params downloaded to $PARAMS_DIR"
 
       - name: Set build profiles
         id: set-build-profiles
@@ -286,6 +291,11 @@ jobs:
             FEATURES="${FEATURES},cuda"
           fi
 
+          MODE="${{ inputs.mode || github.event.inputs.mode }}"
+          if [[ "$MODE" == "prove-evm" ]]; then
+            FEATURES="${FEATURES},evm-verify"
+          fi
+
           arch=$(uname -m)
           case $arch in
             arm64|aarch64)
@@ -295,6 +305,9 @@ jobs:
               RUSTFLAGS="-Ctarget-cpu=native"
               # aot enables halo2curves-axiom/asm which is x86_64-only
               FEATURES="${FEATURES},aot"
+              if [[ "$MODE" == "prove-evm" ]]; then
+                FEATURES="${FEATURES},halo2-asm"
+              fi
               ;;
             *)
               echo "Unsupported architecture: $arch"
