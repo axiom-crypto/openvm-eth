@@ -41,7 +41,7 @@ on:
         options:
           - prove-app
           - prove-stark
-          # - prove-evm
+          - prove-evm
         default: prove-stark
       profiling:
         type: choice
@@ -120,7 +120,7 @@ on:
       mode:
         type: string
         required: false
-        description: Running mode, one of {prove-app, prove-stark}
+        description: Running mode, one of {prove-app, prove-stark, prove-evm}
         default: prove-stark
       profiling:
         type: string
@@ -261,14 +261,9 @@ jobs:
           install_s5cmd
           sudo apt update && sudo apt install -y gnuplot
 
-      # - name: Setup halo2
-      #   if: ${{ (github.event.inputs.mode == 'prove-evm') || (inputs.mode == 'prove-evm') }}
-      #   run: |
-      #     bash ./ci/trusted_setup_s3.sh
-      #     PARAMS_DIR=$(pwd)/params
-      #     echo "PARAMS_DIR=$PARAMS_DIR" >> $GITHUB_ENV
-      #     OPTIONAL_ARGS="--kzg-params-dir $PARAMS_DIR --halo2-outer-k 22"
-      #     echo "OPTIONAL_ARGS=${OPTIONAL_ARGS}" >> $GITHUB_ENV
+      - name: Setup halo2 KZG params
+        if: ${{ (github.event.inputs.mode == 'prove-evm') || (inputs.mode == 'prove-evm') }}
+        run: bash ./ci/trusted_setup_s3.sh
 
       - name: Set build profiles
         id: set-build-profiles
@@ -284,6 +279,11 @@ jobs:
           FEATURES="${FEATURES},${{ inputs.memory_allocator || github.event.inputs.memory_allocator || 'jemalloc' }}"
           if [[ "${{ inputs.instance_family || github.event.inputs.instance_family }}" =~ ^g ]]; then
             FEATURES="${FEATURES},cuda"
+          fi
+
+          MODE="${{ inputs.mode || github.event.inputs.mode }}"
+          if [[ "$MODE" == "prove-evm" ]]; then
+            FEATURES="${FEATURES},evm-verify"
           fi
 
           arch=$(uname -m)

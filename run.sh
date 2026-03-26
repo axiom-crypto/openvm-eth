@@ -4,7 +4,7 @@
 #
 # Options:
 #   --mode <MODE>       Set the proving mode (default: prove-app)
-#                       Valid modes: prove-app, prove-stark, keygen, generate-vm-vkey
+#                       Valid modes: prove-app, prove-stark, prove-evm, keygen, generate-vm-vkey
 #   --generate-vm-vkey  Shortcut for --mode generate-vm-vkey
 #   --profile <PROFILE> Set the Cargo build profile (default: profiling)
 #                       Valid profiles: dev, release, profiling
@@ -194,7 +194,7 @@ BIN_NAME="openvm-reth-benchmark"
 MAX_SEGMENT_LENGTH=$((1 << 22))
 segment_max_memory=$((15 << 30))
 export VPMM_PAGE_SIZE=$((4 << 20))
-if [[ -z "${VPMM_PAGES:-}" ]] && [[ "$MODE" == "prove-stark" || "$MODE" == "prove-app" ]]; then
+if [[ -z "${VPMM_PAGES:-}" ]] && [[ "$MODE" == "prove-stark" || "$MODE" == "prove-app" || "$MODE" == "prove-evm" ]]; then
     export VPMM_PAGES=$((16 << 8)) # start with 16GB
 fi
 # Settings to turn off VPMM:
@@ -207,9 +207,9 @@ fi
 if [ "$USE_NSYS" = "true" ]; then
     FEATURES="$FEATURES,nvtx"
 fi
-# if [ "$MODE" = "prove-evm" ]; then
-#     FEATURES="$FEATURES,evm-verify"
-# fi
+if [ "$MODE" = "prove-evm" ]; then
+    FEATURES="$FEATURES,evm-verify"
+fi
 
 arch=$(uname -m)
 case $arch in
@@ -220,6 +220,9 @@ x86_64|amd64)
     RUSTFLAGS="-Ctarget-cpu=native"
     # aot enables halo2curves-axiom/asm which is x86_64-only
     FEATURES="$FEATURES,aot"
+    if [ "$MODE" = "prove-evm" ]; then
+        FEATURES="$FEATURES,halo2-asm"
+    fi
     ;;
 *)
 echo "Unsupported architecture: $arch"

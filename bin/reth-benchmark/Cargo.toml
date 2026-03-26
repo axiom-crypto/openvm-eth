@@ -37,6 +37,7 @@ alloy-primitives.workspace = true
 alloy-provider.workspace = true
 alloy-rpc-client.workspace = true
 alloy-transport.workspace = true
+alloy-transport-http.workspace = true
 
 # reth
 reth-primitives.workspace = true
@@ -65,8 +66,8 @@ parallel = ["openvm-sdk/parallel"]
 metrics = ["openvm-sdk/metrics"]
 tco = ["openvm-sdk/tco"]
 aot = ["openvm-sdk/aot"]
-# evm-prove = ["openvm-sdk/evm-prove", "halo2-axiom"]
-# evm-verify = ["evm-prove", "openvm-sdk/evm-verify", "halo2-axiom"]
+evm-prove = ["openvm-sdk/evm-prove", "halo2-axiom"]
+evm-verify = ["evm-prove", "openvm-sdk/evm-verify", "halo2-axiom"]
 perf-metrics = ["openvm-sdk/perf-metrics"]
 mimalloc = ["openvm-sdk/mimalloc"]
 jemalloc = ["openvm-sdk/jemalloc"]

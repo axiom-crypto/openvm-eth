@@ -350,6 +350,14 @@ pub async fn run_reth_benchmark(args: HostArgs, openvm_client_eth_elf: &[u8]) ->
                     );
                     verify_vm_stark_proof_decoded(&vk, &proof)?;
                 }
+                #[cfg(feature = "evm-verify")]
+                BenchMode::ProveEvm => {
+                    let mut evm_prover = sdk.evm_prover(exe)?;
+                    evm_prover.stark_prover.app_prover.set_program_name(&program_name);
+                    let proof = evm_prover.prove_evm(stdin, &[])?;
+                    let block_hash = &proof.user_public_values;
+                    println!("block_hash (prove_evm): {}", hex::encode(block_hash));
+                }
                 BenchMode::Keygen => {
                     // Create output directory
                     fs::create_dir_all(&args.output_dir)?;
