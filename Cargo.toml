@@ -134,7 +134,9 @@ strip = "none"
 
 [profile.maxperf]
 inherits = "release"
-lto = "fat"
+# Use thin LTO instead of fat: openvm-platform (guest crate) bitcode
+# is incompatible with fat LTO on the host target.
+lto = "thin"
 codegen-units = 1
 
 [profile.dev]
