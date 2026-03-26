@@ -204,6 +204,9 @@ fi
 if [ "$USE_CUDA" = "true" ]; then
     FEATURES="$FEATURES,cuda"
 fi
+if [ "$USE_NSYS" = "true" ]; then
+    FEATURES="$FEATURES,nvtx"
+fi
 if [ "$MODE" = "prove-evm" ]; then
     FEATURES="$FEATURES,evm-verify"
 fi
@@ -268,20 +271,21 @@ export RUST_LOG="info,p3_=warn"
 
 if [ "$USE_NSYS" = "true" ]; then
     NSYS_OUTPUT="reth.nsys-rep"
-    echo "Running with nsys profiling..."
-    nsys profile --trace=cuda \
-                 --force-overwrite=true \
-                 -o "$NSYS_OUTPUT" \
-                 $BIN $BIN_ARGS &
-    nsys_pid=$!
-    wait "$nsys_pid"
+    NSYS_ARGS="--trace=cuda,nvtx --cuda-memory-usage=true --force-overwrite=true -o $NSYS_OUTPUT"
+
+    echo "[sudo] Running with nsys profiling..."
+    sudo env PATH="$PATH" HOME="$HOME" RUST_LOG="$RUST_LOG" \
+         VPMM_PAGE_SIZE="${VPMM_PAGE_SIZE:-}" VPMM_PAGES="${VPMM_PAGES:-}" \
+         LD_LIBRARY_PATH="${LD_LIBRARY_PATH:-}" \
+         nsys profile $NSYS_ARGS --gpu-metrics-devices=all \
+         $BIN $BIN_ARGS
 
     echo "=== CUDA GPU Kernel Summary ==="
-    nsys stats --report cuda_gpu_kern_sum "$NSYS_OUTPUT"
+    nsys stats --force-export=true --report cuda_gpu_kern_sum "$NSYS_OUTPUT"
     echo "=== CUDA Memory Time Summary ==="
-    nsys stats --report cuda_gpu_mem_time_sum "$NSYS_OUTPUT"
+    nsys stats --force-export=true --report cuda_gpu_mem_time_sum "$NSYS_OUTPUT"
     echo "=== CUDA Memory Size Summary ==="
-    nsys stats --report cuda_gpu_mem_size_sum "$NSYS_OUTPUT"
+    nsys stats --force-export=true --report cuda_gpu_mem_size_sum "$NSYS_OUTPUT"
     echo "=== NCU Top Kernel Analysis ==="
     TOP_KERNEL=$(nsys stats --report cuda_gpu_kern_sum "$NSYS_OUTPUT" 2>/dev/null | \
         awk '/--------/{getline; print; exit}' | \
