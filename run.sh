@@ -175,7 +175,7 @@ fi
 MODE="${MODE_OVERRIDE:-prove-app}" # can be prove-app, prove-stark, keygen, generate-vm-vkey
 
 # Map profile aliases and set target directory
-case "${PROFILE_OVERRIDE:-profiling}" in
+case "${PROFILE_OVERRIDE:-release}" in
     dev|debug)
         PROFILE="dev"
         TARGET_DIR="debug"
