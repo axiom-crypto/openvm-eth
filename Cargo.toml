@@ -105,16 +105,16 @@ alloy-rpc-types-debug = { version = "1.4.3", default-features = false }
 alloy-transport = { version = "1.4.3", default-features = false }
 alloy-transport-http = { version = "1.4.3", default-features = false, features = ["reqwest-rustls-tls"] }
 
-openvm = { git = "https://github.com/openvm-org/openvm.git", branch = "develop-v2.0.0-rc.1", default-features = false }
-openvm-ecc-guest = { git = "https://github.com/openvm-org/openvm.git", branch = "develop-v2.0.0-rc.1", default-features = false }
-openvm-keccak256 = { git = "https://github.com/openvm-org/openvm.git", branch = "develop-v2.0.0-rc.1", default-features = false }
-openvm-pairing = { git = "https://github.com/openvm-org/openvm.git", branch = "develop-v2.0.0-rc.1", default-features = false, features = [
+openvm = { git = "https://github.com/openvm-org/openvm.git", branch = "feat/mod-builder-cuda-tracegen", default-features = false }
+openvm-ecc-guest = { git = "https://github.com/openvm-org/openvm.git", branch = "feat/mod-builder-cuda-tracegen", default-features = false }
+openvm-keccak256 = { git = "https://github.com/openvm-org/openvm.git", branch = "feat/mod-builder-cuda-tracegen", default-features = false }
+openvm-pairing = { git = "https://github.com/openvm-org/openvm.git", branch = "feat/mod-builder-cuda-tracegen", default-features = false, features = [
     "bn254",
     "bls12_381",
 ] }
-openvm-sha2 = { git = "https://github.com/openvm-org/openvm.git", branch = "develop-v2.0.0-rc.1", default-features = false }
-openvm-k256 = { git = "https://github.com/openvm-org/openvm.git", package = "k256", branch = "develop-v2.0.0-rc.1" }
-openvm-p256 = { git = "https://github.com/openvm-org/openvm.git", package = "p256", branch = "develop-v2.0.0-rc.1" }
+openvm-sha2 = { git = "https://github.com/openvm-org/openvm.git", branch = "feat/mod-builder-cuda-tracegen", default-features = false }
+openvm-k256 = { git = "https://github.com/openvm-org/openvm.git", package = "k256", branch = "feat/mod-builder-cuda-tracegen" }
+openvm-p256 = { git = "https://github.com/openvm-org/openvm.git", package = "p256", branch = "feat/mod-builder-cuda-tracegen" }
 
 openvm-kzg = { git = "https://github.com/axiom-crypto/openvm-kzg.git", branch = "develop-v2.0.0-rc.1", default-features = false }
 

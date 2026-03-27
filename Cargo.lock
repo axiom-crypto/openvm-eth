@@ -925,7 +925,7 @@ dependencies = [
  "alloy-rlp",
  "alloy-serde",
  "alloy-sol-types",
- "itertools 0.13.0",
+ "itertools 0.14.0",
  "serde",
  "serde_json",
  "serde_with",
@@ -5190,18 +5190,18 @@ dependencies = [
 [[package]]
 name = "k256"
 version = "0.13.4"
-source = "git+https://github.com/openvm-org/openvm.git?branch=develop-v2.0.0-rc.1#3980186a103ac631e6c4a12b67273fdd9c3295ef"
+source = "git+https://github.com/openvm-org/openvm.git?branch=feat%2Fmod-builder-cuda-tracegen#a0f62c83f257a5dc481c1cee0e350d502355354b"
 dependencies = [
  "ecdsa",
  "elliptic-curve",
  "ff 0.13.1",
  "hex-literal",
  "num-bigint",
- "openvm",
- "openvm-algebra-guest",
- "openvm-algebra-moduli-macros",
- "openvm-ecc-guest",
- "openvm-ecc-sw-macros",
+ "openvm 2.0.0-alpha (git+https://github.com/openvm-org/openvm.git?branch=feat%2Fmod-builder-cuda-tracegen)",
+ "openvm-algebra-guest 2.0.0-alpha (git+https://github.com/openvm-org/openvm.git?branch=feat%2Fmod-builder-cuda-tracegen)",
+ "openvm-algebra-moduli-macros 2.0.0-alpha (git+https://github.com/openvm-org/openvm.git?branch=feat%2Fmod-builder-cuda-tracegen)",
+ "openvm-ecc-guest 2.0.0-alpha (git+https://github.com/openvm-org/openvm.git?branch=feat%2Fmod-builder-cuda-tracegen)",
+ "openvm-ecc-sw-macros 2.0.0-alpha (git+https://github.com/openvm-org/openvm.git?branch=feat%2Fmod-builder-cuda-tracegen)",
  "serde",
 ]
 
@@ -6438,9 +6438,22 @@ source = "git+https://github.com/openvm-org/openvm.git?branch=develop-v2.0.0-rc.
 dependencies = [
  "bytemuck",
  "num-bigint",
- "openvm-custom-insn",
- "openvm-platform",
- "openvm-rv32im-guest",
+ "openvm-custom-insn 0.1.0 (git+https://github.com/openvm-org/openvm.git?branch=develop-v2.0.0-rc.1)",
+ "openvm-platform 2.0.0-alpha (git+https://github.com/openvm-org/openvm.git?branch=develop-v2.0.0-rc.1)",
+ "openvm-rv32im-guest 2.0.0-alpha (git+https://github.com/openvm-org/openvm.git?branch=develop-v2.0.0-rc.1)",
+ "serde",
+]
+
+[[package]]
+name = "openvm"
+version = "2.0.0-alpha"
+source = "git+https://github.com/openvm-org/openvm.git?branch=feat%2Fmod-builder-cuda-tracegen#a0f62c83f257a5dc481c1cee0e350d502355354b"
+dependencies = [
+ "bytemuck",
+ "num-bigint",
+ "openvm-custom-insn 0.1.0 (git+https://github.com/openvm-org/openvm.git?branch=feat%2Fmod-builder-cuda-tracegen)",
+ "openvm-platform 2.0.0-alpha (git+https://github.com/openvm-org/openvm.git?branch=feat%2Fmod-builder-cuda-tracegen)",
+ "openvm-rv32im-guest 2.0.0-alpha (git+https://github.com/openvm-org/openvm.git?branch=feat%2Fmod-builder-cuda-tracegen)",
  "serde",
 ]
 
@@ -6484,7 +6497,17 @@ name = "openvm-algebra-complex-macros"
 version = "2.0.0-alpha"
 source = "git+https://github.com/openvm-org/openvm.git?branch=develop-v2.0.0-rc.1#3980186a103ac631e6c4a12b67273fdd9c3295ef"
 dependencies = [
- "openvm-macros-common",
+ "openvm-macros-common 2.0.0-alpha (git+https://github.com/openvm-org/openvm.git?branch=develop-v2.0.0-rc.1)",
+ "quote",
+ "syn 2.0.102",
+]
+
+[[package]]
+name = "openvm-algebra-complex-macros"
+version = "2.0.0-alpha"
+source = "git+https://github.com/openvm-org/openvm.git?branch=feat%2Fmod-builder-cuda-tracegen#a0f62c83f257a5dc481c1cee0e350d502355354b"
+dependencies = [
+ "openvm-macros-common 2.0.0-alpha (git+https://github.com/openvm-org/openvm.git?branch=feat%2Fmod-builder-cuda-tracegen)",
  "quote",
  "syn 2.0.102",
 ]
@@ -6497,10 +6520,26 @@ dependencies = [
  "halo2curves-axiom 0.7.2",
  "num-bigint",
  "once_cell",
- "openvm-algebra-complex-macros",
- "openvm-algebra-moduli-macros",
- "openvm-custom-insn",
- "openvm-rv32im-guest",
+ "openvm-algebra-complex-macros 2.0.0-alpha (git+https://github.com/openvm-org/openvm.git?branch=develop-v2.0.0-rc.1)",
+ "openvm-algebra-moduli-macros 2.0.0-alpha (git+https://github.com/openvm-org/openvm.git?branch=develop-v2.0.0-rc.1)",
+ "openvm-custom-insn 0.1.0 (git+https://github.com/openvm-org/openvm.git?branch=develop-v2.0.0-rc.1)",
+ "openvm-rv32im-guest 2.0.0-alpha (git+https://github.com/openvm-org/openvm.git?branch=develop-v2.0.0-rc.1)",
+ "serde-big-array",
+ "strum_macros 0.26.4",
+]
+
+[[package]]
+name = "openvm-algebra-guest"
+version = "2.0.0-alpha"
+source = "git+https://github.com/openvm-org/openvm.git?branch=feat%2Fmod-builder-cuda-tracegen#a0f62c83f257a5dc481c1cee0e350d502355354b"
+dependencies = [
+ "halo2curves-axiom 0.7.2",
+ "num-bigint",
+ "once_cell",
+ "openvm-algebra-complex-macros 2.0.0-alpha (git+https://github.com/openvm-org/openvm.git?branch=feat%2Fmod-builder-cuda-tracegen)",
+ "openvm-algebra-moduli-macros 2.0.0-alpha (git+https://github.com/openvm-org/openvm.git?branch=feat%2Fmod-builder-cuda-tracegen)",
+ "openvm-custom-insn 0.1.0 (git+https://github.com/openvm-org/openvm.git?branch=feat%2Fmod-builder-cuda-tracegen)",
+ "openvm-rv32im-guest 2.0.0-alpha (git+https://github.com/openvm-org/openvm.git?branch=feat%2Fmod-builder-cuda-tracegen)",
  "serde-big-array",
  "strum_macros 0.26.4",
 ]
@@ -6512,7 +6551,19 @@ source = "git+https://github.com/openvm-org/openvm.git?branch=develop-v2.0.0-rc.
 dependencies = [
  "num-bigint",
  "num-prime",
- "openvm-macros-common",
+ "openvm-macros-common 2.0.0-alpha (git+https://github.com/openvm-org/openvm.git?branch=develop-v2.0.0-rc.1)",
+ "quote",
+ "syn 2.0.102",
+]
+
+[[package]]
+name = "openvm-algebra-moduli-macros"
+version = "2.0.0-alpha"
+source = "git+https://github.com/openvm-org/openvm.git?branch=feat%2Fmod-builder-cuda-tracegen#a0f62c83f257a5dc481c1cee0e350d502355354b"
+dependencies = [
+ "num-bigint",
+ "num-prime",
+ "openvm-macros-common 2.0.0-alpha (git+https://github.com/openvm-org/openvm.git?branch=feat%2Fmod-builder-cuda-tracegen)",
  "quote",
  "syn 2.0.102",
 ]
@@ -6522,7 +6573,7 @@ name = "openvm-algebra-transpiler"
 version = "2.0.0-alpha"
 source = "git+https://github.com/openvm-org/openvm.git?branch=develop-v2.0.0-rc.1#3980186a103ac631e6c4a12b67273fdd9c3295ef"
 dependencies = [
- "openvm-algebra-guest",
+ "openvm-algebra-guest 2.0.0-alpha (git+https://github.com/openvm-org/openvm.git?branch=develop-v2.0.0-rc.1)",
  "openvm-instructions",
  "openvm-instructions-derive",
  "openvm-stark-backend",
@@ -6563,7 +6614,7 @@ name = "openvm-bigint-guest"
 version = "2.0.0-alpha"
 source = "git+https://github.com/openvm-org/openvm.git?branch=develop-v2.0.0-rc.1#3980186a103ac631e6c4a12b67273fdd9c3295ef"
 dependencies = [
- "openvm-platform",
+ "openvm-platform 2.0.0-alpha (git+https://github.com/openvm-org/openvm.git?branch=develop-v2.0.0-rc.1)",
  "strum_macros 0.26.4",
 ]
 
@@ -6589,7 +6640,7 @@ source = "git+https://github.com/openvm-org/openvm.git?branch=develop-v2.0.0-rc.
 dependencies = [
  "cargo_metadata 0.18.1",
  "eyre",
- "openvm-platform",
+ "openvm-platform 2.0.0-alpha (git+https://github.com/openvm-org/openvm.git?branch=develop-v2.0.0-rc.1)",
  "serde",
  "serde_json",
 ]
@@ -6816,6 +6867,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "openvm-custom-insn"
+version = "0.1.0"
+source = "git+https://github.com/openvm-org/openvm.git?branch=feat%2Fmod-builder-cuda-tracegen#a0f62c83f257a5dc481c1cee0e350d502355354b"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.102",
+]
+
+[[package]]
 name = "openvm-deferral-circuit"
 version = "2.0.0-alpha"
 source = "git+https://github.com/openvm-org/openvm.git?branch=develop-v2.0.0-rc.1#3980186a103ac631e6c4a12b67273fdd9c3295ef"
@@ -6854,7 +6915,7 @@ name = "openvm-deferral-guest"
 version = "2.0.0-alpha"
 source = "git+https://github.com/openvm-org/openvm.git?branch=develop-v2.0.0-rc.1#3980186a103ac631e6c4a12b67273fdd9c3295ef"
 dependencies = [
- "openvm-custom-insn",
+ "openvm-custom-insn 0.1.0 (git+https://github.com/openvm-org/openvm.git?branch=develop-v2.0.0-rc.1)",
  "strum_macros 0.26.4",
 ]
 
@@ -6918,11 +6979,30 @@ dependencies = [
  "group 0.13.0",
  "halo2curves-axiom 0.7.2",
  "once_cell",
- "openvm",
- "openvm-algebra-guest",
- "openvm-custom-insn",
- "openvm-ecc-sw-macros",
- "openvm-rv32im-guest",
+ "openvm 2.0.0-alpha (git+https://github.com/openvm-org/openvm.git?branch=develop-v2.0.0-rc.1)",
+ "openvm-algebra-guest 2.0.0-alpha (git+https://github.com/openvm-org/openvm.git?branch=develop-v2.0.0-rc.1)",
+ "openvm-custom-insn 0.1.0 (git+https://github.com/openvm-org/openvm.git?branch=develop-v2.0.0-rc.1)",
+ "openvm-ecc-sw-macros 2.0.0-alpha (git+https://github.com/openvm-org/openvm.git?branch=develop-v2.0.0-rc.1)",
+ "openvm-rv32im-guest 2.0.0-alpha (git+https://github.com/openvm-org/openvm.git?branch=develop-v2.0.0-rc.1)",
+ "serde",
+ "strum_macros 0.26.4",
+]
+
+[[package]]
+name = "openvm-ecc-guest"
+version = "2.0.0-alpha"
+source = "git+https://github.com/openvm-org/openvm.git?branch=feat%2Fmod-builder-cuda-tracegen#a0f62c83f257a5dc481c1cee0e350d502355354b"
+dependencies = [
+ "ecdsa",
+ "elliptic-curve",
+ "group 0.13.0",
+ "halo2curves-axiom 0.7.2",
+ "once_cell",
+ "openvm 2.0.0-alpha (git+https://github.com/openvm-org/openvm.git?branch=feat%2Fmod-builder-cuda-tracegen)",
+ "openvm-algebra-guest 2.0.0-alpha (git+https://github.com/openvm-org/openvm.git?branch=feat%2Fmod-builder-cuda-tracegen)",
+ "openvm-custom-insn 0.1.0 (git+https://github.com/openvm-org/openvm.git?branch=feat%2Fmod-builder-cuda-tracegen)",
+ "openvm-ecc-sw-macros 2.0.0-alpha (git+https://github.com/openvm-org/openvm.git?branch=feat%2Fmod-builder-cuda-tracegen)",
+ "openvm-rv32im-guest 2.0.0-alpha (git+https://github.com/openvm-org/openvm.git?branch=feat%2Fmod-builder-cuda-tracegen)",
  "serde",
  "strum_macros 0.26.4",
 ]
@@ -6932,7 +7012,17 @@ name = "openvm-ecc-sw-macros"
 version = "2.0.0-alpha"
 source = "git+https://github.com/openvm-org/openvm.git?branch=develop-v2.0.0-rc.1#3980186a103ac631e6c4a12b67273fdd9c3295ef"
 dependencies = [
- "openvm-macros-common",
+ "openvm-macros-common 2.0.0-alpha (git+https://github.com/openvm-org/openvm.git?branch=develop-v2.0.0-rc.1)",
+ "quote",
+ "syn 2.0.102",
+]
+
+[[package]]
+name = "openvm-ecc-sw-macros"
+version = "2.0.0-alpha"
+source = "git+https://github.com/openvm-org/openvm.git?branch=feat%2Fmod-builder-cuda-tracegen#a0f62c83f257a5dc481c1cee0e350d502355354b"
+dependencies = [
+ "openvm-macros-common 2.0.0-alpha (git+https://github.com/openvm-org/openvm.git?branch=feat%2Fmod-builder-cuda-tracegen)",
  "quote",
  "syn 2.0.102",
 ]
@@ -6942,7 +7032,7 @@ name = "openvm-ecc-transpiler"
 version = "2.0.0-alpha"
 source = "git+https://github.com/openvm-org/openvm.git?branch=develop-v2.0.0-rc.1#3980186a103ac631e6c4a12b67273fdd9c3295ef"
 dependencies = [
- "openvm-ecc-guest",
+ "openvm-ecc-guest 2.0.0-alpha (git+https://github.com/openvm-org/openvm.git?branch=develop-v2.0.0-rc.1)",
  "openvm-instructions",
  "openvm-instructions-derive",
  "openvm-stark-backend",
@@ -6980,9 +7070,9 @@ dependencies = [
 [[package]]
 name = "openvm-keccak256"
 version = "2.0.0-alpha"
-source = "git+https://github.com/openvm-org/openvm.git?branch=develop-v2.0.0-rc.1#3980186a103ac631e6c4a12b67273fdd9c3295ef"
+source = "git+https://github.com/openvm-org/openvm.git?branch=feat%2Fmod-builder-cuda-tracegen#a0f62c83f257a5dc481c1cee0e350d502355354b"
 dependencies = [
- "openvm-keccak256-guest",
+ "openvm-keccak256-guest 2.0.0-alpha (git+https://github.com/openvm-org/openvm.git?branch=feat%2Fmod-builder-cuda-tracegen)",
  "spin 0.10.0",
  "tiny-keccak",
 ]
@@ -7020,7 +7110,15 @@ name = "openvm-keccak256-guest"
 version = "2.0.0-alpha"
 source = "git+https://github.com/openvm-org/openvm.git?branch=develop-v2.0.0-rc.1#3980186a103ac631e6c4a12b67273fdd9c3295ef"
 dependencies = [
- "openvm-platform",
+ "openvm-platform 2.0.0-alpha (git+https://github.com/openvm-org/openvm.git?branch=develop-v2.0.0-rc.1)",
+]
+
+[[package]]
+name = "openvm-keccak256-guest"
+version = "2.0.0-alpha"
+source = "git+https://github.com/openvm-org/openvm.git?branch=feat%2Fmod-builder-cuda-tracegen#a0f62c83f257a5dc481c1cee0e350d502355354b"
+dependencies = [
+ "openvm-platform 2.0.0-alpha (git+https://github.com/openvm-org/openvm.git?branch=feat%2Fmod-builder-cuda-tracegen)",
 ]
 
 [[package]]
@@ -7030,7 +7128,7 @@ source = "git+https://github.com/openvm-org/openvm.git?branch=develop-v2.0.0-rc.
 dependencies = [
  "openvm-instructions",
  "openvm-instructions-derive",
- "openvm-keccak256-guest",
+ "openvm-keccak256-guest 2.0.0-alpha (git+https://github.com/openvm-org/openvm.git?branch=develop-v2.0.0-rc.1)",
  "openvm-stark-backend",
  "openvm-transpiler",
  "rrs-lib",
@@ -7045,9 +7143,9 @@ dependencies = [
  "bls12_381 0.8.0",
  "hex",
  "hex-literal",
- "openvm-algebra-guest",
- "openvm-ecc-guest",
- "openvm-pairing",
+ "openvm-algebra-guest 2.0.0-alpha (git+https://github.com/openvm-org/openvm.git?branch=develop-v2.0.0-rc.1)",
+ "openvm-ecc-guest 2.0.0-alpha (git+https://github.com/openvm-org/openvm.git?branch=develop-v2.0.0-rc.1)",
+ "openvm-pairing 2.0.0-alpha (git+https://github.com/openvm-org/openvm.git?branch=develop-v2.0.0-rc.1)",
  "serde",
  "serde-big-array",
  "spin 0.10.0",
@@ -7057,6 +7155,14 @@ dependencies = [
 name = "openvm-macros-common"
 version = "2.0.0-alpha"
 source = "git+https://github.com/openvm-org/openvm.git?branch=develop-v2.0.0-rc.1#3980186a103ac631e6c4a12b67273fdd9c3295ef"
+dependencies = [
+ "syn 2.0.102",
+]
+
+[[package]]
+name = "openvm-macros-common"
+version = "2.0.0-alpha"
+source = "git+https://github.com/openvm-org/openvm.git?branch=feat%2Fmod-builder-cuda-tracegen#a0f62c83f257a5dc481c1cee0e350d502355354b"
 dependencies = [
  "syn 2.0.102",
 ]
@@ -7133,16 +7239,39 @@ dependencies = [
  "itertools 0.14.0",
  "num-bigint",
  "num-traits",
- "openvm",
- "openvm-algebra-complex-macros",
- "openvm-algebra-guest",
- "openvm-algebra-moduli-macros",
- "openvm-custom-insn",
- "openvm-ecc-guest",
- "openvm-ecc-sw-macros",
- "openvm-pairing-guest",
- "openvm-platform",
- "openvm-rv32im-guest",
+ "openvm 2.0.0-alpha (git+https://github.com/openvm-org/openvm.git?branch=develop-v2.0.0-rc.1)",
+ "openvm-algebra-complex-macros 2.0.0-alpha (git+https://github.com/openvm-org/openvm.git?branch=develop-v2.0.0-rc.1)",
+ "openvm-algebra-guest 2.0.0-alpha (git+https://github.com/openvm-org/openvm.git?branch=develop-v2.0.0-rc.1)",
+ "openvm-algebra-moduli-macros 2.0.0-alpha (git+https://github.com/openvm-org/openvm.git?branch=develop-v2.0.0-rc.1)",
+ "openvm-custom-insn 0.1.0 (git+https://github.com/openvm-org/openvm.git?branch=develop-v2.0.0-rc.1)",
+ "openvm-ecc-guest 2.0.0-alpha (git+https://github.com/openvm-org/openvm.git?branch=develop-v2.0.0-rc.1)",
+ "openvm-ecc-sw-macros 2.0.0-alpha (git+https://github.com/openvm-org/openvm.git?branch=develop-v2.0.0-rc.1)",
+ "openvm-pairing-guest 2.0.0-alpha (git+https://github.com/openvm-org/openvm.git?branch=develop-v2.0.0-rc.1)",
+ "openvm-platform 2.0.0-alpha (git+https://github.com/openvm-org/openvm.git?branch=develop-v2.0.0-rc.1)",
+ "openvm-rv32im-guest 2.0.0-alpha (git+https://github.com/openvm-org/openvm.git?branch=develop-v2.0.0-rc.1)",
+ "serde",
+]
+
+[[package]]
+name = "openvm-pairing"
+version = "2.0.0-alpha"
+source = "git+https://github.com/openvm-org/openvm.git?branch=feat%2Fmod-builder-cuda-tracegen#a0f62c83f257a5dc481c1cee0e350d502355354b"
+dependencies = [
+ "group 0.13.0",
+ "hex-literal",
+ "itertools 0.14.0",
+ "num-bigint",
+ "num-traits",
+ "openvm 2.0.0-alpha (git+https://github.com/openvm-org/openvm.git?branch=feat%2Fmod-builder-cuda-tracegen)",
+ "openvm-algebra-complex-macros 2.0.0-alpha (git+https://github.com/openvm-org/openvm.git?branch=feat%2Fmod-builder-cuda-tracegen)",
+ "openvm-algebra-guest 2.0.0-alpha (git+https://github.com/openvm-org/openvm.git?branch=feat%2Fmod-builder-cuda-tracegen)",
+ "openvm-algebra-moduli-macros 2.0.0-alpha (git+https://github.com/openvm-org/openvm.git?branch=feat%2Fmod-builder-cuda-tracegen)",
+ "openvm-custom-insn 0.1.0 (git+https://github.com/openvm-org/openvm.git?branch=feat%2Fmod-builder-cuda-tracegen)",
+ "openvm-ecc-guest 2.0.0-alpha (git+https://github.com/openvm-org/openvm.git?branch=feat%2Fmod-builder-cuda-tracegen)",
+ "openvm-ecc-sw-macros 2.0.0-alpha (git+https://github.com/openvm-org/openvm.git?branch=feat%2Fmod-builder-cuda-tracegen)",
+ "openvm-pairing-guest 2.0.0-alpha (git+https://github.com/openvm-org/openvm.git?branch=feat%2Fmod-builder-cuda-tracegen)",
+ "openvm-platform 2.0.0-alpha (git+https://github.com/openvm-org/openvm.git?branch=feat%2Fmod-builder-cuda-tracegen)",
+ "openvm-rv32im-guest 2.0.0-alpha (git+https://github.com/openvm-org/openvm.git?branch=feat%2Fmod-builder-cuda-tracegen)",
  "serde",
 ]
 
@@ -7165,10 +7294,10 @@ dependencies = [
  "openvm-cpu-backend",
  "openvm-cuda-backend",
  "openvm-ecc-circuit",
- "openvm-ecc-guest",
+ "openvm-ecc-guest 2.0.0-alpha (git+https://github.com/openvm-org/openvm.git?branch=develop-v2.0.0-rc.1)",
  "openvm-instructions",
  "openvm-mod-circuit-builder",
- "openvm-pairing-guest",
+ "openvm-pairing-guest 2.0.0-alpha (git+https://github.com/openvm-org/openvm.git?branch=develop-v2.0.0-rc.1)",
  "openvm-pairing-transpiler",
  "openvm-rv32im-circuit",
  "openvm-stark-backend",
@@ -7190,11 +7319,30 @@ dependencies = [
  "lazy_static",
  "num-bigint",
  "num-traits",
- "openvm",
- "openvm-algebra-guest",
- "openvm-algebra-moduli-macros",
- "openvm-custom-insn",
- "openvm-ecc-guest",
+ "openvm 2.0.0-alpha (git+https://github.com/openvm-org/openvm.git?branch=develop-v2.0.0-rc.1)",
+ "openvm-algebra-guest 2.0.0-alpha (git+https://github.com/openvm-org/openvm.git?branch=develop-v2.0.0-rc.1)",
+ "openvm-algebra-moduli-macros 2.0.0-alpha (git+https://github.com/openvm-org/openvm.git?branch=develop-v2.0.0-rc.1)",
+ "openvm-custom-insn 0.1.0 (git+https://github.com/openvm-org/openvm.git?branch=develop-v2.0.0-rc.1)",
+ "openvm-ecc-guest 2.0.0-alpha (git+https://github.com/openvm-org/openvm.git?branch=develop-v2.0.0-rc.1)",
+ "serde",
+ "strum_macros 0.26.4",
+]
+
+[[package]]
+name = "openvm-pairing-guest"
+version = "2.0.0-alpha"
+source = "git+https://github.com/openvm-org/openvm.git?branch=feat%2Fmod-builder-cuda-tracegen#a0f62c83f257a5dc481c1cee0e350d502355354b"
+dependencies = [
+ "hex-literal",
+ "itertools 0.14.0",
+ "lazy_static",
+ "num-bigint",
+ "num-traits",
+ "openvm 2.0.0-alpha (git+https://github.com/openvm-org/openvm.git?branch=feat%2Fmod-builder-cuda-tracegen)",
+ "openvm-algebra-guest 2.0.0-alpha (git+https://github.com/openvm-org/openvm.git?branch=feat%2Fmod-builder-cuda-tracegen)",
+ "openvm-algebra-moduli-macros 2.0.0-alpha (git+https://github.com/openvm-org/openvm.git?branch=feat%2Fmod-builder-cuda-tracegen)",
+ "openvm-custom-insn 0.1.0 (git+https://github.com/openvm-org/openvm.git?branch=feat%2Fmod-builder-cuda-tracegen)",
+ "openvm-ecc-guest 2.0.0-alpha (git+https://github.com/openvm-org/openvm.git?branch=feat%2Fmod-builder-cuda-tracegen)",
  "serde",
  "strum_macros 0.26.4",
 ]
@@ -7205,7 +7353,7 @@ version = "2.0.0-alpha"
 source = "git+https://github.com/openvm-org/openvm.git?branch=develop-v2.0.0-rc.1#3980186a103ac631e6c4a12b67273fdd9c3295ef"
 dependencies = [
  "openvm-instructions",
- "openvm-pairing-guest",
+ "openvm-pairing-guest 2.0.0-alpha (git+https://github.com/openvm-org/openvm.git?branch=develop-v2.0.0-rc.1)",
  "openvm-stark-backend",
  "openvm-transpiler",
  "rrs-lib",
@@ -7218,8 +7366,18 @@ version = "2.0.0-alpha"
 source = "git+https://github.com/openvm-org/openvm.git?branch=develop-v2.0.0-rc.1#3980186a103ac631e6c4a12b67273fdd9c3295ef"
 dependencies = [
  "libm",
- "openvm-custom-insn",
- "openvm-rv32im-guest",
+ "openvm-custom-insn 0.1.0 (git+https://github.com/openvm-org/openvm.git?branch=develop-v2.0.0-rc.1)",
+ "openvm-rv32im-guest 2.0.0-alpha (git+https://github.com/openvm-org/openvm.git?branch=develop-v2.0.0-rc.1)",
+]
+
+[[package]]
+name = "openvm-platform"
+version = "2.0.0-alpha"
+source = "git+https://github.com/openvm-org/openvm.git?branch=feat%2Fmod-builder-cuda-tracegen#a0f62c83f257a5dc481c1cee0e350d502355354b"
+dependencies = [
+ "libm",
+ "openvm-custom-insn 0.1.0 (git+https://github.com/openvm-org/openvm.git?branch=feat%2Fmod-builder-cuda-tracegen)",
+ "openvm-rv32im-guest 2.0.0-alpha (git+https://github.com/openvm-org/openvm.git?branch=feat%2Fmod-builder-cuda-tracegen)",
 ]
 
 [[package]]
@@ -7294,7 +7452,7 @@ dependencies = [
  "eyre",
  "halo2-axiom",
  "hex",
- "openvm",
+ "openvm 2.0.0-alpha (git+https://github.com/openvm-org/openvm.git?branch=feat%2Fmod-builder-cuda-tracegen)",
  "openvm-circuit",
  "openvm-cuda-backend",
  "openvm-rpc-proxy",
@@ -7325,13 +7483,13 @@ dependencies = [
  "ark-ec",
  "ark-ff 0.5.0",
  "aurora-engine-modexp",
- "k256 0.13.4 (git+https://github.com/openvm-org/openvm.git?branch=develop-v2.0.0-rc.1)",
- "openvm-ecc-guest",
+ "k256 0.13.4 (git+https://github.com/openvm-org/openvm.git?branch=feat%2Fmod-builder-cuda-tracegen)",
+ "openvm-ecc-guest 2.0.0-alpha (git+https://github.com/openvm-org/openvm.git?branch=feat%2Fmod-builder-cuda-tracegen)",
  "openvm-keccak256",
  "openvm-kzg",
- "openvm-pairing",
+ "openvm-pairing 2.0.0-alpha (git+https://github.com/openvm-org/openvm.git?branch=feat%2Fmod-builder-cuda-tracegen)",
  "openvm-sha2",
- "p256 0.13.2 (git+https://github.com/openvm-org/openvm.git?branch=develop-v2.0.0-rc.1)",
+ "p256 0.13.2 (git+https://github.com/openvm-org/openvm.git?branch=feat%2Fmod-builder-cuda-tracegen)",
  "revm 34.0.0",
  "revm-primitives 22.0.0",
 ]
@@ -7423,7 +7581,17 @@ name = "openvm-rv32im-guest"
 version = "2.0.0-alpha"
 source = "git+https://github.com/openvm-org/openvm.git?branch=develop-v2.0.0-rc.1#3980186a103ac631e6c4a12b67273fdd9c3295ef"
 dependencies = [
- "openvm-custom-insn",
+ "openvm-custom-insn 0.1.0 (git+https://github.com/openvm-org/openvm.git?branch=develop-v2.0.0-rc.1)",
+ "p3-field",
+ "strum_macros 0.26.4",
+]
+
+[[package]]
+name = "openvm-rv32im-guest"
+version = "2.0.0-alpha"
+source = "git+https://github.com/openvm-org/openvm.git?branch=feat%2Fmod-builder-cuda-tracegen#a0f62c83f257a5dc481c1cee0e350d502355354b"
+dependencies = [
+ "openvm-custom-insn 0.1.0 (git+https://github.com/openvm-org/openvm.git?branch=feat%2Fmod-builder-cuda-tracegen)",
  "p3-field",
  "strum_macros 0.26.4",
 ]
@@ -7435,7 +7603,7 @@ source = "git+https://github.com/openvm-org/openvm.git?branch=develop-v2.0.0-rc.
 dependencies = [
  "openvm-instructions",
  "openvm-instructions-derive",
- "openvm-rv32im-guest",
+ "openvm-rv32im-guest 2.0.0-alpha (git+https://github.com/openvm-org/openvm.git?branch=develop-v2.0.0-rc.1)",
  "openvm-stark-backend",
  "openvm-transpiler",
  "rrs-lib",
@@ -7464,7 +7632,7 @@ dependencies = [
  "itertools 0.14.0",
  "metrics 0.23.1",
  "num-bigint",
- "openvm",
+ "openvm 2.0.0-alpha (git+https://github.com/openvm-org/openvm.git?branch=develop-v2.0.0-rc.1)",
  "openvm-build",
  "openvm-circuit",
  "openvm-continuations",
@@ -7495,7 +7663,7 @@ dependencies = [
  "bon",
  "cfg-if",
  "derive_more 1.0.0",
- "openvm",
+ "openvm 2.0.0-alpha (git+https://github.com/openvm-org/openvm.git?branch=develop-v2.0.0-rc.1)",
  "openvm-algebra-circuit",
  "openvm-algebra-transpiler",
  "openvm-bigint-circuit",
@@ -7525,10 +7693,10 @@ dependencies = [
 [[package]]
 name = "openvm-sha2"
 version = "2.0.0-alpha"
-source = "git+https://github.com/openvm-org/openvm.git?branch=develop-v2.0.0-rc.1#3980186a103ac631e6c4a12b67273fdd9c3295ef"
+source = "git+https://github.com/openvm-org/openvm.git?branch=feat%2Fmod-builder-cuda-tracegen#a0f62c83f257a5dc481c1cee0e350d502355354b"
 dependencies = [
- "openvm",
- "openvm-sha2-guest",
+ "openvm 2.0.0-alpha (git+https://github.com/openvm-org/openvm.git?branch=feat%2Fmod-builder-cuda-tracegen)",
+ "openvm-sha2-guest 2.0.0-alpha (git+https://github.com/openvm-org/openvm.git?branch=feat%2Fmod-builder-cuda-tracegen)",
  "sha2 0.10.9",
 ]
 
@@ -7580,7 +7748,15 @@ name = "openvm-sha2-guest"
 version = "2.0.0-alpha"
 source = "git+https://github.com/openvm-org/openvm.git?branch=develop-v2.0.0-rc.1#3980186a103ac631e6c4a12b67273fdd9c3295ef"
 dependencies = [
- "openvm-platform",
+ "openvm-platform 2.0.0-alpha (git+https://github.com/openvm-org/openvm.git?branch=develop-v2.0.0-rc.1)",
+]
+
+[[package]]
+name = "openvm-sha2-guest"
+version = "2.0.0-alpha"
+source = "git+https://github.com/openvm-org/openvm.git?branch=feat%2Fmod-builder-cuda-tracegen#a0f62c83f257a5dc481c1cee0e350d502355354b"
+dependencies = [
+ "openvm-platform 2.0.0-alpha (git+https://github.com/openvm-org/openvm.git?branch=feat%2Fmod-builder-cuda-tracegen)",
 ]
 
 [[package]]
@@ -7590,7 +7766,7 @@ source = "git+https://github.com/openvm-org/openvm.git?branch=develop-v2.0.0-rc.
 dependencies = [
  "openvm-instructions",
  "openvm-instructions-derive",
- "openvm-sha2-guest",
+ "openvm-sha2-guest 2.0.0-alpha (git+https://github.com/openvm-org/openvm.git?branch=develop-v2.0.0-rc.1)",
  "openvm-stark-backend",
  "openvm-transpiler",
  "rrs-lib",
@@ -7746,7 +7922,7 @@ dependencies = [
  "elf",
  "eyre",
  "openvm-instructions",
- "openvm-platform",
+ "openvm-platform 2.0.0-alpha (git+https://github.com/openvm-org/openvm.git?branch=develop-v2.0.0-rc.1)",
  "openvm-stark-backend",
  "rrs-lib",
  "rustc-demangle",
@@ -7800,18 +7976,18 @@ dependencies = [
 [[package]]
 name = "p256"
 version = "0.13.2"
-source = "git+https://github.com/openvm-org/openvm.git?branch=develop-v2.0.0-rc.1#3980186a103ac631e6c4a12b67273fdd9c3295ef"
+source = "git+https://github.com/openvm-org/openvm.git?branch=feat%2Fmod-builder-cuda-tracegen#a0f62c83f257a5dc481c1cee0e350d502355354b"
 dependencies = [
  "ecdsa",
  "elliptic-curve",
  "ff 0.13.1",
  "hex-literal",
  "num-bigint",
- "openvm",
- "openvm-algebra-guest",
- "openvm-algebra-moduli-macros",
- "openvm-ecc-guest",
- "openvm-ecc-sw-macros",
+ "openvm 2.0.0-alpha (git+https://github.com/openvm-org/openvm.git?branch=feat%2Fmod-builder-cuda-tracegen)",
+ "openvm-algebra-guest 2.0.0-alpha (git+https://github.com/openvm-org/openvm.git?branch=feat%2Fmod-builder-cuda-tracegen)",
+ "openvm-algebra-moduli-macros 2.0.0-alpha (git+https://github.com/openvm-org/openvm.git?branch=feat%2Fmod-builder-cuda-tracegen)",
+ "openvm-ecc-guest 2.0.0-alpha (git+https://github.com/openvm-org/openvm.git?branch=feat%2Fmod-builder-cuda-tracegen)",
+ "openvm-ecc-sw-macros 2.0.0-alpha (git+https://github.com/openvm-org/openvm.git?branch=feat%2Fmod-builder-cuda-tracegen)",
  "serde",
 ]
 
@@ -8614,7 +8790,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "27c6023962132f4b30eb4c172c91ce92d933da334c59c23cddee82358ddafb0b"
 dependencies = [
  "anyhow",
- "itertools 0.11.0",
+ "itertools 0.14.0",
  "proc-macro2",
  "quote",
  "syn 2.0.102",
@@ -14164,7 +14340,7 @@ version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
 dependencies = [
- "windows-sys 0.61.1",
+ "windows-sys 0.48.0",
 ]
 
 [[package]]
