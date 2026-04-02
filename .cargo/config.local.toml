@@ -5,7 +5,7 @@ git-fetch-with-cli = true
 [patch."https://github.com/openvm-org/stark-backend.git"]
 openvm-stark-backend = { path = "../openvm-org/stark-backend/crates/stark-backend" }
 openvm-stark-sdk = { path = "../openvm-org/stark-backend/crates/stark-sdk" }
-openvm-codec-derive = { path = "../openvm-org/stark-backend/crates/codec-derive" }
+openvm-codec-derive = { path = "../openvm-org/stark-backend/crates/stark-backend/codec-derive" }
 openvm-cpu-backend = { path = "../openvm-org/stark-backend/crates/cpu-backend" }
 openvm-cuda-builder = { path = "../openvm-org/stark-backend/crates/cuda-builder" }
 openvm-cuda-common = { path = "../openvm-org/stark-backend/crates/cuda-common" }
@@ -14,8 +14,7 @@ openvm-cuda-backend = { path = "../openvm-org/stark-backend/crates/cuda-backend"
 [patch."https://github.com/openvm-org/openvm.git"]
 # OpenVM core
 openvm = { path = "../openvm-org/openvm/crates/toolchain/openvm" }
-# TODO: add back
-# openvm-benchmarks-prove = { path = "../openvm-org/openvm/benchmarks/prove" }
+openvm-benchmarks-prove = { path = "../openvm-org/openvm/benchmarks/prove" }
 openvm-build = { path = "../openvm-org/openvm/crates/toolchain/build" }
 openvm-circuit = { path = "../openvm-org/openvm/crates/vm" }
 openvm-circuit-derive = { path = "../openvm-org/openvm/crates/vm/derive" }

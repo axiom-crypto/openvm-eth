@@ -16,8 +16,7 @@
 # [patch."https://github.com/openvm-org/openvm.git"]
 # # OpenVM core
 # openvm = { git = "ssh://git@github.com/openvm-org/openvm.git", branch = "main" }
-# # TODO: add back
-# # openvm-benchmarks-prove = { git = "ssh://git@github.com/openvm-org/openvm.git", branch = "main" }
+# openvm-benchmarks-prove = { git = "ssh://git@github.com/openvm-org/openvm.git", branch = "main" }
 # openvm-build = { git = "ssh://git@github.com/openvm-org/openvm.git", branch = "main" }
 # openvm-circuit = { git = "ssh://git@github.com/openvm-org/openvm.git", branch = "main" }
 # openvm-circuit-derive = { git = "ssh://git@github.com/openvm-org/openvm.git", branch = "main" }

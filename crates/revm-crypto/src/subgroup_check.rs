@@ -44,9 +44,9 @@ fn scalar_mul<P: WeierstrassPoint, const CHECK_SETUP: bool>(
     for limb in scalar.as_ref() {
         for bit_idx in 0..64u32 {
             if (limb >> bit_idx) & 1 == 1 {
-                result.add_assign_impl::<CHECK_SETUP>(&temp);
+                result = result.add_impl::<CHECK_SETUP>(&temp);
             }
-            temp.double_assign_impl::<CHECK_SETUP>();
+            temp = temp.double_impl::<CHECK_SETUP>();
         }
     }
     result
@@ -118,10 +118,14 @@ mod impl_bn {
     /// Implements section 4.3 of https://eprint.iacr.org/2022/352.pdf to check `[6x²]P == ψ(P)`.
     impl super::SubgroupCheck for bn::G2Affine {
         fn is_in_correct_subgroup(&self) -> bool {
+            // The identity is always in the subgroup.
+            if WeierstrassPoint::is_identity(self) {
+                return true;
+            }
+
             // 1. Compute [6x²]P using double-and-add.
             //
-            // `CHECK_SETUP=false` since `set_up_once` is a no-op, given that bn254::G2Affine is
-            // implemented via [`impl_sw_affine`].
+            // `CHECK_SETUP=false` since `set_up_once` is a no-op for [`impl_sw_proj`] types.
             let x_times_point = super::scalar_mul::<_, false>(self, SIX_X_SQUARED);
 
             // 2. Compute ψ(P), i.e. "untwist-Frobenius-twist".
@@ -258,7 +262,7 @@ mod impl_bls {
     use std::ops::{MulAssign, Neg};
 
     use alloy_primitives::hex;
-    use openvm_ecc_guest::{algebra::field::FieldExtension, weierstrass::WeierstrassPoint, Group};
+    use openvm_ecc_guest::{algebra::field::FieldExtension, weierstrass::WeierstrassPoint};
     use openvm_pairing::bls12_381 as bls;
 
     /// The BLS12-381 curve parameter `|u| = 0xd201000000010000`. The parameter `u`
@@ -313,7 +317,7 @@ mod impl_bls {
             //
             // If [x]P == P but P != identity then point is not in the right subgroup.
             let x_times_point = super::scalar_mul::<_, true>(self, X);
-            if self.eq(&x_times_point) && !self.is_identity() {
+            if self.eq(&x_times_point) && !WeierstrassPoint::is_identity(self) {
                 return false;
             }
 
@@ -342,6 +346,11 @@ mod impl_bls {
     /// Implements section 4 of https://eprint.iacr.org/2021/1130.
     impl super::SubgroupCheck for bls::G2Affine {
         fn is_in_correct_subgroup(&self) -> bool {
+            // The identity is always in the subgroup.
+            if WeierstrassPoint::is_identity(self) {
+                return true;
+            }
+
             // 1. Compute -[x]P using double-and-add (X is negative).
             let x_times_point = super::scalar_mul::<_, true>(self, X).neg();
 
