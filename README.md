@@ -50,7 +50,7 @@ Handles RPC interaction, witness caching, guest program loading, and metrics col
 
 ### `bin/reth-verify`
 
-Standalone host-side verifier for RTP final proofs using only:
+Standalone host-side verifier for stark proofs using only:
 
 - `--proof`
 - `--vm-vk`

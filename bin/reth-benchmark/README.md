@@ -46,7 +46,7 @@ Note that even when utilizing a cached input, the host still needs access to the
 
 ## RTP Proof Verification
 
-To verify an RTP final proof using a pre-generated VM VK bundle from this repo root:
+To verify a STARK proof using a pre-generated VM VK bundle from this repo root:
 
 ```bash
 cargo run --release -p openvm-reth-verify -- \
