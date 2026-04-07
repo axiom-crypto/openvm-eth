@@ -44,6 +44,18 @@ Note that even when utilizing a cached input, the host still needs access to the
 
 ## Running Benchmarks
 
+## RTP Proof Verification
+
+To verify an RTP final proof using a pre-generated VM VK bundle from this repo root:
+
+```bash
+cargo run --release -p openvm-reth-verify -- \
+  --proof /path/to/<proof_uuid>.proof.bin \
+  --vm-vk /path/to/reth.vm.vk
+```
+
+The verifier accepts both raw persisted `.proof.bin` files and the zstd-compressed form written by `rtp-edge`.
+
 ### Helper Script (Recommended)
 
 The easiest way to run the benchmark is using the [`run.sh`](../../run.sh) helper script at the repository root. The script automatically:

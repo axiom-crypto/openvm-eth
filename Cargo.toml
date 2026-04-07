@@ -1,6 +1,7 @@
 [workspace]
 members = [
     "bin/reth-benchmark",
+    "bin/reth-verify",
     "crates/mpt",
     "crates/revm-crypto",
     "crates/stateless-executor",
