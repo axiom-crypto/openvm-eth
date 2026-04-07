@@ -486,7 +486,7 @@ jobs:
           echo "peak_memory_mib=${GPU_PEAK_MEMORY_MIB}" >> $GITHUB_OUTPUT
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### GPU Memory" >> $GITHUB_STEP_SUMMARY
-          echo "Peak GPU memory usage: **${GPU_PEAK_MEMORY_MIB} MiB**" >> $GITHUB_STEP_SUMMARY
+          echo "Peak GPU memory usage: **$(awk "BEGIN{printf \"%.2f\",${GPU_PEAK_MEMORY_MIB}/1024}") GB**" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           if [[ -n "${BENCH_NUM_SEGMENTS}" ]]; then
             echo "### Segments" >> $GITHUB_STEP_SUMMARY
@@ -538,7 +538,7 @@ jobs:
           # Add GPU peak memory to the markdown if available
           if [[ -n "${GPU_PEAK_MEMORY_MIB}" && "${GPU_PEAK_MEMORY_MIB}" != "0" ]]; then
             echo "" >> $MD_PATH
-            echo "**Peak GPU Memory (nvidia-smi):** ${GPU_PEAK_MEMORY_MIB} MiB" >> $MD_PATH
+            echo "**Peak GPU Memory (nvidia-smi):** $(awk "BEGIN{printf \"%.2f\",${GPU_PEAK_MEMORY_MIB}/1024}") GB" >> $MD_PATH
           fi
 
       - name: Upload markdown

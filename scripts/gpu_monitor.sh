@@ -9,11 +9,17 @@
 #   start_gpu_monitor [log_file] [interval]
 #   # ... run your workload ...
 #   finalize_gpu_monitor
-#   echo "Peak: $GPU_PEAK_MEMORY MiB"
+#   echo "Peak: $(mib_to_gb $GPU_PEAK_MEMORY) GB"
 #
 # Environment variables (set after finalize_gpu_monitor):
 #   GPU_PEAK_MEMORY - Peak GPU memory usage in MiB
 #
+
+# Convert MiB to GB with 2 decimal places (1 GB = 1024 MiB)
+mib_to_gb() {
+    local mib="${1:-0}"
+    awk "BEGIN { printf \"%.2f\", $mib / 1024 }"
+}
 
 GPU_LOG_FILE="${GPU_LOG_FILE:-gpu_memory_usage.csv}"
 GPU_MONITOR_INTERVAL="${GPU_MONITOR_INTERVAL:-5}"
@@ -92,6 +98,6 @@ finalize_gpu_monitor() {
         rm -f "$GPU_PEAK_FILE"
     fi
 
-    echo "Peak GPU memory usage: ${GPU_PEAK_MEMORY:-0} MiB (logged to $GPU_LOG_FILE)"
+    echo "Peak GPU memory usage: $(mib_to_gb ${GPU_PEAK_MEMORY:-0}) GB (logged to $GPU_LOG_FILE)"
     GPU_MONITOR_ACTIVE=false
 }
