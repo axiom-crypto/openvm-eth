@@ -23,7 +23,7 @@ The system uses Merkle Patricia Trie (MPT) proofs to verify state without requir
 openvm-eth/
 ├── bin/
 │   ├── reth-benchmark/      # Host-side bare metal benchmark 
-│   ├── reth-verify/         # Standalone RTP proof + VK verifier
+│   ├── reth-verify/         # Standalone stark proof + VK verifier
 │   ├── stateless-guest/     # zkVM guest program
 └── crates/
     ├── chainspec/           # Chain configuration (mainnet, dev)

@@ -44,7 +44,7 @@ Note that even when utilizing a cached input, the host still needs access to the
 
 ## Running Benchmarks
 
-## RTP Proof Verification
+## Proof Verification
 
 To verify a STARK proof using a pre-generated VM VK bundle from this repo root:
 
@@ -54,7 +54,7 @@ cargo run --release -p openvm-reth-verify -- \
   --vm-vk /path/to/reth.vm.vk
 ```
 
-The verifier accepts both raw persisted `.proof.bin` files and the zstd-compressed form written by `rtp-edge`.
+The verifier accepts both raw persisted `.proof.bin` files and the zstd-compressed form.
 
 ### Helper Script (Recommended)
 
