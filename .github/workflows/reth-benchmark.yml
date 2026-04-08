@@ -265,6 +265,10 @@ jobs:
         if: ${{ (github.event.inputs.mode == 'prove-evm') || (inputs.mode == 'prove-evm') }}
         run: bash ./ci/trusted_setup_s3.sh
 
+      - name: Install solc
+        if: ${{ (github.event.inputs.mode == 'prove-evm') || (inputs.mode == 'prove-evm') }}
+        run: (hash svm 2>/dev/null || cargo install --locked --version 0.2.23 svm-rs) && svm install 0.8.19 && solc --version
+
       - name: Set build profiles
         id: set-build-profiles
         run: |
