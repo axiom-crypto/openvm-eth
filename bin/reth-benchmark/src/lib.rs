@@ -410,6 +410,9 @@ pub async fn run_reth_benchmark(args: HostArgs, openvm_client_eth_elf: &[u8]) ->
                     let proof = evm_prover.prove_evm(stdin, &[])?;
                     let block_hash = &proof.user_public_values;
                     println!("block_hash (prove_evm): {}", hex::encode(block_hash));
+                    let openvm_verifier = sdk.generate_halo2_verifier_solidity()?;
+                    let gas_cost = Sdk::verify_evm_halo2_proof(&openvm_verifier, proof)?;
+                    tracing::info!("EVM verifier gas cost: {gas_cost}");
                 }
                 BenchMode::Keygen => {
                     // Create output directory
