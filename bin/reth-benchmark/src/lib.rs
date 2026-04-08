@@ -34,7 +34,7 @@ use openvm_stateless_executor::{io::StatelessExecutorInput, CHAIN_ID_ETH_MAINNET
 use openvm_transpiler::{elf::Elf, openvm_platform::memory::MEM_SIZE, FromElf};
 use openvm_verify_stark_host::{
     verify_vm_stark_proof_decoded,
-    vk::{write_vk_to_file, NonRootStarkVerifyingKey},
+    vk::{write_vk_to_file, VmStarkVerifyingKey},
 };
 use tracing::{info, info_span};
 
@@ -243,7 +243,7 @@ pub async fn run_reth_benchmark(args: HostArgs, openvm_client_eth_elf: &[u8]) ->
 
     if matches!(args.mode, BenchMode::GenerateVmVkey) {
         let prover = sdk.prover(exe)?;
-        let vk = NonRootStarkVerifyingKey {
+        let vk = VmStarkVerifyingKey {
             mvk: (*sdk.agg_vk()).clone(),
             baseline: prover.generate_baseline(),
         };
@@ -340,7 +340,7 @@ pub async fn run_reth_benchmark(args: HostArgs, openvm_client_eth_elf: &[u8]) ->
                 }
                 BenchMode::ProveStark => {
                     let (proof, baseline) = sdk.prove(exe, stdin, &[])?;
-                    let vk = NonRootStarkVerifyingKey { mvk: (*sdk.agg_vk()).clone(), baseline };
+                    let vk = VmStarkVerifyingKey { mvk: (*sdk.agg_vk()).clone(), baseline };
                     let encoded = proof.encode_to_vec()?;
                     let compressed = zstd::encode_all(&encoded[..], 19)?;
                     tracing::info!(
@@ -413,7 +413,7 @@ fn dump_air_stats(sdk: &Sdk, output_path: &PathBuf) -> eyre::Result<()> {
     dump_pk_stats("app", &app_pk.app_vm_pk.vm_pk, &mut file)?;
 
     let agg_pk = sdk.agg_pk();
-    dump_pk_stats("agg_leaf", &agg_pk.leaf_pk, &mut file)?;
+    dump_pk_stats("agg_leaf", &agg_pk.prefix.leaf, &mut file)?;
 
     info!("AIR statistics written to {}", output_path.display());
     Ok(())
