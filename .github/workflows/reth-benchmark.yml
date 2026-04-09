@@ -586,13 +586,16 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: gh-pages
+          path: gh-pages
 
       - name: Set up git
+        working-directory: gh-pages
         run: |
-          git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          git config --global user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git config user.name "github-actions[bot]"
 
       - name: Commit to gh-pages branch
+        working-directory: gh-pages
         run: |
           GH_PAGES_PATH="benchmarks-dispatch/${{ github.head_ref || github.ref }}"
           echo "GH_PAGES_PATH=${GH_PAGES_PATH}" >> $GITHUB_ENV
@@ -624,6 +627,7 @@ jobs:
           fi
 
       - name: Update summary with results
+        working-directory: gh-pages
         run: |
           RESULT_URL="https://github.com/${{ github.repository }}/blob/gh-pages/${GH_PAGES_PATH}/${METRIC_NAME}.md"
           echo "### Results" >> $GITHUB_STEP_SUMMARY
@@ -632,5 +636,6 @@ jobs:
           cat "${GH_PAGES_PATH}/${METRIC_NAME}.md" >> $GITHUB_STEP_SUMMARY
 
       - name: Path to result
+        working-directory: gh-pages
         run: |
           echo "https://github.com/${{ github.repository }}/blob/gh-pages/${GH_PAGES_PATH}/${METRIC_NAME}.md"
