@@ -197,16 +197,15 @@ jobs:
       num_segments: ${{ steps.report-segments.outputs.num_segments }}
     steps:
       - uses: runs-on/action@v2
+        with:
+          sccache: s3
+      - uses: mozilla-actions/sccache-action@v0.0.9
       - uses: actions/checkout@v5
         with:
           ref: ${{ inputs.ref || github.head_ref || github.ref }}
       - uses: dtolnay/rust-toolchain@nightly
         env:
           RUSTUP_PERMIT_COPY_RENAME: "1"
-      - uses: ./.github/actions/setup-sccache
-        with:
-          s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
-          s3-region: ${{ vars.S3_REGION }}
       - uses: Swatinem/rust-cache@v2
         with:
           cache-on-failure: true
