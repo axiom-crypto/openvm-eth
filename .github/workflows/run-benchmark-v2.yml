@@ -42,11 +42,15 @@ jobs:
         uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
           cache: false
+      - uses: ./.github/actions/setup-sccache
+        with:
+          s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
+          s3-region: ${{ vars.S3_REGION }}
 
       - name: Prepare input data
         run: |
           block_number="${{ inputs.block_number }}"
-          s3_url="https://axiom-public-data-sandbox-us-east-1.s3.us-east-1.amazonaws.com/reth/input/${block_number}.json"
+          s3_url="https://${{ vars.S3_PUBLIC_DATA_BUCKET }}.s3.${{ vars.S3_REGION }}.amazonaws.com/reth/input/${block_number}.json"
 
           echo "Checking if input file exists for block $block_number..."
           if curl --output /dev/null --silent --head --fail "$s3_url"; then
@@ -294,6 +298,10 @@ jobs:
           name: benchmark-metrics-${{ inputs.openvm_version }}
           path: metrics.md
           retention-days: 30
+
+      - name: sccache stats
+        if: always()
+        run: sccache --show-stats || true
 
       - name: Check workflow status
         run: |

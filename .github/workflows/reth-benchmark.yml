@@ -174,12 +174,12 @@ on:
         value: ${{ jobs.run-reth.outputs.num_segments }}
 
 env:
-  S3_MD_PATH: s3://axiom-workflow-data-sandbox-us-east-1/benchmark/github/results
-  S3_FIXTURE_PATH: s3://axiom-public-data-sandbox-us-east-1/benchmark/github/fixtures
-  S3_METRICS_PATH: s3://axiom-workflow-data-sandbox-us-east-1/benchmark/github/metrics
-  S3_PUBLIC_PATH_BASE: s3://axiom-public-data-sandbox-us-east-1/benchmark/github
-  S3_PUBLIC_URL_BASE: https://axiom-public-data-sandbox-us-east-1.s3.us-east-1.amazonaws.com/benchmark/github
-  S3_SAMPLY_PROFILE_PATH: s3://axiom-public-data-sandbox-us-east-1/benchmark/github/samply
+  S3_MD_PATH: s3://${{ vars.S3_WORKFLOW_DATA_BUCKET }}/benchmark/github/results
+  S3_FIXTURE_PATH: s3://${{ vars.S3_PUBLIC_DATA_BUCKET }}/benchmark/github/fixtures
+  S3_METRICS_PATH: s3://${{ vars.S3_WORKFLOW_DATA_BUCKET }}/benchmark/github/metrics
+  S3_PUBLIC_PATH_BASE: s3://${{ vars.S3_PUBLIC_DATA_BUCKET }}/benchmark/github
+  S3_PUBLIC_URL_BASE: https://${{ vars.S3_PUBLIC_DATA_BUCKET }}.s3.${{ vars.S3_REGION }}.amazonaws.com/benchmark/github
+  S3_SAMPLY_PROFILE_PATH: s3://${{ vars.S3_PUBLIC_DATA_BUCKET }}/benchmark/github/samply
   CMD_ARGS: ""
   INPUT_ARGS: ""
   CARGO_NET_GIT_FETCH_WITH_CLI: "true"
@@ -203,6 +203,10 @@ jobs:
       - uses: dtolnay/rust-toolchain@nightly
         env:
           RUSTUP_PERMIT_COPY_RENAME: "1"
+      - uses: ./.github/actions/setup-sccache
+        with:
+          s3-bucket: ${{ vars.SCCACHE_S3_BUCKET }}
+          s3-region: ${{ vars.S3_REGION }}
       - uses: Swatinem/rust-cache@v2
         with:
           cache-on-failure: true
@@ -256,9 +260,11 @@ jobs:
 
       - name: Checkout openvm (for scripts)
         run: git clone --depth=1 --branch="develop-v2.0.0-rc.1" https://github.com/openvm-org/openvm.git
-      - name: Install openvm-prof
-        working-directory: openvm/crates/prof
-        run: cargo install --force --profile=dev --path .
+      - name: Build openvm-prof
+        working-directory: openvm
+        run: |
+          cargo build -p openvm-prof
+          echo "${{ github.workspace }}/openvm/target/debug" >> $GITHUB_PATH
       - name: Install architecture specific tools
         run: |
           source openvm/ci/scripts/utils.sh
@@ -339,17 +345,12 @@ jobs:
           path: bin/reth-benchmark/elf/openvm-stateless-guest
           key: ${{ steps.set-cache-keys.outputs.elf_cache_key }}
 
-      - name: Install cargo-openvm
-        if: steps.cache-guest-elf-restore.outputs.cache-hit != 'true' && steps.cache-cargo-openvm-restore.outputs.cache-hit != 'true'
+      - name: Build cargo-openvm
+        if: steps.cache-guest-elf-restore.outputs.cache-hit != 'true'
+        working-directory: openvm
         run: |
-          cargo install --git https://github.com/openvm-org/openvm.git --branch "develop-v2.0.0-rc.1" --locked --force cargo-openvm
-
-      - name: Save cargo-openvm to cache
-        if: steps.cache-guest-elf-restore.outputs.cache-hit != 'true' && steps.cache-cargo-openvm-restore.outputs.cache-hit != 'true'
-        uses: runs-on/cache/save@v4
-        with:
-          path: ~/.cargo/bin/cargo-openvm
-          key: ${{ steps.cache-cargo-openvm-restore.outputs.cache-primary-key }}
+          cargo build --locked -p cargo-openvm
+          echo "${{ github.workspace }}/openvm/target/debug" >> $GITHUB_PATH
       - name: Build Guest ELF
         if: steps.cache-guest-elf-restore.outputs.cache-hit != 'true'
         working-directory: bin/stateless-guest
@@ -576,6 +577,10 @@ jobs:
             ${{ env.GPU_MEMORY_SVG_PATH }}
           if-no-files-found: warn
           retention-days: 1
+
+      - name: sccache stats
+        if: always()
+        run: sccache --show-stats || true
 
       ### Update gh-pages
       - uses: actions/checkout@v4

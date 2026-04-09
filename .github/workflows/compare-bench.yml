@@ -127,9 +127,13 @@ jobs:
           name: ${{ needs.run-target-benchmark.outputs.metric_name }}
           path: ${{ needs.run-target-benchmark.outputs.metric_name }}
 
-      - name: Install openvm-prof
+      - name: Checkout openvm (for openvm-prof)
+        run: git clone --depth=1 https://github.com/openvm-org/openvm.git
+      - name: Build openvm-prof
+        working-directory: openvm
         run: |
-          cargo install --git https://github.com/openvm-org/openvm.git --profile=dev --force openvm-prof
+          cargo build -p openvm-prof
+          echo "${{ github.workspace }}/openvm/target/debug" >> $GITHUB_PATH
       - name: Compare metrics
         run: |
           BASE_NAME=${{ needs.run-base-benchmark.outputs.metric_name }}
