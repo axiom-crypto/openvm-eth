@@ -25,6 +25,7 @@ reth-revm = { workspace = true }
 alloy-rpc-types-debug.workspace = true
 alloy-rlp.workspace = true
 
+itertools.workspace = true
 tracing.workspace = true
 metrics.workspace = true
 thiserror.workspace = true

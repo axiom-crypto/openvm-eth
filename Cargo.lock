@@ -7688,6 +7688,7 @@ version = "0.4.0"
 dependencies = [
  "alloy-rlp",
  "alloy-rpc-types-debug",
+ "itertools 0.14.0",
  "metrics 0.24.3",
  "openvm-mpt",
  "openvm-stateless-executor",
