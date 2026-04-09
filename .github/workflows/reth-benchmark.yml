@@ -235,7 +235,7 @@ jobs:
         run: |
           input_json_str="${{ toJSON(inputs || github.event.inputs) }}"
           input_hash=$(echo $input_json_str | sha256sum | cut -d' ' -f1)
-          METRIC_NAME=reth-$current_sha-${input_hash}
+          METRIC_NAME=reth-$current_sha-${input_hash}-${{ github.run_id }}
           echo "METRIC_NAME=${METRIC_NAME}" >> $GITHUB_ENV
           METRIC_PATH=".bench_metrics/${METRIC_NAME}.json"
           echo "METRIC_PATH=${METRIC_PATH}" >> $GITHUB_ENV
