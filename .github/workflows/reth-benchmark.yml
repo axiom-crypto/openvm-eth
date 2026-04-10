@@ -51,7 +51,7 @@ on:
         description: Profiling mode
         options:
           - none
-          # - host # host profiling (samply, flamegraphs, etc)
+          - host # host profiling (samply, flamegraphs, etc)
           # - guest # guest profiling (circuit flamegraphs)
           - nsys # nsys profiling (cuda)
         default: none
@@ -269,6 +269,23 @@ jobs:
           source openvm/ci/scripts/utils.sh
           install_s5cmd
           sudo apt update && sudo apt install -y gnuplot
+          sudo apt install -y linux-tools-common linux-tools-generic linux-tools-$(uname -r) || \
+            sudo apt install -y linux-tools-aws linux-cloud-tools-aws || true
+
+          # Workaround for https://bugs.launchpad.net/ubuntu/+source/linux-hwe-6.14/+bug/2117159
+          if ! command -v perf &> /dev/null || ! perf --version &> /dev/null; then
+            echo "Applying workaround for missing perf in HWE 6.14 packages..."
+            PERF_PATH=$(find /usr/lib/linux-tools* -name perf -executable 2>/dev/null | head -n1)
+            if [ -n "$PERF_PATH" ]; then
+              KERNEL_VERSION=$(uname -r)
+              TARGET_DIR="/usr/lib/linux-tools/${KERNEL_VERSION}"
+              sudo mkdir -p "$TARGET_DIR"
+              sudo ln -sf "$PERF_PATH" "$TARGET_DIR/perf"
+              echo "Symlinked $PERF_PATH to $TARGET_DIR/perf"
+            else
+              echo "Warning: Could not find any perf binary to symlink"
+            fi
+          fi
 
       - name: Setup halo2 KZG params
         if: ${{ (github.event.inputs.mode == 'prove-evm') || (inputs.mode == 'prove-evm') }}
@@ -283,6 +300,9 @@ jobs:
         run: |
           GUEST_PROFILE="release"
           HOST_PROFILE="maxperf"
+          if [[ "${{ inputs.profiling || github.event.inputs.profiling }}" == "host" ]]; then
+            HOST_PROFILE="profiling"
+          fi
           echo "guest_profile=${GUEST_PROFILE}" >> $GITHUB_OUTPUT
           echo "host_profile=${HOST_PROFILE}" >> $GITHUB_OUTPUT
       - name: Set build args
@@ -315,11 +335,16 @@ jobs:
               ;;
           esac
 
+          if [[ "${{ inputs.profiling || github.event.inputs.profiling }}" == "host" ]]; then
+            RUSTFLAGS="${RUSTFLAGS} -C force-frame-pointers=yes"
+          fi
+
           if [[ "${{ inputs.profiling || github.event.inputs.profiling }}" != "nsys" ]]; then
             # Jemalloc sometimes causes nsys to hang forever (unknown reason)
             JEMALLOC_SYS_WITH_MALLOC_CONF="retain:true,background_thread:true,metadata_thp:always,thp:always,dirty_decay_ms:10000,muzzy_decay_ms:10000,abort_conf:true"
             echo "JEMALLOC_SYS_WITH_MALLOC_CONF=${JEMALLOC_SYS_WITH_MALLOC_CONF}" >> $GITHUB_ENV
           fi
+          echo "RUSTFLAGS=${RUSTFLAGS}" >> $GITHUB_ENV
           echo "FEATURES=${FEATURES}" >> $GITHUB_ENV
 
       - name: Set cache keys
@@ -435,7 +460,23 @@ jobs:
           source "$GITHUB_WORKSPACE/scripts/gpu_monitor.sh"
           GPU_LOG_FILE="gpu_memory_usage.csv"
 
-          if [[ "${{ inputs.profiling || github.event.inputs.profiling }}" == "nsys" ]]; then
+          if [[ "${{ inputs.profiling || github.event.inputs.profiling }}" == "host" ]]; then
+            echo -1 | sudo tee /proc/sys/kernel/perf_event_paranoid
+            echo 0 | sudo tee /proc/sys/kernel/kptr_restrict
+
+            # Set sampling frequency based on mode
+            MODE="${{ inputs.mode || github.event.inputs.mode }}"
+            if [[ "$MODE" == "execute-host" || "$MODE" == "execute" || "$MODE" == "execute-metered" ]]; then
+              PERF_FREQ=4000
+            else
+              PERF_FREQ=100
+            fi
+
+            perf --version
+            perf record -F $PERF_FREQ --call-graph=fp -g -o perf.data -- ./run_benchmark.sh
+            # perf doesn't track GPU memory, set peak to 0
+            echo "GPU_PEAK_MEMORY_MIB=0" >> $GITHUB_ENV
+          elif [[ "${{ inputs.profiling || github.event.inputs.profiling }}" == "nsys" ]]; then
             nsys profile --trace=cuda,osrt,nvtx \
              --cuda-memory-usage=true \
              --force-overwrite=true \
@@ -550,6 +591,39 @@ jobs:
             echo "" >> $MD_PATH
             echo "**Peak GPU Memory (nvidia-smi):** $(awk "BEGIN{printf \"%.2f\",${GPU_PEAK_MEMORY_MIB}/1024}") GB" >> $MD_PATH
           fi
+
+      - name: Generate samply profile artifacts
+        if: ${{ inputs.profiling == 'host' || github.event.inputs.profiling == 'host' }}
+        run: |
+          cargo install --git https://github.com/mstange/samply.git samply --force
+
+          mkdir -p samply_profile
+          SAMPLY_PROFILE_PATH=samply_profile
+
+          samply import perf.data --presymbolicate --save-only --output $SAMPLY_PROFILE_PATH/profile.json.gz
+          echo "Saved profile: $SAMPLY_PROFILE_PATH/profile.json.gz"
+          echo "SAMPLY_PROFILE_PATH=${SAMPLY_PROFILE_PATH}" >> $GITHUB_ENV
+
+          s5cmd cp $SAMPLY_PROFILE_PATH/profile.json.gz ${{ env.S3_SAMPLY_PROFILE_PATH }}/${METRIC_NAME}/profile.json.gz
+
+          FIREFOX_PROFILER_URL=$(python3 "$GITHUB_WORKSPACE/scripts/upload_firefox_profile.py" "$SAMPLY_PROFILE_PATH/profile.json.gz") || true
+
+          if [ -n "$FIREFOX_PROFILER_URL" ]; then
+            echo "Firefox Profiler URL: $FIREFOX_PROFILER_URL"
+            echo "FIREFOX_PROFILER_URL=$FIREFOX_PROFILER_URL" >> $GITHUB_ENV
+            echo "" >> $MD_PATH
+            echo "**[Firefox Profiler]($FIREFOX_PROFILER_URL)**" >> $MD_PATH
+          else
+            echo "Warning: failed to upload profile to Firefox Profiler"
+          fi
+
+      - name: Upload samply profile artifacts
+        if: ${{ inputs.profiling == 'host' || github.event.inputs.profiling == 'host' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.set-metric-name.outputs.name }}-samply-profile
+          path: ${{ env.SAMPLY_PROFILE_PATH }}
+          retention-days: 1
 
       - name: Upload markdown
         run: |
