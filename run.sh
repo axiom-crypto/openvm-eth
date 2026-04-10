@@ -11,6 +11,7 @@
 #   --block <N>         Set the block number to prove (default: 23992138)
 #   --app-l-skip <N>    Log of univariate skip domain size (default: 4)
 #   --cuda              Force CUDA acceleration (auto-detected if nvidia-smi available)
+#   --tco               Use TCO instead of AOT (default is AOT on x86_64)
 #   --perf              Run with perf + samply host profiling and upload to Firefox Profiler
 #   --nsys              Run with nsys profiling and output summary stats
 #   --<tool>            Run with compute-sanitizer --tool <tool> where tool is one of memcheck, synccheck, or racecheck
@@ -59,6 +60,7 @@ PROFILE_OVERRIDE=""
 BLOCK_NUMBER_OVERRIDE=""
 USE_CUDA=false
 CUDA_REASON=""
+USE_TCO=false
 USE_PERF=false
 USE_NSYS=false
 USE_NCU=false
@@ -97,6 +99,10 @@ while [[ $# -gt 0 ]]; do
         --cuda)
             USE_CUDA=true
             CUDA_REASON="requested via --cuda script argument"
+            shift
+            ;;
+        --tco)
+            USE_TCO=true
             shift
             ;;
         --perf)
@@ -225,13 +231,18 @@ arch=$(uname -m)
 case $arch in
 arm64|aarch64)
     RUSTFLAGS="-Ctarget-cpu=native"
+    if [ "$USE_TCO" = "false" ]; then
+        USE_TCO=true
+    fi
     ;;
 x86_64|amd64)
     RUSTFLAGS="-Ctarget-cpu=native"
-    # aot enables halo2curves-axiom/asm which is x86_64-only
-    FEATURES="$FEATURES,aot"
-    if [ "$MODE" = "prove-evm" ]; then
-        FEATURES="$FEATURES,halo2-asm"
+    if [ "$USE_TCO" = "false" ]; then
+        # aot enables halo2curves-axiom/asm which is x86_64-only
+        FEATURES="$FEATURES,aot"
+        if [ "$MODE" = "prove-evm" ]; then
+            FEATURES="$FEATURES,halo2-asm"
+        fi
     fi
     ;;
 *)
@@ -239,6 +250,9 @@ echo "Unsupported architecture: $arch"
 exit 1
 ;;
 esac
+if [ "$USE_TCO" = "true" ]; then
+    FEATURES="$FEATURES,tco"
+fi
 if [ "$USE_PERF" = "true" ]; then
     RUSTFLAGS="$RUSTFLAGS -C force-frame-pointers=yes"
     # Default to profiling profile for host profiling if not overridden
