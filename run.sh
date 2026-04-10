@@ -11,6 +11,8 @@
 #   --block <N>         Set the block number to prove (default: 23992138)
 #   --app-l-skip <N>    Log of univariate skip domain size (default: 4)
 #   --cuda              Force CUDA acceleration (auto-detected if nvidia-smi available)
+#   --tco               Use TCO instead of AOT (default is AOT on x86_64)
+#   --perf              Run with perf + samply host profiling and upload to Firefox Profiler
 #   --nsys              Run with nsys profiling and output summary stats
 #   --<tool>            Run with compute-sanitizer --tool <tool> where tool is one of memcheck, synccheck, or racecheck
 #
@@ -19,6 +21,7 @@
 #   ./run.sh --mode prove-stark           # Run in prove-stark mode
 #   ./run.sh --profile release            # Build with release profile
 #   ./run.sh --cuda --mode prove-app      # Force CUDA with prove-app mode
+#   ./run.sh --perf --mode execute         # Run with host profiling (Firefox Profiler link)
 #   ./run.sh --nsys --mode prove-app      # Run with nsys profiling
 #   ./run.sh --block 23992138             # Prove a specific block
 #   ./run.sh --mode generate-vm-vkey      # Generate reth.vm.vk locally
@@ -57,6 +60,8 @@ PROFILE_OVERRIDE=""
 BLOCK_NUMBER_OVERRIDE=""
 USE_CUDA=false
 CUDA_REASON=""
+USE_TCO=false
+USE_PERF=false
 USE_NSYS=false
 USE_NCU=false
 COMPUTE_SANITIZER_ARGS=""
@@ -94,6 +99,14 @@ while [[ $# -gt 0 ]]; do
         --cuda)
             USE_CUDA=true
             CUDA_REASON="requested via --cuda script argument"
+            shift
+            ;;
+        --tco)
+            USE_TCO=true
+            shift
+            ;;
+        --perf)
+            USE_PERF=true
             shift
             ;;
         --nsys)
@@ -218,13 +231,18 @@ arch=$(uname -m)
 case $arch in
 arm64|aarch64)
     RUSTFLAGS="-Ctarget-cpu=native"
+    if [ "$USE_TCO" = "false" ]; then
+        USE_TCO=true
+    fi
     ;;
 x86_64|amd64)
     RUSTFLAGS="-Ctarget-cpu=native"
-    # aot enables halo2curves-axiom/asm which is x86_64-only
-    FEATURES="$FEATURES,aot"
-    if [ "$MODE" = "prove-evm" ]; then
-        FEATURES="$FEATURES,halo2-asm"
+    if [ "$USE_TCO" = "false" ]; then
+        # aot enables halo2curves-axiom/asm which is x86_64-only
+        FEATURES="$FEATURES,aot"
+        if [ "$MODE" = "prove-evm" ]; then
+            FEATURES="$FEATURES,halo2-asm"
+        fi
     fi
     ;;
 *)
@@ -232,6 +250,17 @@ echo "Unsupported architecture: $arch"
 exit 1
 ;;
 esac
+if [ "$USE_TCO" = "true" ]; then
+    FEATURES="$FEATURES,tco"
+fi
+if [ "$USE_PERF" = "true" ]; then
+    RUSTFLAGS="$RUSTFLAGS -C force-frame-pointers=yes"
+    # Default to profiling profile for host profiling if not overridden
+    if [ -z "$PROFILE_OVERRIDE" ]; then
+        PROFILE="profiling"
+        TARGET_DIR="profiling"
+    fi
+fi
 if [ "$USE_NSYS" = "false" ]; then
     export JEMALLOC_SYS_WITH_MALLOC_CONF="retain:true,background_thread:true,metadata_thp:always,dirty_decay_ms:10000,muzzy_decay_ms:10000,abort_conf:true"
 fi
@@ -272,7 +301,31 @@ fi
 
 export RUST_LOG="info,p3_=warn"
 
-if [ "$USE_NSYS" = "true" ]; then
+if [ "$USE_PERF" = "true" ]; then
+    # Set sampling frequency based on mode
+    if [[ "$MODE" == "execute-host" || "$MODE" == "execute" || "$MODE" == "execute-metered" ]]; then
+        PERF_FREQ=4000
+    else
+        PERF_FREQ=100
+    fi
+
+    echo "Running with perf profiling (freq=${PERF_FREQ})..."
+    export OUTPUT_PATH="metrics.json"
+    perf record -F $PERF_FREQ --call-graph=fp -g -o perf.data -- $BIN $BIN_ARGS
+
+    echo "Converting perf.data with samply..."
+    mkdir -p samply_profile
+    samply import perf.data --presymbolicate --save-only --output samply_profile/profile.json.gz
+    echo "Saved profile: samply_profile/profile.json.gz"
+
+    FIREFOX_PROFILER_URL=$(python3 "$REPO_ROOT/scripts/upload_firefox_profile.py" samply_profile/profile.json.gz) || true
+
+    if [ -n "$FIREFOX_PROFILER_URL" ]; then
+        echo "Firefox Profiler URL: $FIREFOX_PROFILER_URL"
+    else
+        echo "Warning: failed to upload profile to Firefox Profiler"
+    fi
+elif [ "$USE_NSYS" = "true" ]; then
     NSYS_OUTPUT="reth.nsys-rep"
     NSYS_ARGS="--trace=cuda,nvtx --cuda-memory-usage=true --force-overwrite=true -o $NSYS_OUTPUT"
 
