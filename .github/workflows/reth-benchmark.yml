@@ -70,7 +70,7 @@ on:
         required: false
         description: Log of univariate skip domain size
         default: 4
-      tco:
+      use_tco:
         type: boolean
         required: false
         description: Use TCO instead of AOT
@@ -148,7 +148,7 @@ on:
         required: false
         description: Log of univariate skip domain size
         default: 4
-      tco:
+      use_tco:
         type: boolean
         required: false
         description: Use TCO instead of AOT
@@ -329,7 +329,7 @@ jobs:
             FEATURES="${FEATURES},evm-verify"
           fi
 
-          USE_TCO="${{ inputs.tco || github.event.inputs.tco }}"
+          USE_TCO="${{ inputs.use_tco || github.event.inputs.use_tco }}"
 
           arch=$(uname -m)
           case $arch in
