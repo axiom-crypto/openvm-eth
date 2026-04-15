@@ -7,7 +7,7 @@ use std::sync::{
 };
 use tracing::info;
 
-pub const DEFAULT_PREIMAGE_CACHE_NIBBLES: u8 = 5;
+pub const DEFAULT_PREIMAGE_CACHE_NIBBLES: u8 = 7;
 
 /// A lookup table for Keccak256 pre-images.
 pub struct PreimageLookup {
