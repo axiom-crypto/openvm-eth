@@ -28,7 +28,7 @@ use openvm_sdk::{
 };
 use openvm_stark_sdk::engine::StarkFriEngine;
 use openvm_transpiler::{elf::Elf, openvm_platform::memory::MEM_SIZE};
-pub use reth_primitives;
+pub use reth_ethereum_primitives as reth_primitives;
 use serde_json::json;
 use std::{fs, path::PathBuf};
 use tracing::{info, info_span};

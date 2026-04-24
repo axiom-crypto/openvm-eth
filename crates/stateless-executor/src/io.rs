@@ -1,11 +1,12 @@
 use std::iter::once;
 
 use crate::error::StatelessExecutorError;
+use alloy_consensus::Header;
 use bumpalo::Bump;
 use itertools::Itertools;
 use openvm_mpt::{EthereumState, EthereumStateBytes, Mpt};
+use reth_ethereum_primitives::Block;
 use reth_evm::execute::ProviderError;
-use reth_primitives::{Block, Header, TransactionSigned};
 use reth_trie::TrieAccount;
 use revm::{
     state::{AccountInfo, Bytecode},
@@ -24,10 +25,7 @@ const BUMP_AREA_SIZE: usize = 1000 * 1000;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StatelessExecutorInput {
     /// The current block (which will be executed inside the client).
-    #[serde_as(
-        as = "reth_primitives_traits::serde_bincode_compat::Block<'_, TransactionSigned, Header>"
-    )]
-    pub current_block: Block<TransactionSigned, Header>,
+    pub current_block: Block,
     /// The previous block headers starting from the most recent. There must be at least one header
     /// to provide the parent state root.
     #[serde_as(as = "Vec<alloy_consensus::serde_bincode_compat::Header>")]

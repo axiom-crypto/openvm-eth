@@ -17,8 +17,8 @@ RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
 ENV CARGO_HOME="/root/.cargo" \
     RUSTUP_HOME="/root/.rustup" \
     PATH="/root/.cargo/bin:${PATH}"
-RUN rustup toolchain install nightly-2025-08-19 \
-    && rustup component add rust-src --toolchain nightly-2025-08-19
+RUN rustup toolchain install nightly-2026-01-01 \
+    && rustup component add rust-src --toolchain nightly-2026-01-01
 
 # Install cargo-openvm (builds the guest ELF)
 RUN cargo +1.90 install --git https://github.com/openvm-org/openvm.git --locked --force cargo-openvm
@@ -42,7 +42,7 @@ ENV JEMALLOC_SYS_WITH_MALLOC_CONF="retain:true,background_thread:true,metadata_t
 ARG FEATURES="metrics,jemalloc,tco,unprotected,cuda"
 ARG PROFILE="release"
 ENV CUDA_ARCH="89"
-RUN cargo +nightly-2025-08-19 build --bin openvm-reth-benchmark --profile=${PROFILE} --no-default-features --features=${FEATURES}
+RUN cargo +nightly-2026-01-01 build --bin openvm-reth-benchmark --profile=${PROFILE} --no-default-features --features=${FEATURES}
 
 # Runtime image
 FROM nvidia/cuda:12.8.1-runtime-ubuntu24.04 AS runtime

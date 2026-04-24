@@ -7,8 +7,8 @@ use eyre::{eyre, Ok, OptionExt};
 use openvm_stateless_executor::io::StatelessExecutorInput;
 use openvm_stateless_witness::{generate_stateless_input_from_witness, BlockExecutionWitness};
 use reth_chainspec::MAINNET;
+use reth_ethereum_primitives::Block;
 use reth_evm_ethereum::EthEvmConfig;
-use reth_primitives::Block;
 
 use crate::{execution_witness, PreimageLookup};
 

@@ -24,7 +24,7 @@ tower.workspace = true
 reth-chainspec.workspace = true
 reth-evm.workspace = true
 reth-evm-ethereum.workspace = true
-reth-primitives.workspace = true
+reth-ethereum-primitives.workspace = true
 reth-primitives-traits.workspace = true
 
 revm = { workspace = true, features = ["c-kzg", "blst"] }

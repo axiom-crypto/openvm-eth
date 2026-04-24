@@ -4,7 +4,7 @@ pub mod io;
 
 use std::{fmt::Debug, sync::Arc};
 
-use alloy_consensus::{proofs::calculate_receipt_root, TxReceipt};
+use alloy_consensus::{proofs::calculate_receipt_root, Header, TxReceipt};
 use alloy_primitives::Bloom;
 use openvm_chainspec::{dev, mainnet};
 use reth_consensus::{Consensus, HeaderValidator};
@@ -12,7 +12,6 @@ use reth_ethereum_consensus::{validate_block_post_execution, EthBeaconConsensus}
 use reth_evm::execute::{BasicBlockExecutor, Executor};
 use reth_evm_ethereum::EthEvmConfig;
 use reth_execution_types::ExecutionOutcome;
-use reth_primitives::Header;
 use reth_primitives_traits::block::Block as _;
 use reth_revm::db::CacheDB;
 
@@ -95,8 +94,7 @@ impl StatelessExecutor {
         validate_block_post_execution(
             &current_block,
             &spec,
-            &executor_output.receipts,
-            &executor_output.requests,
+            &executor_output,
             Some((receipts_root, logs_bloom)),
         )
         .map_err(StatelessExecutorError::InvalidBlockPostExecution)?;
