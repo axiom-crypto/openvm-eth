@@ -2,12 +2,12 @@ use std::iter::once;
 
 use crate::error::StatelessExecutorError;
 use alloy_consensus::Header;
+use alloy_trie::{TrieAccount, EMPTY_ROOT_HASH};
 use bumpalo::Bump;
 use itertools::Itertools;
 use openvm_mpt::{EthereumState, EthereumStateBytes, Mpt};
 use reth_ethereum_primitives::Block;
 use reth_evm::execute::ProviderError;
-use reth_trie::TrieAccount;
 use revm::{
     state::{AccountInfo, Bytecode},
     DatabaseRef,
@@ -68,7 +68,7 @@ impl StatelessExecutorInputWithState {
                 let account_in_trie =
                     state_trie.get_rlp::<TrieAccount>(hashed_address.as_slice())?;
                 let expected_storage_root =
-                    account_in_trie.map_or(reth_trie::EMPTY_ROOT_HASH, |a| a.storage_root);
+                    account_in_trie.map_or(EMPTY_ROOT_HASH, |a| a.storage_root);
 
                 let storage_trie =
                     Mpt::decode_trie(bump, &mut storage_trie_bytes.as_ref(), *num_nodes)?;

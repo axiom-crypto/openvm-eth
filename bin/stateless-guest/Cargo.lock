@@ -2491,9 +2491,9 @@ name = "openvm-mpt"
 version = "0.4.0"
 dependencies = [
  "alloy-rlp",
+ "alloy-trie",
  "bumpalo",
  "bytes",
- "reth-trie",
  "revm",
  "revm-primitives",
  "serde",
@@ -2606,6 +2606,7 @@ version = "0.4.0"
 dependencies = [
  "alloy-consensus",
  "alloy-primitives",
+ "alloy-trie",
  "bumpalo",
  "itertools 0.14.0",
  "openvm-chainspec",
@@ -2619,7 +2620,6 @@ dependencies = [
  "reth-execution-types",
  "reth-primitives-traits",
  "reth-revm",
- "reth-trie",
  "revm",
  "revm-primitives",
  "serde",
@@ -3486,28 +3486,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "reth-trie"
-version = "2.1.0"
-source = "git+https://github.com/paradigmxyz/reth?tag=v2.1.0#d58c6e3d0723a28f655e89da83c3738e47dcc364"
-dependencies = [
- "alloy-consensus",
- "alloy-eips 2.0.0",
- "alloy-primitives",
- "alloy-rlp",
- "alloy-trie",
- "auto_impl",
- "itertools 0.14.0",
- "reth-execution-errors",
- "reth-primitives-traits",
- "reth-stages-types",
- "reth-storage-errors",
- "reth-trie-common",
- "reth-trie-sparse",
- "revm-database",
- "tracing",
-]
-
-[[package]]
 name = "reth-trie-common"
 version = "2.1.0"
 source = "git+https://github.com/paradigmxyz/reth?tag=v2.1.0#d58c6e3d0723a28f655e89da83c3738e47dcc364"
@@ -3519,25 +3497,8 @@ dependencies = [
  "derive_more",
  "itertools 0.14.0",
  "nybbles",
- "rayon",
  "reth-primitives-traits",
  "revm-database",
-]
-
-[[package]]
-name = "reth-trie-sparse"
-version = "2.1.0"
-source = "git+https://github.com/paradigmxyz/reth?tag=v2.1.0#d58c6e3d0723a28f655e89da83c3738e47dcc364"
-dependencies = [
- "alloy-primitives",
- "alloy-rlp",
- "alloy-trie",
- "auto_impl",
- "reth-execution-errors",
- "reth-primitives-traits",
- "reth-trie-common",
- "smallvec",
- "tracing",
 ]
 
 [[package]]

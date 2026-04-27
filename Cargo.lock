@@ -8109,10 +8109,10 @@ name = "openvm-mpt"
 version = "0.4.0"
 dependencies = [
  "alloy-rlp",
+ "alloy-trie 0.9.4",
  "bumpalo",
  "bytes",
  "hex-literal 1.1.0",
- "reth-trie",
  "revm 38.0.0",
  "revm-primitives 23.0.0",
  "serde",
@@ -8726,6 +8726,7 @@ version = "0.4.0"
 dependencies = [
  "alloy-consensus 2.0.0",
  "alloy-primitives",
+ "alloy-trie 0.9.4",
  "bumpalo",
  "itertools 0.14.0",
  "openvm-chainspec",
@@ -8739,7 +8740,6 @@ dependencies = [
  "reth-execution-types",
  "reth-primitives-traits",
  "reth-revm",
- "reth-trie",
  "revm 38.0.0",
  "revm-primitives 23.0.0",
  "serde",
