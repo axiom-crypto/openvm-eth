@@ -32,7 +32,7 @@ COPY rustfmt.toml ./
 
 # Build guest ELF and place where host expects it
 WORKDIR /app/bin/stateless-guest
-RUN cargo openvm build --no-transpile --profile=release \
+RUN RUSTFLAGS="" OPENVM_RUST_TOOLCHAIN=nightly-2026-01-01 cargo openvm build --no-transpile --profile=release \
     && mkdir -p ../reth-benchmark/elf \
     && cp target/riscv32im-risc0-zkvm-elf/release/openvm-stateless-guest ../reth-benchmark/elf/
 
