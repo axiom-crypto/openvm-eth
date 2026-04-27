@@ -255,7 +255,7 @@ mod impl_bn {
 }
 
 mod impl_bls {
-    use std::ops::{MulAssign, Neg};
+    use core::ops::{MulAssign, Neg};
 
     use alloy_primitives::hex;
     use openvm_ecc_guest::{algebra::field::FieldExtension, weierstrass::WeierstrassPoint, Group};
