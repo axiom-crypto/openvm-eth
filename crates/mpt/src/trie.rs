@@ -1,4 +1,5 @@
-use std::{
+use alloc::vec::Vec;
+use core::{
     cell::{Cell, RefCell},
     mem::MaybeUninit,
 };
@@ -6,7 +7,7 @@ use std::{
 use alloy_rlp::Encodable;
 use bumpalo::Bump;
 use bytes::Buf;
-use revm_primitives::{hex, keccak256, B256};
+use revm_primitives::{keccak256, B256};
 use smallvec::SmallVec;
 
 use crate::{
@@ -332,7 +333,7 @@ impl<'a> Mpt<'a> {
         // Transmute the fully initialized array to the final type
         // SAFETY: we already initialized all elements of the array.
         let childs: [Option<NodeId>; 16] = unsafe {
-            std::mem::transmute::<[MaybeUninit<Option<NodeId>>; 16], [Option<NodeId>; 16]>(childs)
+            core::mem::transmute::<[MaybeUninit<Option<NodeId>>; 16], [Option<NodeId>; 16]>(childs)
         };
 
         if payload != NULL_NODE_REF_SLICE {
@@ -486,7 +487,7 @@ impl<'a> Mpt<'a> {
     #[inline]
     pub fn hash(&self) -> B256 {
         match self.nodes[self.root_id as usize] {
-            NodeData::Null => reth_trie::EMPTY_ROOT_HASH,
+            NodeData::Null => alloy_trie::EMPTY_ROOT_HASH,
             _ => {
                 let cached = self.cached_references[self.root_id as usize].get();
                 let node_ref = match cached {
@@ -969,12 +970,14 @@ impl<'a> Mpt<'a> {
     }
 }
 
+#[cfg(feature = "std")]
 impl Mpt<'_> {
     pub fn print_trie(&self) {
         self.print_trie_internal(self.root_id, 0);
     }
 
     fn print_trie_internal(&self, node_id: NodeId, depth: usize) {
+        use revm_primitives::hex;
         let indent = "  ".repeat(depth);
         match &self.nodes[node_id as usize] {
             NodeData::Null => {
@@ -1031,7 +1034,7 @@ pub(crate) mod owned {
         pub(crate) fn decode_from_proof_rlp(bytes: &mut &[u8]) -> Result<Self, Error> {
             let bump = Box::leak(Box::new(Bump::new()));
             let bytes = bump.alloc_slice_copy(bytes);
-            let mut bytes = unsafe { std::mem::transmute::<&[u8], &'static [u8]>(bytes) };
+            let mut bytes = unsafe { core::mem::transmute::<&[u8], &'static [u8]>(bytes) };
             let inner = Mpt::decode_from_proof_rlp(bump, &mut bytes)?;
             Ok(Self { inner })
         }
@@ -1076,7 +1079,7 @@ pub(crate) mod owned {
         fn alloc_in_bump(&self, bytes: &[u8]) -> &'static [u8] {
             let slice = self.inner.bump.alloc_slice_copy(bytes);
             // Sound because `slice` lives as long as `self.bump`.
-            unsafe { std::mem::transmute::<&[u8], &'static [u8]>(slice) }
+            unsafe { core::mem::transmute::<&[u8], &'static [u8]>(slice) }
         }
 
         pub(crate) fn set_root_id(&mut self, root_id: NodeId) {

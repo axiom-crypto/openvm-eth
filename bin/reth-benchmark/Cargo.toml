@@ -47,12 +47,12 @@ reth-primitives.workspace = true
 # This allows us to not update revm and openvm-kzg each time we change openvm-sdk
 openvm-stark-sdk = { git = "https://github.com/openvm-org/stark-backend.git", branch = "develop-v2", default-features = false }
 openvm-cuda-backend = { git = "https://github.com/openvm-org/stark-backend.git", branch = "develop-v2", default-features = false, optional = true }
-openvm-transpiler = { git = "https://github.com/openvm-org/openvm.git", branch = "develop-v2.0.0-rc.1", default-features = false }
+openvm-transpiler = { git = "https://github.com/openvm-org/openvm.git", branch = "develop-v2.1.0-rv64", default-features = false }
 openvm.workspace = true
-openvm-circuit = { git = "https://github.com/openvm-org/openvm.git", branch = "develop-v2.0.0-rc.1", default-features = false }
-openvm-verify-stark-host = { git = "https://github.com/openvm-org/openvm.git", branch = "develop-v2.0.0-rc.1", default-features = false }
-openvm-sdk = { git = "https://github.com/openvm-org/openvm.git", branch = "develop-v2.0.0-rc.1", default-features = false }
-openvm-sdk-config = { git = "https://github.com/openvm-org/openvm.git", branch = "develop-v2.0.0-rc.1", default-features = false }
+openvm-circuit = { git = "https://github.com/openvm-org/openvm.git", branch = "develop-v2.1.0-rv64", default-features = false }
+openvm-verify-stark-host = { git = "https://github.com/openvm-org/openvm.git", branch = "develop-v2.1.0-rv64", default-features = false }
+openvm-sdk = { git = "https://github.com/openvm-org/openvm.git", branch = "develop-v2.1.0-rv64", default-features = false }
+openvm-sdk-config = { git = "https://github.com/openvm-org/openvm.git", branch = "develop-v2.1.0-rv64", default-features = false }
 
 # halo2
 halo2-axiom = { version = "0.5.0", default-features = false, optional = true }
@@ -63,7 +63,7 @@ ignored = ["halo2-axiom"]
 [features]
 default = ["parallel", "jemalloc", "metrics"]
 parallel = ["openvm-sdk/parallel"]
-metrics = ["openvm-sdk/metrics"]
+metrics = ["openvm-sdk/metrics", "openvm-circuit/metrics", "openvm-stark-sdk/metrics"]
 tco = ["openvm-sdk/tco"]
 aot = ["openvm-sdk/aot"]
 evm-prove = ["openvm-sdk/evm-prove", "halo2-axiom"]

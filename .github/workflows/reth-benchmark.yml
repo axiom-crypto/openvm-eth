@@ -184,6 +184,7 @@ on:
         value: ${{ jobs.run-reth.outputs.num_segments }}
 
 env:
+  OPENVM_BRANCH: develop-v2.1.0-rv64
   S3_MD_PATH: s3://${{ vars.S3_WORKFLOW_DATA_BUCKET }}/benchmark/github/results
   S3_FIXTURE_PATH: s3://${{ vars.S3_PUBLIC_DATA_BUCKET }}/benchmark/github/fixtures
   S3_METRICS_PATH: s3://${{ vars.S3_WORKFLOW_DATA_BUCKET }}/benchmark/github/metrics
@@ -268,7 +269,7 @@ jobs:
           ssh-keyscan github.com >> ~/.ssh/known_hosts
 
       - name: Checkout openvm (for scripts)
-        run: git clone --depth=1 --branch="develop-v2.0.0-rc.1" https://github.com/openvm-org/openvm.git
+        run: git clone --depth=1 --branch="$OPENVM_BRANCH" https://github.com/openvm-org/openvm.git
       - name: Build openvm-prof
         working-directory: openvm
         run: |
@@ -400,7 +401,7 @@ jobs:
           GUEST_PROFILE=${{ steps.set-build-profiles.outputs.guest_profile }}
           RUSTFLAGS="" cargo openvm build --no-transpile --profile=$GUEST_PROFILE
           mkdir -p ../reth-benchmark/elf
-          cp target/riscv32im-risc0-zkvm-elf/$GUEST_PROFILE/openvm-stateless-guest ../reth-benchmark/elf/
+          cp target/riscv64im-openvm-none-elf/$GUEST_PROFILE/openvm-stateless-guest ../reth-benchmark/elf/
 
       - name: Save Guest ELF to cache
         if: steps.cache-guest-elf-restore.outputs.cache-hit != 'true'

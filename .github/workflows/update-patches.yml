@@ -1,5 +1,8 @@
 name: "Update openvm patches"
 
+env:
+  OPENVM_BRANCH: develop-v2.1.0-rv64
+
 on:
   workflow_dispatch:
     inputs:
@@ -7,7 +10,7 @@ on:
         description: "Optional ref for openvm-stark-backend (defaults to what openvm uses)"
         required: false
       OPENVM_REV:
-        description: "Optional ref for openvm (defaults to main head)"
+        description: "Optional ref for openvm"
         required: false
       run_benchmark:
         description: "Run reth benchmark after patching"
@@ -50,7 +53,7 @@ on:
       OPENVM_REV:
         type: string
         required: false
-        description: "Optional ref for openvm (defaults to main head)"
+        description: "Optional ref for openvm"
       run_benchmark:
         type: boolean
         required: false
@@ -113,12 +116,12 @@ jobs:
       pr_number: ${{ steps.create-pr.outputs.pr_number }}
       tag: ${{ steps.set-tag.outputs.tag }}
     steps:
-      - name: Get default OPENVM_REV from main (if none provided)
+      - name: Get default OPENVM_REV (if none provided)
         id: get-openvm-rev
         env:
           OPENVM_REV: "${{ inputs.OPENVM_REV || github.event.inputs.OPENVM_REV }}"
         run: |
-          echo "result=${OPENVM_REV:-$(git ls-remote https://github.com/openvm-org/openvm.git HEAD | cut -f1)}" >> "$GITHUB_OUTPUT"
+          echo "result=${OPENVM_REV:-$(git ls-remote https://github.com/openvm-org/openvm.git "refs/heads/$OPENVM_BRANCH" | cut -f1)}" >> "$GITHUB_OUTPUT"
 
       - name: Check out openvm repository
         uses: actions/checkout@v4

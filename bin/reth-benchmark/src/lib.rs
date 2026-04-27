@@ -324,7 +324,7 @@ pub async fn run_reth_benchmark(args: HostArgs, openvm_client_eth_elf: &[u8]) ->
     // MakeInput: encode stateless_input as JSON and write to disk.
     if matches!(args.mode, BenchMode::MakeInput) {
         let words = openvm::serde::to_vec(&stateless_input)?;
-        let bytes: Vec<u8> = words.into_iter().flat_map(|w: u32| w.to_le_bytes()).collect();
+        let bytes: Vec<u8> = words.into_iter().flat_map(|w: u64| w.to_le_bytes()).collect();
         let hex = format!("0x01{}", hex::encode(&bytes));
         let json = serde_json::json!({ "input": [hex] });
 

@@ -35,7 +35,7 @@ WORKDIR=$REPO_ROOT
 cd "$REPO_ROOT/bin/stateless-guest"
 cargo openvm build
 mkdir -p ../reth-benchmark/elf
-SRC="target/riscv32im-risc0-zkvm-elf/release/openvm-stateless-guest"
+SRC="target/riscv64im-openvm-none-elf/release/openvm-stateless-guest"
 DEST="../reth-benchmark/elf/openvm-stateless-guest"
 
 if [ ! -f "$DEST" ] || ! cmp -s "$SRC" "$DEST"; then

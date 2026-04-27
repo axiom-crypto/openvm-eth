@@ -38,8 +38,8 @@ pub(crate) enum NodeRef<'a> {
     Digest(&'a [u8]),
 }
 
-impl std::fmt::Display for NodeRef<'_> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl core::fmt::Display for NodeRef<'_> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             NodeRef::Bytes(bytes) => write!(f, "Bytes(0x{})", hex::encode(bytes)),
             NodeRef::Digest(digest) => write!(f, "Digest(0x{})", hex::encode(digest)),
