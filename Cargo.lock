@@ -8726,7 +8726,9 @@ version = "0.4.0"
 dependencies = [
  "alloy-consensus 2.0.0",
  "alloy-primitives",
+ "alloy-rlp",
  "alloy-trie 0.9.4",
+ "bincode 2.0.1",
  "bumpalo",
  "itertools 0.14.0",
  "openvm-chainspec",

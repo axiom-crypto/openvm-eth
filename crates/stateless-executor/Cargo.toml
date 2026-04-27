@@ -38,10 +38,14 @@ revm-primitives.workspace = true
 # alloy
 alloy-primitives = { workspace = true, features = ["rayon", "map-foldhash"] }
 alloy-consensus = { workspace = true, features = ["crypto-backend", "serde-bincode-compat"] }
+alloy-rlp.workspace = true
 alloy-trie.workspace = true
 
 [package.metadata.cargo-machete]
 ignored = ["reth-ethereum-primitives"]
+
+[dev-dependencies]
+bincode = { workspace = true, features = ["serde", "std"] }
 
 [features]
 default = []
