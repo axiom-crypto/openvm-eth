@@ -70,11 +70,6 @@ on:
         required: false
         description: Log of univariate skip domain size
         default: 4
-      use_tco:
-        type: boolean
-        required: false
-        description: Use TCO instead of AOT
-        default: false
       # num_children_leaf:
       #   type: number
       #   required: false
@@ -148,11 +143,6 @@ on:
         required: false
         description: Log of univariate skip domain size
         default: 4
-      use_tco:
-        type: boolean
-        required: false
-        description: Use TCO instead of AOT
-        default: false
       # num_children_leaf:
       #   type: number
       #   required: false
@@ -330,29 +320,8 @@ jobs:
             FEATURES="${FEATURES},evm-verify"
           fi
 
-          USE_TCO="${{ inputs.use_tco || github.event.inputs.use_tco }}"
-
-          arch=$(uname -m)
-          case $arch in
-            arm64|aarch64)
-              RUSTFLAGS="-Ctarget-cpu=native"
-              USE_TCO="true"
-              ;;
-            x86_64|amd64)
-              RUSTFLAGS="-Ctarget-cpu=native"
-              if [[ "$USE_TCO" != "true" ]]; then
-                # aot enables halo2curves-axiom/asm which is x86_64-only
-                FEATURES="${FEATURES},aot"
-              fi
-              ;;
-            *)
-              echo "Unsupported architecture: $arch"
-              exit 1
-              ;;
-          esac
-          if [[ "$USE_TCO" == "true" ]]; then
-            FEATURES="${FEATURES},tco"
-          fi
+          RUSTFLAGS="-Ctarget-cpu=native"
+          FEATURES="${FEATURES},tco"
 
           if [[ "${{ inputs.profiling || github.event.inputs.profiling }}" == "host" ]]; then
             RUSTFLAGS="${RUSTFLAGS} -C force-frame-pointers=yes"
