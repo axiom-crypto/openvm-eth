@@ -14,15 +14,17 @@ openvm-mpt = { workspace = true, features = ["host"] }
 openvm-stateless-executor = { workspace = true }
 
 reth-ethereum = { workspace = true, features = ["full"] }
+reth-ethereum-primitives = { workspace = true, features = ["serde"] }
 reth-evm = { workspace = true }
 reth-node-api = { workspace = true }
-reth-primitives = { workspace = true }
-reth-primitives-traits = { workspace = true }
+reth-primitives-traits = { workspace = true, features = ["serde"] }
 reth-provider = { workspace = true }
 reth-storage-errors = { workspace = true }
 reth-revm = { workspace = true }
+reth-trie = { workspace = true }
 
 alloy-rpc-types-debug.workspace = true
+alloy-consensus.workspace = true
 alloy-rlp.workspace = true
 
 itertools.workspace = true
