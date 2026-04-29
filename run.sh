@@ -33,7 +33,7 @@ REPO_ROOT=$(git rev-parse --show-toplevel)
 WORKDIR=$REPO_ROOT
 
 cd "$REPO_ROOT/bin/stateless-guest"
-cargo openvm build
+OPENVM_RUST_TOOLCHAIN=nightly-2026-01-18 cargo openvm build
 mkdir -p ../reth-benchmark/elf
 SRC="target/riscv32im-risc0-zkvm-elf/release/openvm-stateless-guest"
 DEST="../reth-benchmark/elf/openvm-stateless-guest"

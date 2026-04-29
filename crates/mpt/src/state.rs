@@ -1,5 +1,5 @@
+use alloy_trie::TrieAccount;
 use bumpalo::Bump;
-use reth_trie::TrieAccount;
 use revm::database::BundleState;
 use revm_primitives::{keccak256, map::DefaultHashBuilder, HashMap, B256};
 

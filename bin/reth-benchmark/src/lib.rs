@@ -38,6 +38,7 @@ use openvm_verify_stark_host::{
     verify_vm_stark_proof_decoded,
     vk::{write_vk_to_file, VmStarkVerifyingKey},
 };
+pub use reth_ethereum_primitives as reth_primitives;
 use tracing::{info, info_span};
 
 mod cli;

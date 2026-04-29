@@ -40,7 +40,7 @@ alloy-transport.workspace = true
 alloy-transport-http.workspace = true
 
 # reth
-reth-primitives.workspace = true
+reth-ethereum-primitives.workspace = true
 
 # Note: the openvm-sdk commit does not need to be exactly the same as the `openvm` commit used in the guest program: as long as
 # the openvm-sdk commit doesn't change any guest libraries, they are compatible

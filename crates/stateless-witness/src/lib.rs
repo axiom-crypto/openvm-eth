@@ -1,6 +1,7 @@
 //! Crate providing middleware for Reth stateless [ExecutionWitness] generation and conversion to
 //! the input format used by the OpenVM stateless executor. The provided functions are intended for
 //! use either within the Reth SDK, as part of a Reth ExEx, or by Reth RPC clients.
+use alloy_consensus::Header;
 use alloy_rlp::Encodable;
 use alloy_rpc_types_debug::ExecutionWitness;
 use itertools::Itertools;
@@ -10,10 +11,10 @@ use reth_ethereum::{
     trie::{TrieAccount, EMPTY_ROOT_HASH},
     EthPrimitives,
 };
+use reth_ethereum_primitives::Block;
 use reth_evm::{execute::Executor, ConfigureEvm};
 use reth_node_api::{FullNodeComponents, NodeTypes};
-use reth_primitives::{Block, Header, RecoveredBlock, TransactionSigned};
-use reth_primitives_traits::NodePrimitives;
+use reth_primitives_traits::{NodePrimitives, RecoveredBlock};
 use reth_provider::{BlockReaderIdExt, HeaderProvider, StateProviderFactory};
 use reth_revm::{
     database::StateProviderDatabase,
@@ -22,6 +23,7 @@ use reth_revm::{
     witness::ExecutionWitnessRecord,
     State,
 };
+use reth_trie::ExecutionWitnessMode;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 use tracing::{info_span, instrument};
@@ -41,10 +43,7 @@ pub struct BlockExecutionWitness {
     /// Parent block's state root
     pub parent_state_root: B256,
     /// The current block (which will be executed inside the client).
-    #[serde_as(
-        as = "reth_primitives_traits::serde_bincode_compat::Block<'_, TransactionSigned, Header>"
-    )]
-    pub current_block: Block<TransactionSigned, Header>,
+    pub current_block: Block,
 }
 
 #[instrument(skip_all)]
@@ -113,12 +112,16 @@ where
         span.in_scope(|| -> WitnessResult<_> {
             let _ =
                 executor.execute_with_state_closure(&recovered_block, |statedb: &State<_>| {
-                    witness_record.record_executed_state(statedb);
+                    witness_record.record_executed_state(statedb, ExecutionWitnessMode::Legacy);
                 })?;
 
             let ExecutionWitnessRecord { hashed_state, codes, keys, lowest_block_number } =
                 witness_record;
-            let reth_state = state_provider.witness(Default::default(), hashed_state)?;
+            let reth_state = state_provider.witness(
+                Default::default(),
+                hashed_state,
+                ExecutionWitnessMode::Legacy,
+            )?;
             Ok((reth_state, codes, keys, lowest_block_number))
         })?
     });

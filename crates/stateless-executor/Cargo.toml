@@ -24,11 +24,9 @@ openvm-revm-crypto = { workspace = true, optional = true }
 # reth
 reth-consensus.workspace = true
 reth-ethereum-consensus.workspace = true
-reth-ethereum-primitives = { workspace = true, features = ["serde", "serde-bincode-compat"] }
+reth-ethereum-primitives = { workspace = true, features = ["serde"] }
 reth-execution-types.workspace = true
-reth-primitives = { workspace = true }
-reth-primitives-traits = { workspace = true, features = ["serde-bincode-compat"] }
-reth-trie.workspace = true
+reth-primitives-traits = { workspace = true, features = ["serde"] }
 reth-evm.workspace = true
 reth-evm-ethereum.workspace = true
 reth-revm.workspace = true
@@ -40,9 +38,14 @@ revm-primitives.workspace = true
 # alloy
 alloy-primitives = { workspace = true, features = ["rayon", "map-foldhash"] }
 alloy-consensus = { workspace = true, features = ["crypto-backend", "serde-bincode-compat"] }
+alloy-rlp.workspace = true
+alloy-trie.workspace = true
 
 [package.metadata.cargo-machete]
 ignored = ["reth-ethereum-primitives"]
+
+[dev-dependencies]
+bincode = { workspace = true, features = ["serde", "std"] }
 
 [features]
 default = []
