@@ -49,6 +49,10 @@ bench-results-large/
 # openvm artifacts
 *.vmexe
 
-# nsys/ncu profiles
+# openvm
+bin/stateless-guest/openvm/
+
+# nvidia
 *.ncu-rep
+*.nsys-rep
 *.sqlite

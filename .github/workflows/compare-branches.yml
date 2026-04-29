@@ -119,9 +119,13 @@ jobs:
           RESULT=$(cargo metadata --format-version=1 | jq -r '.packages[] | select(.name=="openvm-sdk") | .source | split("#") | .[1]')
           echo "result=${RESULT}" >> "$GITHUB_OUTPUT"
 
-      - name: Install openvm-prof
+      - name: Checkout openvm (for openvm-prof)
+        run: git clone --depth=1 https://github.com/openvm-org/openvm.git && cd openvm && git fetch --depth=1 origin ${{ steps.get-openvm-rev.outputs.result }} && git checkout ${{ steps.get-openvm-rev.outputs.result }}
+      - name: Build openvm-prof
+        working-directory: openvm
         run: |
-          cargo install --git https://github.com/openvm-org/openvm.git --rev ${{ steps.get-openvm-rev.outputs.result }} --profile=dev --force openvm-prof
+          cargo build -p openvm-prof
+          echo "${{ github.workspace }}/openvm/target/debug" >> $GITHUB_PATH
 
       - name: Compare metrics
         run: |

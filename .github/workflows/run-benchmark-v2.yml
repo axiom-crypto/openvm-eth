@@ -42,11 +42,10 @@ jobs:
         uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
           cache: false
-
       - name: Prepare input data
         run: |
           block_number="${{ inputs.block_number }}"
-          s3_url="https://axiom-public-data-sandbox-us-east-1.s3.us-east-1.amazonaws.com/reth/input/${block_number}.json"
+          s3_url="https://${{ vars.S3_PUBLIC_DATA_BUCKET }}.s3.${{ vars.S3_REGION }}.amazonaws.com/reth/input/${block_number}.json"
 
           echo "Checking if input file exists for block $block_number..."
           if curl --output /dev/null --silent --head --fail "$s3_url"; then
@@ -57,7 +56,7 @@ jobs:
 
             # Install OpenVM CLI
             echo "Installing OpenVM CLI..."
-            cargo +1.85 install --git https://github.com/openvm-org/openvm.git --locked --force cargo-openvm
+            cargo +1.91.1 install --git https://github.com/openvm-org/openvm.git --locked --force cargo-openvm
 
             RPC_1=${{ secrets.RPC_URL_1 }}
 
