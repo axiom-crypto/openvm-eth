@@ -1,0 +1,21 @@
+[package]
+name = "openvm-reth-verify"
+edition.workspace = true
+repository.workspace = true
+homepage.workspace = true
+exclude.workspace = true
+version.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+clap = { workspace = true, features = ["derive"] }
+eyre.workspace = true
+serde.workspace = true
+zstd.workspace = true
+bincode1 = { package = "bincode", version = "1.3.3" }
+
+openvm-circuit.workspace = true
+openvm-verify-stark-host.workspace = true
+openvm-stark-sdk.workspace = true

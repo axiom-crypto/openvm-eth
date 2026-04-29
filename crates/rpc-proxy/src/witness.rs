@@ -12,6 +12,7 @@ use alloy::{
 };
 use alloy_rpc_types_debug::ExecutionWitness;
 use eyre::{Context, ContextCompat, Result};
+use itertools::Itertools;
 use reth_evm::{execute::Executor, ConfigureEvm};
 use reth_primitives_traits::{Block, BlockBody, NodePrimitives};
 use std::collections::HashSet;
@@ -118,10 +119,15 @@ where
 
     debug!("Preflight check completed successfully");
 
+    // Sort for deterministic witness ordering.
     Ok(ExecutionWitness {
-        state: state.into_iter().collect(),
-        codes: db.contracts().values().cloned().collect(),
-        keys: storage_tries.keys().map(|addr| Bytes::copy_from_slice(addr.as_slice())).collect(),
+        state: state.into_iter().sorted().collect(),
+        codes: db.contracts().values().cloned().sorted().collect(),
+        keys: storage_tries
+            .keys()
+            .map(|addr| Bytes::copy_from_slice(addr.as_slice()))
+            .sorted()
+            .collect(),
         headers,
     })
 }
