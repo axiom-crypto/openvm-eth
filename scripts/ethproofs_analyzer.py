@@ -14,6 +14,9 @@ Usage:
     python3 ethproofs_analyzer.py --top-k 5               # Show top 5 blocks per metric
     python3 ethproofs_analyzer.py --metric median         # Show only median proving time
     python3 ethproofs_analyzer.py --metric gas            # Show only gas used
+    python3 ethproofs_analyzer.py --cluster axiom         # Only proofs from the Axiom cluster (substring)
+    python3 ethproofs_analyzer.py --zkvm openvm2          # Only proofs from the OpenVM 2.0 zkVM
+    python3 ethproofs_analyzer.py --list-provers          # Print distinct provers seen in the data
 """
 
 import argparse
@@ -113,13 +116,74 @@ def load_from_file(filepath: str) -> dict:
         return json.load(f)
 
 
-def analyze_blocks(data: dict, top_k: int = 1, metric: str = "all") -> None:
+def proof_prover_info(proof: dict) -> tuple[str | None, str | None, str | None, int | None]:
+    """Extract (cluster_name, zkvm_slug, zkvm_name, num_gpus) from a proof."""
+    cv = proof.get("cluster_version") or {}
+    cluster = cv.get("cluster") or {}
+    zkvm = (cv.get("zkvm_version") or {}).get("zkvm") or {}
+    return (
+        cluster.get("name"),
+        zkvm.get("slug"),
+        zkvm.get("name"),
+        cluster.get("num_gpus"),
+    )
+
+
+def proof_matches(proof: dict, cluster_filter: str | None, zkvm_filter: str | None) -> bool:
+    """Return True if the proof's cluster/zkvm matches the filters (substring, case-insensitive)."""
+    cluster_name, zkvm_slug, zkvm_name, _ = proof_prover_info(proof)
+    if cluster_filter:
+        if not cluster_name or cluster_filter.lower() not in cluster_name.lower():
+            return False
+    if zkvm_filter:
+        zf = zkvm_filter.lower()
+        slug_match = zkvm_slug and zf in zkvm_slug.lower()
+        name_match = zkvm_name and zf in zkvm_name.lower()
+        if not (slug_match or name_match):
+            return False
+    return True
+
+
+def list_provers(data: dict) -> None:
+    """Print distinct (zkvm, cluster, num_gpus) combinations present in the data."""
+    rows = data.get("rows", [])
+    seen: dict[tuple, int] = {}
+    for block in rows:
+        for p in block.get("proofs", []):
+            cluster_name, zkvm_slug, zkvm_name, num_gpus = proof_prover_info(p)
+            key = (zkvm_name, zkvm_slug, cluster_name, num_gpus)
+            seen[key] = seen.get(key, 0) + 1
+
+    if not seen:
+        print("No provers found in the data.")
+        return
+
+    print("## Provers seen\n")
+    print(f"| {'zkVM':<20} | {'slug':<12} | {'Cluster':<32} | {'GPUs':>4} | {'Proofs':>7} |")
+    print(f"|{'-' * 22}|{'-' * 14}|{'-' * 34}|{'-' * 6}|{'-' * 9}|")
+    for (zkvm_name, zkvm_slug, cluster_name, num_gpus), count in sorted(
+        seen.items(), key=lambda kv: (-kv[1], kv[0][0] or "", kv[0][2] or "")
+    ):
+        print(
+            f"| {(zkvm_name or 'N/A'):<20} | {(zkvm_slug or 'N/A'):<12} | {(cluster_name or 'N/A'):<32} | {(num_gpus if num_gpus is not None else 'N/A'):>4} | {count:>7} |"
+        )
+
+
+def analyze_blocks(
+    data: dict,
+    top_k: int = 1,
+    metric: str = "all",
+    cluster_filter: str | None = None,
+    zkvm_filter: str | None = None,
+) -> None:
     """Analyze blocks to find max gas used and proving time statistics."""
     rows = data.get("rows", [])
 
     if not rows:
         print("No blocks found in the response.")
         return
+
+    filter_active = bool(cluster_filter or zkvm_filter)
 
     # Track blocks with gas for sorting
     blocks_with_gas_list = []
@@ -132,12 +196,23 @@ def analyze_blocks(data: dict, top_k: int = 1, metric: str = "all") -> None:
         gas_used = block.get("gas_used")
         proofs = block.get("proofs", [])
 
+        # Apply prover filter: only count proofs (and gas) from blocks where at
+        # least one proof matches the filter.
+        matching_proofs = [
+            p for p in proofs if proof_matches(p, cluster_filter, zkvm_filter)
+        ]
+        if filter_active and not matching_proofs:
+            continue
+
         if gas_used is not None:
             blocks_with_gas += 1
             blocks_with_gas_list.append((block, gas_used))
 
+        proofs_for_stats = matching_proofs if filter_active else proofs
         proving_times = [
-            p.get("proving_time") for p in proofs if p.get("proving_time") is not None
+            p.get("proving_time")
+            for p in proofs_for_stats
+            if p.get("proving_time") is not None
         ]
 
         if proving_times:
@@ -165,9 +240,21 @@ def analyze_blocks(data: dict, top_k: int = 1, metric: str = "all") -> None:
 
     total_proofs = sum(len(entry[5]) for entry in block_stats)
 
-    print(
-        f"Fetched {len(rows):,} blocks ({blocks_with_gas:,} with gas, {total_proofs:,} proofs)\n"
-    )
+    if filter_active:
+        parts = []
+        if cluster_filter:
+            parts.append(f"cluster~'{cluster_filter}'")
+        if zkvm_filter:
+            parts.append(f"zkvm~'{zkvm_filter}'")
+        print(f"**Filter:** {', '.join(parts)}")
+        print(
+            f"Fetched {len(rows):,} blocks, {len(block_stats):,} match filter "
+            f"({blocks_with_gas:,} with gas, {total_proofs:,} matching proofs)\n"
+        )
+    else:
+        print(
+            f"Fetched {len(rows):,} blocks ({blocks_with_gas:,} with gas, {total_proofs:,} proofs)\n"
+        )
 
     # Max gas section
     if metric in ("all", "gas"):
@@ -294,6 +381,23 @@ Examples:
         choices=["all", "gas", "max", "median", "avg", "min"],
         help="Which metric to show (default: all)",
     )
+    parser.add_argument(
+        "--cluster",
+        type=str,
+        default=None,
+        help="Filter to proofs whose cluster name contains this text (case-insensitive), e.g. 'Axiom 16x5090' or 'axiom'",
+    )
+    parser.add_argument(
+        "--zkvm",
+        type=str,
+        default=None,
+        help="Filter to proofs whose zkvm slug/name contains this text (case-insensitive), e.g. 'openvm2'",
+    )
+    parser.add_argument(
+        "--list-provers",
+        action="store_true",
+        help="List distinct provers (zkvm + cluster) seen in the fetched data and exit",
+    )
 
     args = parser.parse_args()
 
@@ -303,13 +407,23 @@ Examples:
         print(f"**Source:** {args.file}\n")
         try:
             data = load_from_file(args.file)
-            analyze_blocks(data, top_k=args.top_k, metric=args.metric)
         except FileNotFoundError:
             print(f"Error: File not found: {args.file}")
             sys.exit(1)
         except json.JSONDecodeError as e:
             print(f"Error parsing JSON: {e}")
             sys.exit(1)
+
+        if args.list_provers:
+            list_provers(data)
+        else:
+            analyze_blocks(
+                data,
+                top_k=args.top_k,
+                metric=args.metric,
+                cluster_filter=args.cluster,
+                zkvm_filter=args.zkvm,
+            )
     else:
         print(f"**Source:** {API_URL}  ")
         print(
@@ -323,7 +437,16 @@ Examples:
                 machine_type=args.machine_type,
             )
             print()
-            analyze_blocks(data, top_k=args.top_k, metric=args.metric)
+            if args.list_provers:
+                list_provers(data)
+            else:
+                analyze_blocks(
+                    data,
+                    top_k=args.top_k,
+                    metric=args.metric,
+                    cluster_filter=args.cluster,
+                    zkvm_filter=args.zkvm,
+                )
         except urllib.error.URLError as e:
             print(f"\nError: {e}")
             print("Try: python3 ethproofs_analyzer.py --file data.json")

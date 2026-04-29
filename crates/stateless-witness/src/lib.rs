@@ -4,6 +4,7 @@
 use alloy_consensus::Header;
 use alloy_rlp::Encodable;
 use alloy_rpc_types_debug::ExecutionWitness;
+use itertools::Itertools;
 use openvm_mpt::{resolver::MptResolver, EthereumState};
 use openvm_stateless_executor::io::StatelessExecutorInput;
 use reth_ethereum::{
@@ -148,8 +149,13 @@ where
     // Ancestor headers start from most recent
     ancestor_headers.reverse();
 
-    let execution_witness =
-        ExecutionWitness { state: reth_state, codes, keys, headers: serialized_headers };
+    // Sort for deterministic witness ordering.
+    let execution_witness = ExecutionWitness {
+        state: reth_state.into_iter().sorted().collect(),
+        codes: codes.into_iter().sorted().collect(),
+        keys: keys.into_iter().sorted().collect(),
+        headers: serialized_headers,
+    };
 
     Ok((
         BlockExecutionWitness {

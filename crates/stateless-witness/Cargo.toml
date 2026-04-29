@@ -27,6 +27,7 @@ alloy-rpc-types-debug.workspace = true
 alloy-consensus.workspace = true
 alloy-rlp.workspace = true
 
+itertools.workspace = true
 tracing.workspace = true
 metrics.workspace = true
 thiserror.workspace = true

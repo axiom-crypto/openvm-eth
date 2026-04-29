@@ -23,6 +23,7 @@ The system uses Merkle Patricia Trie (MPT) proofs to verify state without requir
 openvm-eth/
 ├── bin/
 │   ├── reth-benchmark/      # Host-side bare metal benchmark 
+│   ├── reth-verify/         # Standalone stark proof + VK verifier
 │   ├── stateless-guest/     # zkVM guest program
 └── crates/
     ├── chainspec/           # Chain configuration (mainnet, dev)
@@ -46,6 +47,21 @@ The main CLI tool for single machine bare metal benchmarks. Supports multiple be
 - **ProveEvm**: Generate final SNARK proofs for on-chain EVM verification
 
 Handles RPC interaction, witness caching, guest program loading, and metrics collection. Supports Nvidia GPU acceleration.
+
+### `bin/reth-verify`
+
+Standalone host-side verifier for stark proofs using only:
+
+- `--proof`
+- `--vm-vk`
+
+Example:
+
+```bash
+cargo run --release -p openvm-reth-verify -- \
+  --proof /path/to/<proof_uuid>.proof.bin \
+  --vm-vk /path/to/reth.vm.vk
+```
 
 ### `bin/stateless-guest`
 

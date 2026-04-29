@@ -45,3 +45,11 @@ metrics.json
 # criterion outputs
 bench-results/
 bench-results-large/
+
+# nvidia
+*.ncu-rep
+*.nsys-rep
+*.sqlite
+
+# openvm
+bin/stateless-guest/openvm/
