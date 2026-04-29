@@ -127,20 +127,22 @@ jobs:
           name: ${{ needs.run-target-benchmark.outputs.metric_name }}
           path: ${{ needs.run-target-benchmark.outputs.metric_name }}
 
-      - name: Install openvm-prof
+      - name: Checkout openvm (for openvm-prof)
+        run: git clone --depth=1 https://github.com/openvm-org/openvm.git
+      - name: Build openvm-prof
+        working-directory: openvm
         run: |
-          cargo install --git https://github.com/openvm-org/openvm.git --profile=dev --force openvm-prof
+          cargo build -p openvm-prof
+          echo "${{ github.workspace }}/openvm/target/debug" >> $GITHUB_PATH
       - name: Compare metrics
         run: |
-          ls
           BASE_NAME=${{ needs.run-base-benchmark.outputs.metric_name }}
-          BASE_JSON=$BASE_NAME/metrics.json
           TARGET_NAME=${{ needs.run-target-benchmark.outputs.metric_name }}
-          TARGET_JSON=$TARGET_NAME/metrics.json
+          BASE_JSON=$(find $BASE_NAME -name "*.json" | head -1)
+          TARGET_JSON=$(find $TARGET_NAME -name "*.json" | head -1)
 
           openvm-prof --json-paths $TARGET_JSON --prev-json-paths $BASE_JSON
           MD_PATH=${TARGET_JSON%.json}.md
-          # Inspired by https://github.com/rustls/rustls/blob/7159373401f253cbaacd276634508e0798a8849f/.github/workflows/icount-bench.yml#L37
           cat $MD_PATH >> $GITHUB_STEP_SUMMARY
 
           echo "" >> $GITHUB_STEP_SUMMARY

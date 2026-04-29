@@ -7,24 +7,29 @@ edition = "2021"
 
 [dependencies]
 # workspace
-openvm-stateless-executor = { path = "../../crates/stateless-executor", features = ["openvm"] }
+openvm-stateless-executor = { path = "../../crates/stateless-executor", default-features = false }
 
 # openvm
-openvm = { git = "https://github.com/openvm-org/openvm.git", branch = "main", features = [
+openvm = { git = "https://github.com/openvm-org/openvm.git", branch = "develop-v2.0.0-rc.1", features = [
     "std",
 ] }
-openvm-algebra-guest = { git = "https://github.com/openvm-org/openvm.git", branch = "main" }
-openvm-ecc-guest = { git = "https://github.com/openvm-org/openvm.git", branch = "main" }
+openvm-algebra-guest = { git = "https://github.com/openvm-org/openvm.git", branch = "develop-v2.0.0-rc.1", optional = true }
+openvm-ecc-guest = { git = "https://github.com/openvm-org/openvm.git", branch = "develop-v2.0.0-rc.1", optional = true }
 
 # Enable std feature for host builds (provides critical-section implementation)
 [target.'cfg(not(target_os = "zkvm"))'.dependencies]
-openvm-stateless-executor = { path = "../../crates/stateless-executor", features = ["openvm", "std"] }
+openvm-stateless-executor = { path = "../../crates/stateless-executor", default-features = false, features = ["std"] }
 
 [package.metadata.cargo-machete]
 ignored = ["openvm-algebra-guest", "openvm-ecc-guest"]
 
 [features]
-default = []
+default = ["extensions"]
+extensions = [
+    "openvm-stateless-executor/openvm",
+    "dep:openvm-algebra-guest",
+    "dep:openvm-ecc-guest",
+]
 heap-embedded-alloc = ["openvm/heap-embedded-alloc"]
 
 [profile.release]
