@@ -321,7 +321,7 @@ jobs:
 
       - name: Install architecture specific tools
         run: |
-          rustup install nightly-2025-08-05
+          rustup install nightly-2026-01-01
           source openvm/ci/scripts/utils.sh
           install_s5cmd
           sudo apt update
@@ -384,7 +384,7 @@ jobs:
         working-directory: bin/stateless-guest
         run: |
           GUEST_PROFILE=${{ steps.set-build-profiles.outputs.guest_profile }}
-          RUSTFLAGS="" cargo openvm build --no-transpile --profile=$GUEST_PROFILE
+          RUSTFLAGS="" OPENVM_RUST_TOOLCHAIN=nightly-2026-01-01 cargo openvm build --no-transpile --profile=$GUEST_PROFILE
           mkdir -p ../reth-benchmark/elf
           cp target/riscv32im-risc0-zkvm-elf/$GUEST_PROFILE/openvm-stateless-guest ../reth-benchmark/elf/
 
@@ -407,7 +407,7 @@ jobs:
         run: |
           export JEMALLOC_SYS_WITH_MALLOC_CONF=${JEMALLOC_SYS_WITH_MALLOC_CONF}
           HOST_PROFILE=${{ steps.set-build-profiles.outputs.host_profile }}
-          TOOLCHAIN="+nightly-2025-08-19"
+          TOOLCHAIN="+nightly-2026-01-01"
           RUSTFLAGS=$RUSTFLAGS cargo $TOOLCHAIN build --bin openvm-reth-benchmark --profile=$HOST_PROFILE --no-default-features --features=$FEATURES
 
       - name: Save Host Binary to cache

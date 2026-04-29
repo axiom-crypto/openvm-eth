@@ -13,7 +13,7 @@ use openvm_ecc_guest::{
     weierstrass::{IntrinsicCurve, WeierstrassPoint},
     AffinePoint, Group,
 };
-use openvm_k256::ecdsa::{RecoveryId, Signature, VerifyingKey};
+use openvm_k256::ecdsa::{signature::hazmat::PrehashVerifier, RecoveryId, Signature, VerifyingKey};
 use openvm_keccak256::keccak256;
 use openvm_kzg::{Bytes32, Bytes48, KzgProof};
 #[allow(unused_imports, clippy::single_component_path_imports)]
@@ -34,7 +34,7 @@ use revm::{
             FP_LENGTH as BLS_FP_LEN, G1_LENGTH as BLS_G1_LEN, G2_LENGTH as BLS_G2_LEN,
             SCALAR_LENGTH as BLS_SCALAR_LEN,
         },
-        Crypto, PrecompileError,
+        Crypto, PrecompileHalt,
     },
 };
 use std::{sync::Arc, vec::Vec};
@@ -79,17 +79,35 @@ impl CryptoProvider for OpenVmK256Provider {
             VerifyingKey::recover_from_prehash_noverify(msg, &signature.to_bytes(), recovery_id)
                 .map_err(|_| RecoveryError::new())?;
 
-        // Get public key coordinates
-        let public_key = recovered_key.as_affine();
-        let mut encoded_pubkey = [0u8; 64];
-        encoded_pubkey[..32].copy_from_slice(&WeierstrassPoint::x(public_key).to_be_bytes());
-        encoded_pubkey[32..].copy_from_slice(&WeierstrassPoint::y(public_key).to_be_bytes());
+        // Hash the uncompressed SEC1 key without the 0x04 prefix.
+        let public_key = recovered_key.to_encoded_point(false);
+        let encoded_pubkey = &public_key.as_bytes()[1..65];
 
         // Hash to get Ethereum address
         let pubkey_hash = keccak256(&encoded_pubkey);
         let address_bytes = &pubkey_hash[12..32]; // Last 20 bytes
 
         Ok(Address::from_slice(address_bytes))
+    }
+
+    fn verify_and_compute_signer_unchecked(
+        &self,
+        pubkey: &[u8; 65],
+        sig: &[u8; 64],
+        msg: &[u8; 32],
+    ) -> Result<Address, RecoveryError> {
+        let vk = VerifyingKey::from_sec1_bytes(pubkey).map_err(|_| RecoveryError::new())?;
+
+        let mut signature = Signature::from_slice(sig).map_err(|_| RecoveryError::new())?;
+        if let Some(sig_normalized) = signature.normalize_s() {
+            signature = sig_normalized;
+        }
+
+        vk.verify_prehash(msg.as_ref(), &signature).map_err(|_| RecoveryError::new())?;
+
+        // Compute address directly from the provided pubkey bytes (skip 0x04 prefix)
+        let pubkey_hash = keccak256(&pubkey[1..65]);
+        Ok(Address::from_slice(&pubkey_hash[12..32]))
     }
 }
 
@@ -104,7 +122,7 @@ impl Crypto for OpenVmCrypto {
     }
 
     /// Custom BN254 G1 addition with openvm optimization
-    fn bn254_g1_add(&self, p1_bytes: &[u8], p2_bytes: &[u8]) -> Result<[u8; 64], PrecompileError> {
+    fn bn254_g1_add(&self, p1_bytes: &[u8], p2_bytes: &[u8]) -> Result<[u8; 64], PrecompileHalt> {
         let p1 = read_bn_g1_point(p1_bytes)?;
         let p2 = read_bn_g1_point(p2_bytes)?;
         let result = p1 + p2;
@@ -116,7 +134,7 @@ impl Crypto for OpenVmCrypto {
         &self,
         point_bytes: &[u8],
         scalar_bytes: &[u8],
-    ) -> Result<[u8; 64], PrecompileError> {
+    ) -> Result<[u8; 64], PrecompileHalt> {
         let p = read_bn_g1_point(point_bytes)?;
         let s = read_bn_scalar(scalar_bytes);
         let result = Bn254::msm(&[s], &[p]);
@@ -124,7 +142,7 @@ impl Crypto for OpenVmCrypto {
     }
 
     /// Custom BN254 pairing check with openvm optimization
-    fn bn254_pairing_check(&self, pairs: &[(&[u8], &[u8])]) -> Result<bool, PrecompileError> {
+    fn bn254_pairing_check(&self, pairs: &[(&[u8], &[u8])]) -> Result<bool, PrecompileHalt> {
         if pairs.is_empty() {
             return Ok(true);
         }
@@ -154,7 +172,7 @@ impl Crypto for OpenVmCrypto {
         &self,
         a: BlsG1Point,
         b: BlsG1Point,
-    ) -> Result<[u8; BLS_G1_LEN], PrecompileError> {
+    ) -> Result<[u8; BLS_G1_LEN], PrecompileHalt> {
         let p1 = read_bls_g1_point(&a)?;
         let p2 = read_bls_g1_point(&b)?;
         let sum = p1 + p2;
@@ -164,8 +182,8 @@ impl Crypto for OpenVmCrypto {
     /// Custom BLS12-381 G1 MSM with openvm optimization
     fn bls12_381_g1_msm(
         &self,
-        pairs: &mut dyn Iterator<Item = Result<BlsG1PointScalar, PrecompileError>>,
-    ) -> Result<[u8; BLS_G1_LEN], PrecompileError> {
+        pairs: &mut dyn Iterator<Item = Result<BlsG1PointScalar, PrecompileHalt>>,
+    ) -> Result<[u8; BLS_G1_LEN], PrecompileHalt> {
         let mut scalars = Vec::new();
         let mut points = Vec::new();
 
@@ -188,7 +206,7 @@ impl Crypto for OpenVmCrypto {
         &self,
         a: BlsG2Point,
         b: BlsG2Point,
-    ) -> Result<[u8; BLS_G2_LEN], PrecompileError> {
+    ) -> Result<[u8; BLS_G2_LEN], PrecompileHalt> {
         let p1 = read_bls_g2_point(&a)?;
         let p2 = read_bls_g2_point(&b)?;
         let sum = p1 + p2;
@@ -198,8 +216,8 @@ impl Crypto for OpenVmCrypto {
     /// Custom BLS12-381 G2 MSM with openvm optimization
     fn bls12_381_g2_msm(
         &self,
-        pairs: &mut dyn Iterator<Item = Result<BlsG2PointScalar, PrecompileError>>,
-    ) -> Result<[u8; BLS_G2_LEN], PrecompileError> {
+        pairs: &mut dyn Iterator<Item = Result<BlsG2PointScalar, PrecompileHalt>>,
+    ) -> Result<[u8; BLS_G2_LEN], PrecompileHalt> {
         let mut scalars = Vec::new();
         let mut points = Vec::new();
 
@@ -222,7 +240,7 @@ impl Crypto for OpenVmCrypto {
     fn bls12_381_pairing_check(
         &self,
         pairs: &[(BlsG1Point, BlsG2Point)],
-    ) -> Result<bool, PrecompileError> {
+    ) -> Result<bool, PrecompileHalt> {
         if pairs.is_empty() {
             return Ok(true);
         }
@@ -251,9 +269,9 @@ impl Crypto for OpenVmCrypto {
         sig_bytes: &[u8; 64],
         mut recid: u8,
         msg_hash: &[u8; 32],
-    ) -> Result<[u8; 32], PrecompileError> {
+    ) -> Result<[u8; 32], PrecompileHalt> {
         let mut sig = Signature::from_slice(sig_bytes)
-            .map_err(|_| PrecompileError::other("Invalid signature format"))?;
+            .map_err(|_| PrecompileHalt::other("Invalid signature format"))?;
 
         if let Some(sig_normalized) = sig.normalize_s() {
             sig = sig_normalized;
@@ -261,16 +279,14 @@ impl Crypto for OpenVmCrypto {
         }
 
         let recovery_id = RecoveryId::from_byte(recid)
-            .ok_or_else(|| PrecompileError::other("Invalid recovery ID"))?;
+            .ok_or_else(|| PrecompileHalt::other("Invalid recovery ID"))?;
 
         let recovered_key =
             VerifyingKey::recover_from_prehash_noverify(msg_hash, &sig.to_bytes(), recovery_id)
-                .map_err(|_| PrecompileError::other("Key recovery failed"))?;
+                .map_err(|_| PrecompileHalt::other("Key recovery failed"))?;
 
-        let public_key = recovered_key.as_affine();
-        let mut encoded_pubkey = [0u8; 64];
-        encoded_pubkey[..32].copy_from_slice(&WeierstrassPoint::x(public_key).to_be_bytes());
-        encoded_pubkey[32..].copy_from_slice(&WeierstrassPoint::y(public_key).to_be_bytes());
+        let public_key = recovered_key.to_encoded_point(false);
+        let encoded_pubkey = &public_key.as_bytes()[1..65];
 
         let pubkey_hash = keccak256(&encoded_pubkey);
         let mut address = [0u8; 32];
@@ -286,18 +302,18 @@ impl Crypto for OpenVmCrypto {
         y: &[u8; 32],
         commitment: &[u8; 48],
         proof: &[u8; 48],
-    ) -> Result<(), PrecompileError> {
+    ) -> Result<(), PrecompileHalt> {
         let env = openvm_kzg::EnvKzgSettings::default();
         let kzg_settings = env.get();
 
         let commitment_bytes = Bytes48::from_slice(commitment)
-            .map_err(|_| PrecompileError::other("invalid commitment bytes"))?;
+            .map_err(|_| PrecompileHalt::other("invalid commitment bytes"))?;
         let z_bytes =
-            Bytes32::from_slice(z).map_err(|_| PrecompileError::other("invalid z bytes"))?;
+            Bytes32::from_slice(z).map_err(|_| PrecompileHalt::other("invalid z bytes"))?;
         let y_bytes =
-            Bytes32::from_slice(y).map_err(|_| PrecompileError::other("invalid y bytes"))?;
-        let proof_bytes = Bytes48::from_slice(proof)
-            .map_err(|_| PrecompileError::other("invalid proof bytes"))?;
+            Bytes32::from_slice(y).map_err(|_| PrecompileHalt::other("invalid y bytes"))?;
+        let proof_bytes =
+            Bytes48::from_slice(proof).map_err(|_| PrecompileHalt::other("invalid proof bytes"))?;
 
         KzgProof::verify_kzg_proof(
             &commitment_bytes,
@@ -306,12 +322,12 @@ impl Crypto for OpenVmCrypto {
             &proof_bytes,
             kzg_settings,
         )
-        .map_err(|_| PrecompileError::other("openvm kzg proof verification failed"))?;
+        .map_err(|_| PrecompileHalt::other("openvm kzg proof verification failed"))?;
         Ok(())
     }
 
     /// Custom modular exponentiation with BN254 Fr acceleration
-    fn modexp(&self, base: &[u8], exp: &[u8], modulus: &[u8]) -> Result<Vec<u8>, PrecompileError> {
+    fn modexp(&self, base: &[u8], exp: &[u8], modulus: &[u8]) -> Result<Vec<u8>, PrecompileHalt> {
         if is_bn254_fr(modulus) {
             return Ok(accelerated_modexp_bn254_fr(base, exp));
         }
@@ -362,48 +378,48 @@ pub fn install_openvm_crypto() -> Result<bool, Box<dyn std::error::Error>> {
 // Helper functions for BN254 operations
 
 #[inline]
-fn read_bn_fq(input: &[u8]) -> Result<bn::Fp, PrecompileError> {
+fn read_bn_fq(input: &[u8]) -> Result<bn::Fp, PrecompileHalt> {
     if input.len() < BN_FQ_LEN {
-        Err(PrecompileError::Bn254FieldPointNotAMember)
+        Err(PrecompileHalt::Bn254FieldPointNotAMember)
     } else {
-        bn::Fp::from_be_bytes(&input[..BN_FQ_LEN]).ok_or(PrecompileError::Bn254FieldPointNotAMember)
+        bn::Fp::from_be_bytes(&input[..BN_FQ_LEN]).ok_or(PrecompileHalt::Bn254FieldPointNotAMember)
     }
 }
 
 #[inline]
-fn read_bn_fq2(input: &[u8]) -> Result<bn::Fp2, PrecompileError> {
+fn read_bn_fq2(input: &[u8]) -> Result<bn::Fp2, PrecompileHalt> {
     let y = read_bn_fq(&input[..BN_FQ_LEN])?;
     let x = read_bn_fq(&input[BN_FQ_LEN..BN_FQ_LEN * 2])?;
     Ok(bn::Fp2::new(x, y))
 }
 
 #[inline]
-fn read_bn_g1_point(input: &[u8]) -> Result<bn::G1Affine, PrecompileError> {
+fn read_bn_g1_point(input: &[u8]) -> Result<bn::G1Affine, PrecompileHalt> {
     if input.len() != BN_G1_LEN {
-        return Err(PrecompileError::Bn254PairLength);
+        return Err(PrecompileHalt::Bn254PairLength);
     }
     let px = read_bn_fq(&input[0..BN_FQ_LEN])?;
     let py = read_bn_fq(&input[BN_FQ_LEN..BN_G1_LEN])?;
-    let point = bn::G1Affine::from_xy(px, py).ok_or(PrecompileError::Bn254AffineGFailedToCreate)?;
+    let point = bn::G1Affine::from_xy(px, py).ok_or(PrecompileHalt::Bn254AffineGFailedToCreate)?;
     if point.is_in_correct_subgroup() {
         Ok(point)
     } else {
-        Err(PrecompileError::Bn254AffineGFailedToCreate)
+        Err(PrecompileHalt::Bn254AffineGFailedToCreate)
     }
 }
 
 #[inline]
-fn read_bn_g2_point(input: &[u8]) -> Result<bn::G2Affine, PrecompileError> {
+fn read_bn_g2_point(input: &[u8]) -> Result<bn::G2Affine, PrecompileHalt> {
     if input.len() != BN_G2_LEN {
-        return Err(PrecompileError::Bn254PairLength);
+        return Err(PrecompileHalt::Bn254PairLength);
     }
     let c0 = read_bn_fq2(&input[0..BN_G1_LEN])?;
     let c1 = read_bn_fq2(&input[BN_G1_LEN..BN_G2_LEN])?;
-    let point = bn::G2Affine::from_xy(c0, c1).ok_or(PrecompileError::Bn254AffineGFailedToCreate)?;
+    let point = bn::G2Affine::from_xy(c0, c1).ok_or(PrecompileHalt::Bn254AffineGFailedToCreate)?;
     if point.is_in_correct_subgroup() {
         Ok(point)
     } else {
-        Err(PrecompileError::Bn254AffineGFailedToCreate)
+        Err(PrecompileHalt::Bn254AffineGFailedToCreate)
     }
 }
 
@@ -441,42 +457,42 @@ fn read_bn_scalar(input: &[u8]) -> bn::Scalar {
 // Helper functions for BLS12-381 operations
 
 #[inline]
-fn read_bls_fp(input: &[u8]) -> Result<bls::Fp, PrecompileError> {
+fn read_bls_fp(input: &[u8]) -> Result<bls::Fp, PrecompileHalt> {
     if input.len() != BLS_FP_LEN {
-        return Err(PrecompileError::other("invalid BLS12-381 fp length"));
+        return Err(PrecompileHalt::other("invalid BLS12-381 fp length"));
     }
     bls::Fp::from_be_bytes(input)
-        .ok_or_else(|| PrecompileError::other("element not in BLS12-381 base field"))
+        .ok_or_else(|| PrecompileHalt::other("element not in BLS12-381 base field"))
 }
 
 #[inline]
-fn read_bls_fp2(c0: &[u8], c1: &[u8]) -> Result<bls::Fp2, PrecompileError> {
+fn read_bls_fp2(c0: &[u8], c1: &[u8]) -> Result<bls::Fp2, PrecompileHalt> {
     let real = read_bls_fp(c0)?;
     let imag = read_bls_fp(c1)?;
     Ok(bls::Fp2::new(real, imag))
 }
 
 #[inline]
-fn read_bls_g1_point(point: &BlsG1Point) -> Result<bls::G1Affine, PrecompileError> {
+fn read_bls_g1_point(point: &BlsG1Point) -> Result<bls::G1Affine, PrecompileHalt> {
     let px = read_bls_fp(&point.0)?;
     let py = read_bls_fp(&point.1)?;
-    let point = bls::G1Affine::from_xy(px, py).ok_or(PrecompileError::Bls12381G1NotOnCurve)?;
+    let point = bls::G1Affine::from_xy(px, py).ok_or(PrecompileHalt::Bls12381G1NotOnCurve)?;
     if point.is_in_correct_subgroup() {
         Ok(point)
     } else {
-        Err(PrecompileError::Bls12381G1NotInSubgroup)
+        Err(PrecompileHalt::Bls12381G1NotInSubgroup)
     }
 }
 
 #[inline]
-fn read_bls_g2_point(point: &BlsG2Point) -> Result<bls::G2Affine, PrecompileError> {
+fn read_bls_g2_point(point: &BlsG2Point) -> Result<bls::G2Affine, PrecompileHalt> {
     let x = read_bls_fp2(&point.0, &point.1)?;
     let y = read_bls_fp2(&point.2, &point.3)?;
-    let point = bls::G2Affine::from_xy(x, y).ok_or(PrecompileError::Bls12381G2NotOnCurve)?;
+    let point = bls::G2Affine::from_xy(x, y).ok_or(PrecompileHalt::Bls12381G2NotOnCurve)?;
     if point.is_in_correct_subgroup() {
         Ok(point)
     } else {
-        Err(PrecompileError::Bls12381G2NotInSubgroup)
+        Err(PrecompileHalt::Bls12381G2NotInSubgroup)
     }
 }
 

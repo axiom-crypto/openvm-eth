@@ -37,7 +37,7 @@ alloy-rpc-client.workspace = true
 alloy-transport.workspace = true
 
 # reth
-reth-primitives.workspace = true
+reth-ethereum-primitives.workspace = true
 
 # openvm
 openvm = { workspace = true }
@@ -45,7 +45,7 @@ openvm = { workspace = true }
 # the openvm-sdk commit doesn't change any guest libraries, they are compatible
 # This allows us to not update revm and openvm-kzg each time we change openvm-sdk
 # Using main from 10/13/2025 for now
-openvm-stark-sdk = { git = "https://github.com/openvm-org/stark-backend.git", tag = "v1.3.0-rc.0", default-features = false }
+openvm-stark-sdk = { git = "https://github.com/openvm-org/stark-backend.git", tag = "v1.3.0", default-features = false }
 openvm-transpiler = { git = "https://github.com/openvm-org/openvm.git", branch = "main", default-features = false }
 openvm-circuit = { git = "https://github.com/openvm-org/openvm.git", branch = "main", default-features = false }
 openvm-benchmarks-prove = { git = "https://github.com/openvm-org/openvm.git", branch = "main", default-features = false, features = ["parallel"] }

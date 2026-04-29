@@ -486,7 +486,7 @@ impl<'a> Mpt<'a> {
     #[inline]
     pub fn hash(&self) -> B256 {
         match self.nodes[self.root_id as usize] {
-            NodeData::Null => reth_trie::EMPTY_ROOT_HASH,
+            NodeData::Null => alloy_trie::EMPTY_ROOT_HASH,
             _ => {
                 let cached = self.cached_references[self.root_id as usize].get();
                 let node_ref = match cached {

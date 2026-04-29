@@ -1,12 +1,14 @@
 use std::iter::once;
 
 use crate::error::StatelessExecutorError;
+use alloy_consensus::Header;
+use alloy_rlp::{Decodable, Encodable};
+use alloy_trie::{TrieAccount, EMPTY_ROOT_HASH};
 use bumpalo::Bump;
 use itertools::Itertools;
 use openvm_mpt::{EthereumState, EthereumStateBytes, Mpt};
+use reth_ethereum_primitives::Block;
 use reth_evm::execute::ProviderError;
-use reth_primitives::{Block, Header, TransactionSigned};
-use reth_trie::TrieAccount;
 use revm::{
     state::{AccountInfo, Bytecode},
     DatabaseRef,
@@ -24,10 +26,8 @@ const BUMP_AREA_SIZE: usize = 1000 * 1000;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StatelessExecutorInput {
     /// The current block (which will be executed inside the client).
-    #[serde_as(
-        as = "reth_primitives_traits::serde_bincode_compat::Block<'_, TransactionSigned, Header>"
-    )]
-    pub current_block: Block<TransactionSigned, Header>,
+    #[serde_as(as = "serde_bincode_compat::Block")]
+    pub current_block: Block,
     /// The previous block headers starting from the most recent. There must be at least one header
     /// to provide the parent state root.
     #[serde_as(as = "Vec<alloy_consensus::serde_bincode_compat::Header>")]
@@ -36,6 +36,93 @@ pub struct StatelessExecutorInput {
     pub parent_state_bytes: EthereumStateBytes,
     /// Account bytecodes.
     pub bytecodes: Vec<Bytecode>,
+}
+
+pub mod serde_bincode_compat {
+    use super::*;
+    use serde::{de::Error as _, Deserializer, Serializer};
+    use serde_with::{DeserializeAs, SerializeAs};
+
+    /// Bincode-compatible block serde implementation.
+    ///
+    /// Alloy's default block serde can emit sequences without known lengths for transaction
+    /// envelopes. Bincode rejects those, so cache the block as its canonical RLP bytes instead.
+    #[derive(Debug)]
+    pub struct Block;
+
+    impl SerializeAs<super::Block> for Block {
+        fn serialize_as<S>(source: &super::Block, serializer: S) -> Result<S::Ok, S::Error>
+        where
+            S: Serializer,
+        {
+            let mut bytes = Vec::with_capacity(source.length());
+            source.encode(&mut bytes);
+            bytes.serialize(serializer)
+        }
+    }
+
+    impl<'de> DeserializeAs<'de, super::Block> for Block {
+        fn deserialize_as<D>(deserializer: D) -> Result<super::Block, D::Error>
+        where
+            D: Deserializer<'de>,
+        {
+            let bytes = Vec::<u8>::deserialize(deserializer)?;
+            let mut buf = bytes.as_slice();
+            let block = <super::Block as Decodable>::decode(&mut buf).map_err(D::Error::custom)?;
+            if !buf.is_empty() {
+                return Err(D::Error::custom("trailing bytes in RLP block"));
+            }
+            Ok(block)
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use alloy_consensus::{BlockBody, Signed, TxLegacy};
+    use alloy_primitives::Signature;
+    use reth_ethereum_primitives::TransactionSigned;
+
+    fn encode_block(block: &Block) -> Vec<u8> {
+        let mut bytes = Vec::with_capacity(block.length());
+        block.encode(&mut bytes);
+        bytes
+    }
+
+    fn input_with_block(block: Block) -> StatelessExecutorInput {
+        StatelessExecutorInput {
+            current_block: block,
+            ancestor_headers: vec![Header::default()],
+            parent_state_bytes: EthereumStateBytes {
+                state_trie: (0, Default::default()),
+                storage_tries: vec![],
+            },
+            bytecodes: vec![],
+        }
+    }
+
+    #[test]
+    fn input_bincode_roundtrips_with_transactions() {
+        let transaction = TransactionSigned::Legacy(Signed::new_unhashed(
+            TxLegacy::default(),
+            Signature::test_signature(),
+        ));
+        let block = Block::new(
+            Header::default(),
+            BlockBody { transactions: vec![transaction], ommers: vec![], withdrawals: None },
+        );
+        let expected_rlp = encode_block(&block);
+
+        let encoded =
+            bincode::serde::encode_to_vec(input_with_block(block), bincode::config::standard())
+                .expect("input should encode with bincode");
+        let (decoded, _): (StatelessExecutorInput, _) =
+            bincode::serde::decode_from_slice(&encoded, bincode::config::standard())
+                .expect("input should decode with bincode");
+
+        assert_eq!(encode_block(&decoded.current_block), expected_rlp);
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -70,7 +157,7 @@ impl StatelessExecutorInputWithState {
                 let account_in_trie =
                     state_trie.get_rlp::<TrieAccount>(hashed_address.as_slice())?;
                 let expected_storage_root =
-                    account_in_trie.map_or(reth_trie::EMPTY_ROOT_HASH, |a| a.storage_root);
+                    account_in_trie.map_or(EMPTY_ROOT_HASH, |a| a.storage_root);
 
                 let storage_trie =
                     Mpt::decode_trie(bump, &mut storage_trie_bytes.as_ref(), *num_nodes)?;
