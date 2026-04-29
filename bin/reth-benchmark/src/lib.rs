@@ -20,7 +20,7 @@ use openvm_sdk_config::{SdkVmConfig, TranspilerConfig};
 use openvm_stark_sdk::{
     bench::run_with_metric_collection,
     config::{
-        app_params_with_100_bits_security,
+        app_params_with_128_bits_security,
         baby_bear_poseidon2::{D_EF, F},
     },
     openvm_stark_backend::{
@@ -227,7 +227,7 @@ pub async fn run_reth_benchmark(args: HostArgs, openvm_client_eth_elf: &[u8]) ->
 
     let transpiler = vm_config.transpiler().clone();
 
-    let app_params = app_params_with_100_bits_security(DEFAULT_LOG_STACKED_HEIGHT);
+    let app_params = app_params_with_128_bits_security(DEFAULT_LOG_STACKED_HEIGHT);
 
     // Setup: this can all be done once before receiving proof input
     let app_config = AppConfig::new(vm_config, app_params);
