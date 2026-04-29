@@ -1,6 +1,7 @@
 use openvm::io::{read, reveal_bytes32};
 use openvm_stateless_executor::{io::StatelessExecutorInput, ChainVariant, StatelessExecutor};
 
+#[cfg(all(target_os = "zkvm", feature = "extensions"))]
 openvm::init!();
 
 pub fn main() {
