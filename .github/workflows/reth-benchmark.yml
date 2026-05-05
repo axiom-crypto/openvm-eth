@@ -268,15 +268,15 @@ jobs:
           ssh-keyscan github.com >> ~/.ssh/known_hosts
 
       - name: Checkout openvm (for scripts)
-        run: git clone --depth=1 --branch="develop-v2.0.0-rc.1" https://github.com/openvm-org/openvm.git
+        run: git clone --depth=1 --branch="develop-v2.0.0-rc.1" https://github.com/openvm-org/openvm.git "$RUNNER_TEMP/openvm"
       - name: Build openvm-prof
-        working-directory: openvm
+        working-directory: ${{ runner.temp }}/openvm
         run: |
           cargo build -p openvm-prof
-          echo "${{ github.workspace }}/openvm/target/debug" >> $GITHUB_PATH
+          echo "$RUNNER_TEMP/openvm/target/debug" >> "$GITHUB_PATH"
       - name: Install architecture specific tools
         run: |
-          source openvm/ci/scripts/utils.sh
+          source "$RUNNER_TEMP/openvm/ci/scripts/utils.sh"
           install_s5cmd
           sudo apt update && sudo apt install -y gnuplot
           sudo apt install -y linux-tools-common linux-tools-generic linux-tools-$(uname -r) || \
@@ -389,10 +389,10 @@ jobs:
 
       - name: Build cargo-openvm
         if: steps.cache-guest-elf-restore.outputs.cache-hit != 'true'
-        working-directory: openvm
+        working-directory: ${{ runner.temp }}/openvm
         run: |
           cargo build --locked -p cargo-openvm
-          echo "${{ github.workspace }}/openvm/target/debug" >> $GITHUB_PATH
+          echo "$RUNNER_TEMP/openvm/target/debug" >> "$GITHUB_PATH"
       - name: Build Guest ELF
         if: steps.cache-guest-elf-restore.outputs.cache-hit != 'true'
         working-directory: bin/stateless-guest
@@ -595,7 +595,7 @@ jobs:
           COMMIT_URL=https://github.com/${{ github.repository }}/commit/${current_sha}
           BENCHMARK_WORKFLOW_URL=https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
 
-          source openvm/ci/scripts/utils.sh
+          source "$RUNNER_TEMP/openvm/ci/scripts/utils.sh"
 
           add_metadata $MD_PATH \
             ${{ inputs.max_segment_length || github.event.inputs.max_segment_length }} \
