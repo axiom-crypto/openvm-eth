@@ -19,15 +19,14 @@ use openvm_sdk::{
 use openvm_sdk_config::{SdkVmConfig, TranspilerConfig};
 use openvm_stark_sdk::{
     bench::run_with_metric_collection,
-    config::{
-        app_params_with_100_bits_security,
-        baby_bear_poseidon2::{D_EF, F},
-    },
+    config::baby_bear_poseidon2::{D_EF, F},
     openvm_stark_backend::{
         air_builders::symbolic::{SymbolicExpressionDag, SymbolicExpressionNode},
         codec::Encode,
+        interaction::LogUpSecurityParameters,
         keygen::types::MultiStarkProvingKey,
         p3_field::PrimeCharacteristicRing,
+        SystemParams, WhirProximityStrategy,
     },
 };
 use openvm_stateless_executor::{
@@ -45,6 +44,38 @@ mod cli;
 use cli::ProviderArgs;
 
 pub const DEFAULT_LOG_STACKED_HEIGHT: usize = 24;
+
+fn reth_app_params(log_stacked_height: usize) -> SystemParams {
+    assert!(
+        log_stacked_height <= DEFAULT_LOG_STACKED_HEIGHT,
+        "log_stacked_height must be <= {DEFAULT_LOG_STACKED_HEIGHT}",
+    );
+
+    // Keep compare runs compatible across the stark-backend API rename from
+    // app_params_with_100_bits_security to app_params_with_128_bits_security.
+    let (security_bits, folding_pow_bits, mu_pow_bits, logup_pow_bits) = match D_EF {
+        4 => (100, 5, 15, 18),
+        5 => (128, 0, 10, 13),
+        _ => panic!("unsupported BabyBear extension degree: {D_EF}"),
+    };
+
+    SystemParams::new(
+        DEFAULT_APP_LOG_BLOWUP,
+        DEFAULT_APP_L_SKIP,
+        log_stacked_height.saturating_sub(DEFAULT_APP_L_SKIP),
+        2048,
+        10,
+        folding_pow_bits,
+        mu_pow_bits,
+        WhirProximityStrategy::UniqueDecoding,
+        security_bits,
+        LogUpSecurityParameters {
+            max_interaction_count: 2_013_265_921,
+            log_max_message_length: 7,
+            pow_bits: logup_pow_bits,
+        },
+    )
+}
 
 /// Enum representing the execution mode of the host executable.
 #[derive(Debug, Clone, clap::ValueEnum)]
@@ -227,7 +258,7 @@ pub async fn run_reth_benchmark(args: HostArgs, openvm_client_eth_elf: &[u8]) ->
 
     let transpiler = vm_config.transpiler().clone();
 
-    let app_params = app_params_with_100_bits_security(DEFAULT_LOG_STACKED_HEIGHT);
+    let app_params = reth_app_params(DEFAULT_LOG_STACKED_HEIGHT);
 
     // Setup: this can all be done once before receiving proof input
     let app_config = AppConfig::new(vm_config, app_params);
