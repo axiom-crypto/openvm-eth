@@ -11,7 +11,9 @@
 #   --block <N>         Set the block number to prove (default: 23992138)
 #   --app-l-skip <N>    Log of univariate skip domain size (default: 4)
 #   --cuda              Force CUDA acceleration (auto-detected if nvidia-smi available)
-#   --tco               Use TCO instead of AOT (default is AOT on x86_64)
+#   --exec-mode <MODE>  Select the OpenVM execution backend: tco | aot | rvr.
+#                       Defaults to aot on x86_64 and tco on arm64.
+#                       aot is not supported on arm64. rvr requires clang-22 and lld on PATH.
 #   --perf              Run with perf + samply host profiling and upload to Firefox Profiler
 #   --nsys              Run with nsys profiling and output summary stats
 #   --<tool>            Run with compute-sanitizer --tool <tool> where tool is one of memcheck, synccheck, or racecheck
@@ -60,7 +62,7 @@ PROFILE_OVERRIDE=""
 BLOCK_NUMBER_OVERRIDE=""
 USE_CUDA=false
 CUDA_REASON=""
-USE_TCO=false
+EXEC_MODE=""
 USE_PERF=false
 USE_NSYS=false
 USE_NCU=false
@@ -101,9 +103,17 @@ while [[ $# -gt 0 ]]; do
             CUDA_REASON="requested via --cuda script argument"
             shift
             ;;
-        --tco)
-            USE_TCO=true
-            shift
+        --exec-mode)
+            case "${2:-}" in
+                tco|aot|rvr)
+                    EXEC_MODE="$2"
+                    ;;
+                *)
+                    echo "Error: --exec-mode requires one of: tco, aot, rvr (got '${2:-}')" >&2
+                    exit 1
+                    ;;
+            esac
+            shift 2
             ;;
         --perf)
             USE_PERF=true
@@ -231,18 +241,18 @@ arch=$(uname -m)
 case $arch in
 arm64|aarch64)
     RUSTFLAGS="-Ctarget-cpu=native"
-    if [ "$USE_TCO" = "false" ]; then
-        USE_TCO=true
+    if [ -z "$EXEC_MODE" ]; then
+        EXEC_MODE="tco"
+    elif [ "$EXEC_MODE" = "aot" ]; then
+        # aot enables halo2curves-axiom/asm which is x86_64-only
+        echo "Error: --exec-mode aot is not supported on arm64" >&2
+        exit 1
     fi
     ;;
 x86_64|amd64)
     RUSTFLAGS="-Ctarget-cpu=native"
-    if [ "$USE_TCO" = "false" ]; then
-        # aot enables halo2curves-axiom/asm which is x86_64-only
-        FEATURES="$FEATURES,aot"
-        if [ "$MODE" = "prove-evm" ]; then
-            FEATURES="$FEATURES,halo2-asm"
-        fi
+    if [ -z "$EXEC_MODE" ]; then
+        EXEC_MODE="aot"
     fi
     ;;
 *)
@@ -250,9 +260,24 @@ echo "Unsupported architecture: $arch"
 exit 1
 ;;
 esac
-if [ "$USE_TCO" = "true" ]; then
-    FEATURES="$FEATURES,tco"
-fi
+case "$EXEC_MODE" in
+    tco)
+        FEATURES="$FEATURES,tco"
+        ;;
+    aot)
+        # aot enables halo2curves-axiom/asm which is x86_64-only
+        FEATURES="$FEATURES,aot"
+        if [ "$MODE" = "prove-evm" ]; then
+            FEATURES="$FEATURES,halo2-asm"
+        fi
+        ;;
+    rvr)
+        FEATURES="$FEATURES,rvr"
+        if ! command -v clang-22 >/dev/null 2>&1 || ! command -v lld >/dev/null 2>&1; then
+            echo "warning: --exec-mode rvr requires clang-22 and lld on PATH." >&2
+        fi
+        ;;
+esac
 if [ "$USE_PERF" = "true" ]; then
     RUSTFLAGS="$RUSTFLAGS -C force-frame-pointers=yes"
     # Default to profiling profile for host profiling if not overridden
