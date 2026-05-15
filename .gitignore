@@ -45,3 +45,10 @@ metrics.json
 # criterion outputs
 bench-results/
 bench-results-large/
+
+# openvm artifacts
+*.vmexe
+
+# nsys/ncu profiles
+*.ncu-rep
+*.sqlite
