@@ -1196,7 +1196,7 @@ dependencies = [
  "alloy-rlp",
  "alloy-serde 1.7.3",
  "alloy-sol-types",
- "itertools 0.14.0",
+ "itertools 0.13.0",
  "serde",
  "serde_json",
  "serde_with",
@@ -1217,7 +1217,7 @@ dependencies = [
  "alloy-rlp",
  "alloy-serde 2.0.0",
  "alloy-sol-types",
- "itertools 0.14.0",
+ "itertools 0.13.0",
  "serde",
  "serde_json",
  "serde_with",
@@ -1463,7 +1463,7 @@ checksum = "aa501ad58dd20acddbfebc65b52e60f05ebf97c52fa40d1b35e91f5e2da0ad0e"
 dependencies = [
  "alloy-json-rpc 1.7.3",
  "alloy-transport 1.7.3",
- "itertools 0.14.0",
+ "itertools 0.13.0",
  "reqwest 0.12.28",
  "serde_json",
  "tower",
@@ -1479,7 +1479,7 @@ checksum = "a29980e69119444ed26b75e7ee5bed2043870f904a64318297e55800db686564"
 dependencies = [
  "alloy-json-rpc 2.0.0",
  "alloy-transport 2.0.0",
- "itertools 0.14.0",
+ "itertools 0.13.0",
  "reqwest 0.13.2",
  "serde_json",
  "tower",
@@ -4492,7 +4492,7 @@ dependencies = [
  "dyn-clone",
  "foundry-compilers-artifacts",
  "foundry-compilers-core",
- "itertools 0.14.0",
+ "itertools 0.13.0",
  "path-slash",
  "rayon",
  "semver 1.0.27",
@@ -8061,7 +8061,7 @@ dependencies = [
 [[package]]
 name = "openvm-kzg"
 version = "0.2.0-alpha"
-source = "git+https://github.com/axiom-crypto/openvm-kzg.git?branch=openvm-main#3dcd8f4e64e9cff2b1f6be97efdba19fb5e97e7b"
+source = "git+https://github.com/axiom-crypto/openvm-kzg.git?branch=openvm-main#892314adb476215f6fa3c230144d7ace6aecab74"
 dependencies = [
  "bls12_381 0.8.0",
  "hex",
@@ -9762,7 +9762,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "27c6023962132f4b30eb4c172c91ce92d933da334c59c23cddee82358ddafb0b"
 dependencies = [
  "anyhow",
- "itertools 0.14.0",
+ "itertools 0.10.5",
  "proc-macro2",
  "quote",
  "syn 2.0.117",
@@ -14248,7 +14248,7 @@ dependencies = [
  "derive_more 2.1.1",
  "dunce",
  "inturn",
- "itertools 0.14.0",
+ "itertools 0.10.5",
  "itoa",
  "normalize-path",
  "once_map",
@@ -14284,7 +14284,7 @@ dependencies = [
  "alloy-primitives",
  "bitflags 2.11.0",
  "bumpalo",
- "itertools 0.14.0",
+ "itertools 0.10.5",
  "memchr",
  "num-bigint",
  "num-rational",

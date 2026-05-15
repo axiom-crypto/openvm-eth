@@ -2465,7 +2465,7 @@ dependencies = [
 [[package]]
 name = "openvm-kzg"
 version = "0.2.0-alpha"
-source = "git+https://github.com/axiom-crypto/openvm-kzg.git?branch=openvm-main#3dcd8f4e64e9cff2b1f6be97efdba19fb5e97e7b"
+source = "git+https://github.com/axiom-crypto/openvm-kzg.git?branch=openvm-main#892314adb476215f6fa3c230144d7ace6aecab74"
 dependencies = [
  "bls12_381",
  "hex",
