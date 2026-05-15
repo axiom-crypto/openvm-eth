@@ -49,7 +49,25 @@ pub struct BlockExecutionWitness {
 pub fn generate_stateless_input_from_witness(
     witness: BlockExecutionWitness,
 ) -> WitnessResult<StatelessExecutorInput> {
-    let ExecutionWitness { state: reth_state, codes, keys, headers } = witness.execution_witness;
+    let headers_bytes = &witness.execution_witness.headers;
+
+    let mut ancestor_headers = Vec::with_capacity(headers_bytes.len());
+    for header_bytes in headers_bytes {
+        let sealed = Header::decode_sealed(&mut &header_bytes[..])?;
+        ancestor_headers.push(sealed.into_inner());
+    }
+    // Ancestor headers start from most recent
+    ancestor_headers.reverse();
+
+    generate_stateless_input_from_witness_and_ancestor_headers(witness, ancestor_headers)
+}
+
+#[instrument(skip_all)]
+pub fn generate_stateless_input_from_witness_and_ancestor_headers(
+    witness: BlockExecutionWitness,
+    ancestor_headers: Vec<Header>,
+) -> WitnessResult<StatelessExecutorInput> {
+    let ExecutionWitness { state: reth_state, codes, keys, headers: _ } = witness.execution_witness;
 
     let ethereum_state = time!(
         "ethereum_state_resolve",
@@ -65,14 +83,6 @@ pub fn generate_stateless_input_from_witness(
     };
 
     let parent_state_bytes = ethereum_state.encode_to_state_bytes();
-    let mut ancestor_headers = Vec::with_capacity(headers.len());
-    for header_bytes in headers {
-        let sealed = Header::decode_sealed(&mut &header_bytes[..])?;
-        ancestor_headers.push(sealed.into_inner());
-    }
-    // Ancestor headers start from most recent
-    ancestor_headers.reverse();
-
     Ok(StatelessExecutorInput {
         current_block: witness.current_block,
         ancestor_headers,
