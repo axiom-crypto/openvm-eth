@@ -22,7 +22,9 @@ clap_builder = "4.5.34"
 bincode = { workspace = true, features = ["std"] }
 bitcode.workspace = true
 hex = "0.4.3"
+regex = "1"
 serde_json.workspace = true
+serde.workspace = true
 eyre.workspace = true
 tokio.workspace = true
 

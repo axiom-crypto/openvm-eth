@@ -101,6 +101,12 @@ PROFILE_OVERRIDE=""
 BLOCK_NUMBER_OVERRIDE=""
 USE_CUDA=false
 CUDA_REASON=""
+SKIP_COMPARISON=true
+FIXTURES_PATH=""
+APP_PK_PATH=""
+AGG_PK_PATH=""
+HALO_PK_PATH=""
+RUN_PARTS=""
 
 while [[ $# -gt 0 ]]; do
     case $1 in
@@ -123,6 +129,34 @@ while [[ $# -gt 0 ]]; do
             ;;
         --preimage-cache-nibbles)
             PREIMAGE_CACHE_NIBBLES="$2"
+            shift 2
+            ;;
+        --skip-comparison)
+            SKIP_COMPARISON=true
+            shift
+            ;;
+        --no-skip-comparison)
+            SKIP_COMPARISON=false
+            shift
+            ;;
+        --fixtures-path)
+            FIXTURES_PATH="$2"
+            shift 2
+            ;;
+        --app-pk-path)
+            APP_PK_PATH="$2"
+            shift 2
+            ;;
+        --agg-pk-path)
+            AGG_PK_PATH="$2"
+            shift 2
+            ;;
+        --halo-pk-path)
+            HALO_PK_PATH="$2"
+            shift 2
+            ;;
+        --run-parts)
+            RUN_PARTS="$2"
             shift 2
             ;;
         *)
@@ -187,7 +221,7 @@ VPMM_PAGES=$((12 * $MAX_SEGMENT_LENGTH/ $VPMM_PAGE_SIZE))
 if [ "$USE_CUDA" = "true" ]; then
     FEATURES="$FEATURES,cuda"
 fi
-if [ "$MODE" = "prove-evm" ]; then
+if [ "$MODE" = "prove-evm" ] || [ "$MODE" = "generate-fixtures-evm" ]; then
     FEATURES="$FEATURES,evm-verify"
 fi
 
@@ -217,6 +251,27 @@ else
     TARGET_DIR="$PROFILE"
 fi
 
+EXTRA_ARGS=()
+if [ "$SKIP_COMPARISON" = "true" ]; then
+    EXTRA_ARGS+=(--skip-comparison)
+fi
+if [ -n "$FIXTURES_PATH" ]; then
+    mkdir -p "$FIXTURES_PATH"
+    EXTRA_ARGS+=(--fixtures-path "$FIXTURES_PATH")
+fi
+if [ -n "$APP_PK_PATH" ]; then
+    EXTRA_ARGS+=(--app-pk-path "$APP_PK_PATH")
+fi
+if [ -n "$AGG_PK_PATH" ]; then
+    EXTRA_ARGS+=(--agg-pk-path "$AGG_PK_PATH")
+fi
+if [ -n "$HALO_PK_PATH" ]; then
+    EXTRA_ARGS+=(--halo-pk-path "$HALO_PK_PATH")
+fi
+if [ -n "$RUN_PARTS" ]; then
+    EXTRA_ARGS+=(--run-parts "$RUN_PARTS")
+fi
+
 RUST_LOG="info,p3_=warn" OUTPUT_PATH="metrics.json" VPMM_PAGES=$VPMM_PAGES VPMM_PAGE_SIZE=$VPMM_PAGE_SIZE ./target/$TARGET_DIR/$BIN_NAME \
 --kzg-params-dir $PARAMS_DIR \
 --mode $MODE \
@@ -231,4 +286,6 @@ RUST_LOG="info,p3_=warn" OUTPUT_PATH="metrics.json" VPMM_PAGES=$VPMM_PAGES VPMM_
 --max-segment-length $MAX_SEGMENT_LENGTH \
 --segment-max-cells $SEGMENT_MAX_CELLS \
 --num-children-leaf 1 \
---num-children-internal 3
+--num-children-internal 3 \
+"${EXTRA_ARGS[@]}"
+

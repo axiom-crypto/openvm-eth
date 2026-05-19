@@ -18,6 +18,8 @@ use openvm_stateless_executor::{
 };
 
 use openvm_rpc_proxy::{RpcExecutor, DEFAULT_PREIMAGE_CACHE_NIBBLES};
+#[cfg(feature = "evm-verify")]
+use openvm_sdk::keygen::Halo2ProvingKey;
 use openvm_sdk::{
     config::{AppConfig, SdkVmBuilder, SdkVmConfig},
     fs::read_object_from_file,
@@ -28,11 +30,14 @@ use openvm_sdk::{
 };
 use openvm_stark_sdk::engine::StarkFriEngine;
 use openvm_transpiler::{elf::Elf, openvm_platform::memory::MEM_SIZE};
+use regex::Regex;
 pub use reth_ethereum_primitives as reth_primitives;
 use serde_json::json;
 use std::{fs, path::PathBuf};
 use tracing::{info, info_span};
 
+#[cfg(feature = "evm-verify")]
+use serde::{Deserialize, Serialize};
 mod cli;
 
 use cli::ProviderArgs;
@@ -57,6 +62,9 @@ pub enum BenchMode {
     MakeInput,
     /// Generate fixtures file for futher benchmarking.
     GenerateFixtures,
+    /// Generate fixtures (app/root proof + app/agg/halo proving keys) for EVM benchmarking.
+    #[cfg(feature = "evm-verify")]
+    GenerateFixturesEvm,
 }
 
 impl std::fmt::Display for BenchMode {
@@ -71,6 +79,8 @@ impl std::fmt::Display for BenchMode {
             Self::ProveEvm => write!(f, "prove_evm"),
             Self::MakeInput => write!(f, "make_input"),
             Self::GenerateFixtures => write!(f, "generate_fixtures"),
+            #[cfg(feature = "evm-verify")]
+            Self::GenerateFixturesEvm => write!(f, "generate_fixtures_evm"),
         }
     }
 }
@@ -92,6 +102,12 @@ pub struct HostArgs {
     /// created from RPC data if it doesn't already exist.
     #[clap(long)]
     cache_dir: Option<PathBuf>,
+
+    /// Regex of cached part names to recompute (bypassing the cache). Matching parts are still
+    /// written back to the cache after they're recomputed.
+    #[clap(long, value_parser = Regex::new)]
+    run_parts: Option<Regex>,
+
     /// The path to the CSV file containing the execution data.
     #[clap(long, default_value = "report.csv")]
     report_path: PathBuf,
@@ -122,6 +138,10 @@ pub struct HostArgs {
     /// If specified, loads the agg proving key from this path.
     #[arg(long)]
     pub agg_pk_path: Option<PathBuf>,
+
+    /// If specified, loads the halo2 proving key from this path.
+    #[arg(long)]
+    pub halo_pk_path: Option<PathBuf>,
 
     #[arg(long, default_value_t = false)]
     pub skip_comparison: bool,
@@ -265,6 +285,11 @@ pub async fn run_reth_benchmark(args: HostArgs, openvm_client_eth_elf: &[u8]) ->
         sdk.set_app_pk(app_pk).map_err(|_| eyre::eyre!("failed to set app pk"))?;
         sdk.set_agg_pk(agg_pk).map_err(|_| eyre::eyre!("failed to set agg pk"))?;
     }
+    #[cfg(feature = "evm-verify")]
+    if let Some(halo_pk_path) = args.halo_pk_path.take() {
+        let halo_pk: Halo2ProvingKey = read_object_from_file(halo_pk_path)?;
+        sdk.set_halo2_pk(halo_pk).map_err(|_| eyre::eyre!("failed to set halo pk"))?;
+    }
 
     let elf = Elf::decode(openvm_client_eth_elf, MEM_SIZE as u32)?;
     let exe = sdk.convert_to_exe(elf.clone())?;
@@ -359,8 +384,28 @@ pub async fn run_reth_benchmark(args: HostArgs, openvm_client_eth_elf: &[u8]) ->
                             "halo2_wrapper_k: {}",
                             halo2_pk.wrapper.pinning.metadata.config_params.k
                         );
-                        let proof = prover.prove_evm(stdin)?;
-                        let block_hash = &proof.user_public_values;
+
+                        let app_proof = load_or_run(
+                            args.fixtures_path.as_ref(),
+                            args.run_parts.as_ref(),
+                            "app_proof",
+                            || prover.stark_prover.app_prover.prove(stdin),
+                        )?;
+
+                        let root_proof = load_or_run(
+                            args.fixtures_path.as_ref(),
+                            args.run_parts.as_ref(),
+                            "root_proof",
+                            || prover.stark_prover.agg_prover.generate_root_proof(app_proof),
+                        )?;
+
+                        let evm_proof = load_or_run::<_, eyre::Report, _>(
+                            args.fixtures_path.as_ref(),
+                            args.run_parts.as_ref(),
+                            "evm_proof",
+                            || Ok(prover.halo2_prover.prove_for_evm(&root_proof)),
+                        )?;
+                        let block_hash = &evm_proof.user_public_values;
                         println!("block_hash (prove_evm): {}", ToHexExt::encode_hex(block_hash));
                     }
                     BenchMode::GenerateFixtures => {
@@ -385,6 +430,35 @@ pub async fn run_reth_benchmark(args: HostArgs, openvm_client_eth_elf: &[u8]) ->
                         agg_pk_path.push("agg_pk.bitcode");
                         fs::write(agg_pk_path, bitcode::serialize(sdk.agg_pk())?)?;
                     }
+                    #[cfg(feature = "evm-verify")]
+                    BenchMode::GenerateFixturesEvm => {
+                        let mut prover = sdk.evm_prover(elf)?.with_program_name(program_name);
+                        let app_proof = prover.stark_prover.app_prover.prove(stdin)?;
+                        let fixture_path = args.fixtures_path.unwrap();
+
+                        let mut app_proof_path = fixture_path.clone();
+                        app_proof_path.push("app_proof.bitcode");
+                        fs::write(app_proof_path, bitcode::serialize(&app_proof)?)?;
+
+                        let root_proof =
+                            prover.stark_prover.agg_prover.generate_root_proof(app_proof)?;
+
+                        let mut root_proof_path = fixture_path.clone();
+                        root_proof_path.push("root_proof.bitcode");
+                        fs::write(root_proof_path, bitcode::serialize(&root_proof)?)?;
+
+                        let mut app_pk_path = fixture_path.clone();
+                        app_pk_path.push("app_pk.bitcode");
+                        fs::write(app_pk_path, bitcode::serialize(sdk.app_pk())?)?;
+
+                        let mut agg_pk_path = fixture_path.clone();
+                        agg_pk_path.push("agg_pk.bitcode");
+                        fs::write(agg_pk_path, bitcode::serialize(sdk.agg_pk())?)?;
+
+                        let mut halo_pk_path = fixture_path.clone();
+                        halo_pk_path.push("halo_pk.bitcode");
+                        fs::write(halo_pk_path, bitcode::serialize(sdk.halo2_pk())?)?;
+                    }
                     _ => {
                         // This case is handled earlier and should not reach here
                         unreachable!();
@@ -396,6 +470,60 @@ pub async fn run_reth_benchmark(args: HostArgs, openvm_client_eth_elf: &[u8]) ->
         )
     })?;
     Ok(())
+}
+
+/// Load a `bitcode`-serialized object named `{name}.bitcode` from `fixtures_path`, falling back
+/// to `run_fn` if loading is skipped or fails. On a successful run the result is written back to
+/// the fixture so subsequent runs can skip the step. Loading is skipped (with a logged reason) if
+/// `fixtures_path` is `None`, the file is missing, the `run_parts` regex matches `name`, or
+/// deserialization fails.
+#[cfg(feature = "evm-verify")]
+fn load_or_run<T, E, F>(
+    fixtures_path: Option<&PathBuf>,
+    run_parts: Option<&Regex>,
+    name: &str,
+    run_fn: F,
+) -> eyre::Result<T>
+where
+    T: Serialize + for<'de> Deserialize<'de>,
+    E: Into<eyre::Report>,
+    F: FnOnce() -> Result<T, E>,
+{
+    let file_path = fixtures_path.map(|p| p.join(format!("{name}.bitcode")));
+
+    let skip_reason: Option<String> = if fixtures_path.is_none() {
+        Some("fixtures_path is not set".to_string())
+    } else if run_parts.is_some_and(|re| re.is_match(name)) {
+        Some(format!("run_parts regex matches '{name}'"))
+    } else {
+        let p = file_path.as_ref().unwrap();
+        (!p.exists()).then(|| format!("{} does not exist", p.display()))
+    };
+
+    if skip_reason.is_none() {
+        let p = file_path.as_ref().unwrap();
+        let load_result = std::fs::read(p)
+            .map_err(eyre::Report::from)
+            .and_then(|bytes| bitcode::deserialize::<T>(&bytes).map_err(eyre::Report::from));
+        match load_result {
+            Ok(loaded) => {
+                info!("{name}: loading from cache at {}", p.display());
+                return Ok(loaded);
+            }
+            Err(err) => {
+                info!("{name}: failed to load from {} ({err}), running instead", p.display());
+            }
+        }
+    } else if let Some(reason) = skip_reason {
+        info!("{name}: running, reason: {reason}");
+    }
+
+    let result = run_fn().map_err(Into::into)?;
+    if let Some(p) = file_path.as_ref() {
+        std::fs::write(p, bitcode::serialize(&result)?)?;
+        info!("{name}: wrote to {}", p.display());
+    }
+    Ok(result)
 }
 
 fn try_load_input_from_cache(
