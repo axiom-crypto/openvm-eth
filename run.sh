@@ -188,12 +188,14 @@ mkdir -p rpc-cache
 source .env
 
 cd "$WORKDIR/bin/stateless-guest"
-OPENVM_RUST_TOOLCHAIN=nightly-2026-01-01 cargo openvm build
-mkdir -p ../reth-benchmark/elf
 SRC="target/riscv32im-risc0-zkvm-elf/release/openvm-stateless-guest"
 DEST="../reth-benchmark/elf/openvm-stateless-guest"
 
-if [ ! -f "$DEST" ] || ! cmp -s "$SRC" "$DEST"; then
+if [ -f "$DEST" ]; then
+    echo "Stateless guest ELF already exists at $DEST, skipping build."
+else
+    OPENVM_RUST_TOOLCHAIN=nightly-2026-01-01 cargo openvm build
+    mkdir -p ../reth-benchmark/elf
     cp "$SRC" "$DEST"
 fi
 cd "$WORKDIR"

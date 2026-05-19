@@ -261,17 +261,22 @@ pub async fn run_reth_benchmark(args: HostArgs, openvm_client_eth_elf: &[u8]) ->
     println!("CUDA Backend Enabled");
 
     let vm_config = reth_vm_config(app_log_blowup);
+    println!("made vm_config");
     let app_config = args.benchmark.app_config(vm_config.clone());
+    println!("made app config");
     let sdk = Sdk::new(app_config.clone())?
         .with_agg_config(args.benchmark.agg_config())
         .with_agg_tree_config(args.benchmark.agg_tree_config);
+    println!("made sdk");
 
     if args.app_pk_path.is_some() != args.agg_pk_path.is_some() {
         eyre::bail!("app_pk_path and agg_pk_path must be provided together");
     }
     if let Some(app_pk_path) = args.app_pk_path {
+        println!("app_pk: loading from cache at {}", app_pk_path.display());
         let app_pk: AppProvingKey<SdkVmConfig> = read_object_from_file(app_pk_path)?;
         let agg_pk_path = args.agg_pk_path.unwrap();
+        println!("agg_pk: loading from cache at {}", agg_pk_path.display());
         let agg_pk: AggProvingKey = read_object_from_file(agg_pk_path)?;
         let vm_config_loaded = app_pk.app_vm_pk.vm_config.clone();
         let vm_config_json =
@@ -284,9 +289,12 @@ pub async fn run_reth_benchmark(args: HostArgs, openvm_client_eth_elf: &[u8]) ->
         );
         sdk.set_app_pk(app_pk).map_err(|_| eyre::eyre!("failed to set app pk"))?;
         sdk.set_agg_pk(agg_pk).map_err(|_| eyre::eyre!("failed to set agg pk"))?;
+    } else {
+        println!("not loading app_pk");
     }
     #[cfg(feature = "evm-verify")]
     if let Some(halo_pk_path) = args.halo_pk_path.take() {
+        println!("halo_pk: loading from cache at {}", halo_pk_path.display());
         let halo_pk: Halo2ProvingKey = read_object_from_file(halo_pk_path)?;
         sdk.set_halo2_pk(halo_pk).map_err(|_| eyre::eyre!("failed to set halo pk"))?;
     }
@@ -489,6 +497,8 @@ where
     E: Into<eyre::Report>,
     F: FnOnce() -> Result<T, E>,
 {
+    let f = || {
+
     let file_path = fixtures_path.map(|p| p.join(format!("{name}.bitcode")));
 
     let skip_reason: Option<String> = if fixtures_path.is_none() {
@@ -507,23 +517,30 @@ where
             .and_then(|bytes| bitcode::deserialize::<T>(&bytes).map_err(eyre::Report::from));
         match load_result {
             Ok(loaded) => {
-                info!("{name}: loading from cache at {}", p.display());
+                println!("{name}: loading from cache at {}", p.display());
                 return Ok(loaded);
             }
             Err(err) => {
-                info!("{name}: failed to load from {} ({err}), running instead", p.display());
+                println!("{name}: failed to load from {} ({err}), running instead", p.display());
             }
         }
     } else if let Some(reason) = skip_reason {
-        info!("{name}: running, reason: {reason}");
+        println!("{name}: running, reason: {reason}");
     }
 
     let result = run_fn().map_err(Into::into)?;
     if let Some(p) = file_path.as_ref() {
         std::fs::write(p, bitcode::serialize(&result)?)?;
-        info!("{name}: wrote to {}", p.display());
+        println!("{name}: wrote to {}", p.display());
     }
     Ok(result)
+    };
+
+    let t0 = std::time::Instant::now();
+    let res = f();
+    println!("{name} took {:.3}", t0.elapsed().as_secs_f64());
+    
+    res
 }
 
 fn try_load_input_from_cache(
