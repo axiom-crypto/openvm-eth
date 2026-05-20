@@ -50,7 +50,7 @@ use powdr_openvm::PowdrSdkCpu;
 #[cfg(feature = "cuda")]
 use powdr_openvm::PowdrSdkGpu;
 use powdr_openvm::{
-    default_powdr_openvm_config, extraction_utils::OriginalVmConfig, BabyBearOpenVmApcAdapter,
+    default_powdr_openvm_configs, extraction_utils::OriginalVmConfig, BabyBearOpenVmApcAdapter,
     CompiledProgram, OriginalCompiledProgram, PowdrExecutionProfileSdkCpu, Prog,
 };
 use powdr_openvm_riscv::{ExtendedVmConfig, RiscvISA};
@@ -410,13 +410,13 @@ pub async fn precompute_prover_data(
 
     let pipeline = StagedPipeline::new(original_program, Some(args.artifacts_dir.clone()));
 
-    // Cache keys. The generate-stage key intentionally omits --apc / --apc-skip
-    // so `--pgo-type cell` sweeps reuse the candidate ranking; select/setup add
-    // them back.
-    let generate_key =
-        format!("v1|gen|pgo={pgo_type:?}|blocks={pgo_blocks:?}|chain={CHAIN_ID_ETH_MAINNET}");
-    let select_key = format!("v1|sel|gen={generate_key}|apc={}|skip={}", args.apc, args.apc_skip);
-    let setup_key = format!("v1|set|sel={select_key}");
+    // Split configs land in `StagedPipeline`'s own hash. The only thing the
+    // library can't see is what's hidden in the closures (the PGO stdin
+    // bytes); we fingerprint those by their deterministic identifiers.
+    // (`gen` is a reserved keyword in edition 2024 — hence `gen_cfg`.)
+    let (gen_cfg, select) = default_powdr_openvm_configs(args.apc as u64, args.apc_skip as u64);
+    let gen_cfg = gen_cfg.with_select_defaults(pgo_type, select);
+    let input_fp = (CHAIN_ID_ETH_MAINNET, pgo_blocks.as_slice());
 
     tracing::info!(
         "precompute: compiling {} autoprecompiles (pgo={pgo_type:?}, artifacts_dir={})",
@@ -424,22 +424,16 @@ pub async fn precompute_prover_data(
         args.artifacts_dir.display()
     );
 
-    // One PowdrConfig for all three stages — the apc_candidates default is
-    // applied inside `generate_apcs` from `autoprecompiles + apc_skip`. The
-    // generate cache key (built by hand above) intentionally omits these
-    // values so a `--apc N` sweep under `--pgo-type cell` still reuses the
-    // generate-stage blob even though `powdr_config.autoprecompiles` differs.
-    let powdr_config = default_powdr_openvm_config(args.apc as u64, args.apc_skip as u64);
     let pgo_stdins_ref = &pgo_stdins;
     let app_config_for_closure = app_config.clone();
 
-    let program = pipeline.setup(&setup_key, &powdr_config, |p| {
-        p.select_apcs(&select_key, &powdr_config, || {
+    let program = pipeline.setup(&gen_cfg, select, &input_fp, |p| {
+        p.select_apcs(&gen_cfg, select, &input_fp, || {
             p.generate_apcs(
-                &generate_key,
-                &powdr_config,
+                &gen_cfg,
                 pgo_type,
                 None, // max_columns
+                &input_fp,
                 |guest| {
                     let prog = Prog::from(&guest.exe.program);
                     let exec_sdk = PowdrExecutionProfileSdkCpu::<RiscvISA>::new(
