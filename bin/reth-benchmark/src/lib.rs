@@ -43,8 +43,8 @@ use openvm_verify_stark_host::{
     vk::{write_vk_to_file, VmStarkVerifyingKey},
 };
 use powdr_autoprecompiles::{
-    empirical_constraints::EmpiricalConstraints, execution_profile::execution_profile, PgoType,
-    SelectConfig,
+    empirical_constraints::EmpiricalConstraints, execution_profile::execution_profile, PgoConfig,
+    PgoType, SelectConfig,
 };
 #[cfg(not(feature = "cuda"))]
 use powdr_openvm::PowdrSdkCpu;
@@ -411,13 +411,15 @@ pub async fn precompute_prover_data(
 
     let pipeline = StagedPipeline::new(original_program, Some(args.artifacts_dir.clone()));
 
-    // Split configs land in `StagedPipeline`'s own hash. The only thing the
-    // library can't see is what's hidden in the closures (the PGO stdin
-    // bytes); we fingerprint those by their deterministic identifiers.
+    // Build `PgoConfig.inputs` as serialized stdins so the make_pgo_profile
+    // closure can be a pure function of `(guest, inputs)` — and so the
+    // staged cache key sees them.
     let generate = default_generate_config();
     let select = SelectConfig::new(args.apc as u64, args.apc_skip as u64);
     let generate = generate.with_select_defaults(pgo_type, select);
-    let input_fp = (CHAIN_ID_ETH_MAINNET, pgo_blocks.as_slice());
+    let pgo_inputs = bincode::serde::encode_to_vec(&pgo_stdins, bincode::config::standard())
+        .expect("serialize pgo_stdins for PgoConfig::inputs");
+    let pgo_config = PgoConfig::new(pgo_type, None /* max_columns */, pgo_inputs);
 
     tracing::info!(
         "precompute: compiling {} autoprecompiles (pgo={pgo_type:?}, artifacts_dir={})",
@@ -425,30 +427,32 @@ pub async fn precompute_prover_data(
         args.artifacts_dir.display()
     );
 
-    let pgo_stdins_ref = &pgo_stdins;
     let app_config_for_closure = app_config.clone();
 
-    let program = pipeline.setup(&generate, select, &input_fp, |p| {
-        p.select_apcs(&generate, select, &input_fp, || {
+    let program = pipeline.setup(&generate, &pgo_config, select, |p| {
+        p.select_apcs(&generate, &pgo_config, select, || {
             p.generate_apcs(
                 &generate,
-                pgo_type,
-                None, // max_columns
-                &input_fp,
-                |guest| {
+                &pgo_config,
+                move |guest, inputs| {
+                    let (pgo_stdins, _): (Vec<StdIn>, usize) =
+                        bincode::serde::decode_from_slice(inputs, bincode::config::standard())
+                            .expect("deserialize pgo_stdins from PgoConfig::inputs");
                     let prog = Prog::from(&guest.exe.program);
                     let exec_sdk = PowdrExecutionProfileSdkCpu::<RiscvISA>::new(
-                        app_config_for_closure.clone(),
+                        app_config_for_closure,
                         AggregationSystemParams::default(),
                     )
                     .unwrap();
                     execution_profile::<BabyBearOpenVmApcAdapter<'_, RiscvISA>>(&prog, || {
-                        for stdin in pgo_stdins_ref {
+                        for stdin in &pgo_stdins {
                             exec_sdk.execute_interpreted(guest.exe.clone(), stdin.clone()).unwrap();
                         }
                     })
                 },
-                EmpiricalConstraints::default,
+                // openvm-eth doesn't use optimistic precompiles — empirical
+                // constraints are always default.
+                |_guest, _inputs| EmpiricalConstraints::default(),
             )
         })
     });
