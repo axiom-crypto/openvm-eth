@@ -44,13 +44,14 @@ use openvm_verify_stark_host::{
 };
 use powdr_autoprecompiles::{
     empirical_constraints::EmpiricalConstraints, execution_profile::execution_profile, PgoType,
+    SelectConfig,
 };
 #[cfg(not(feature = "cuda"))]
 use powdr_openvm::PowdrSdkCpu;
 #[cfg(feature = "cuda")]
 use powdr_openvm::PowdrSdkGpu;
 use powdr_openvm::{
-    default_powdr_openvm_configs, extraction_utils::OriginalVmConfig, BabyBearOpenVmApcAdapter,
+    default_generate_config, extraction_utils::OriginalVmConfig, BabyBearOpenVmApcAdapter,
     CompiledProgram, OriginalCompiledProgram, PowdrExecutionProfileSdkCpu, Prog,
 };
 use powdr_openvm_riscv::{ExtendedVmConfig, RiscvISA};
@@ -413,7 +414,8 @@ pub async fn precompute_prover_data(
     // Split configs land in `StagedPipeline`'s own hash. The only thing the
     // library can't see is what's hidden in the closures (the PGO stdin
     // bytes); we fingerprint those by their deterministic identifiers.
-    let (generate, select) = default_powdr_openvm_configs(args.apc as u64, args.apc_skip as u64);
+    let generate = default_generate_config();
+    let select = SelectConfig::new(args.apc as u64, args.apc_skip as u64);
     let generate = generate.with_select_defaults(pgo_type, select);
     let input_fp = (CHAIN_ID_ETH_MAINNET, pgo_blocks.as_slice());
 
