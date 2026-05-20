@@ -428,34 +428,37 @@ pub async fn precompute_prover_data(
     );
 
     let app_config_for_closure = app_config.clone();
-
-    let program = pipeline.setup(&generate, &pgo_config, select, |p| {
-        p.select_apcs(&generate, &pgo_config, select, || {
-            p.generate_apcs(
-                &generate,
-                &pgo_config,
-                move |guest, inputs| {
-                    let (pgo_stdins, _): (Vec<StdIn>, usize) =
-                        bincode::serde::decode_from_slice(inputs, bincode::config::standard())
-                            .expect("deserialize pgo_stdins from PgoConfig::inputs");
-                    let prog = Prog::from(&guest.exe.program);
-                    let exec_sdk = PowdrExecutionProfileSdkCpu::<RiscvISA>::new(
-                        app_config_for_closure,
-                        AggregationSystemParams::default(),
-                    )
-                    .unwrap();
-                    execution_profile::<BabyBearOpenVmApcAdapter<'_, RiscvISA>>(&prog, || {
-                        for stdin in &pgo_stdins {
-                            exec_sdk.execute_interpreted(guest.exe.clone(), stdin.clone()).unwrap();
-                        }
-                    })
-                },
-                // openvm-eth doesn't use optimistic precompiles — empirical
-                // constraints are always default.
-                |_guest, _inputs| EmpiricalConstraints::default(),
-            )
+    let make_pgo_profile = move |guest: &OriginalCompiledProgram<'static, RiscvISA>,
+                                 inputs: &[u8]| {
+        let (pgo_stdins, _): (Vec<StdIn>, usize) =
+            bincode::serde::decode_from_slice(inputs, bincode::config::standard())
+                .expect("deserialize pgo_stdins from PgoConfig::inputs");
+        let prog = Prog::from(&guest.exe.program);
+        let exec_sdk = PowdrExecutionProfileSdkCpu::<RiscvISA>::new(
+            app_config_for_closure,
+            AggregationSystemParams::default(),
+        )
+        .unwrap();
+        execution_profile::<BabyBearOpenVmApcAdapter<'_, RiscvISA>>(&prog, || {
+            for stdin in &pgo_stdins {
+                exec_sdk.execute_interpreted(guest.exe.clone(), stdin.clone()).unwrap();
+            }
         })
-    });
+    };
+    // openvm-eth doesn't use optimistic precompiles — empirical constraints
+    // are always default.
+    let make_empirical_constraints =
+        |_guest: &OriginalCompiledProgram<'static, RiscvISA>,
+         _generate: &powdr_autoprecompiles::GenerateConfig,
+         _inputs: &[u8]| EmpiricalConstraints::default();
+
+    let program = pipeline.setup(
+        &generate,
+        &pgo_config,
+        select,
+        make_pgo_profile,
+        make_empirical_constraints,
+    );
 
     Ok(PrecomputedProverData { program })
 }
