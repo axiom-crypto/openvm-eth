@@ -413,9 +413,8 @@ pub async fn precompute_prover_data(
     // Split configs land in `StagedPipeline`'s own hash. The only thing the
     // library can't see is what's hidden in the closures (the PGO stdin
     // bytes); we fingerprint those by their deterministic identifiers.
-    // (`gen` is a reserved keyword in edition 2024 — hence `gen_cfg`.)
-    let (gen_cfg, select) = default_powdr_openvm_configs(args.apc as u64, args.apc_skip as u64);
-    let gen_cfg = gen_cfg.with_select_defaults(pgo_type, select);
+    let (generate, select) = default_powdr_openvm_configs(args.apc as u64, args.apc_skip as u64);
+    let generate = generate.with_select_defaults(pgo_type, select);
     let input_fp = (CHAIN_ID_ETH_MAINNET, pgo_blocks.as_slice());
 
     tracing::info!(
@@ -427,10 +426,10 @@ pub async fn precompute_prover_data(
     let pgo_stdins_ref = &pgo_stdins;
     let app_config_for_closure = app_config.clone();
 
-    let program = pipeline.setup(&gen_cfg, select, &input_fp, |p| {
-        p.select_apcs(&gen_cfg, select, &input_fp, || {
+    let program = pipeline.setup(&generate, select, &input_fp, |p| {
+        p.select_apcs(&generate, select, &input_fp, || {
             p.generate_apcs(
-                &gen_cfg,
+                &generate,
                 pgo_type,
                 None, // max_columns
                 &input_fp,
