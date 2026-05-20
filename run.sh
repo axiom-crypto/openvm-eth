@@ -32,13 +32,13 @@ set -e
 REPO_ROOT=$(git rev-parse --show-toplevel)
 WORKDIR=$REPO_ROOT
 
-cd "$REPO_ROOT/bin/stateless-guest"
-OPENVM_RUST_TOOLCHAIN=nightly-2026-01-18 cargo openvm build
-mkdir -p ../reth-benchmark/elf
-SRC="target/riscv32im-risc0-zkvm-elf/release/openvm-stateless-guest"
-DEST="../reth-benchmark/elf/openvm-stateless-guest"
+DEST="$REPO_ROOT/bin/reth-benchmark/elf/openvm-stateless-guest"
 
-if [ ! -f "$DEST" ] || ! cmp -s "$SRC" "$DEST"; then
+if [ ! -f "$DEST" ]; then
+    cd "$REPO_ROOT/bin/stateless-guest"
+    OPENVM_RUST_TOOLCHAIN=nightly-2026-01-18 cargo openvm build
+    mkdir -p ../reth-benchmark/elf
+    SRC="target/riscv32im-risc0-zkvm-elf/release/openvm-stateless-guest"
     cp "$SRC" "$DEST"
 fi
 
@@ -223,8 +223,15 @@ fi
 if [ "$USE_NSYS" = "true" ]; then
     FEATURES="$FEATURES,nvtx"
 fi
-if [ "$MODE" = "prove-evm" ]; then
+if [ "$MODE" = "prove-evm" ] || [ "$MODE" = "prove-root" ] || [ "$MODE" = "keygen-root" ]; then
     FEATURES="$FEATURES,evm-verify"
+fi
+
+# `keygen-root` is a shell-level alias: enable evm-verify (handled above) and pass --mode keygen
+# to the binary. The keygen branch then additionally writes <output_dir>/root.pk when evm-verify
+# is compiled in.
+if [ "$MODE" = "keygen-root" ]; then
+    MODE="keygen"
 fi
 
 arch=$(uname -m)

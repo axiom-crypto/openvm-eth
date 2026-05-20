@@ -13,7 +13,7 @@ use openvm_sdk::{
         AggregationSystemParams, AppConfig, DEFAULT_APP_LOG_BLOWUP, DEFAULT_APP_L_SKIP,
         DEFAULT_INTERNAL_LOG_BLOWUP, DEFAULT_LEAF_LOG_BLOWUP,
     },
-    fs::write_object_to_file,
+    fs::{read_object_from_file, write_object_to_file},
     Sdk, SC,
 };
 use openvm_sdk_config::{SdkVmConfig, TranspilerConfig};
@@ -25,7 +25,7 @@ use openvm_stark_sdk::{
     },
     openvm_stark_backend::{
         air_builders::symbolic::{SymbolicExpressionDag, SymbolicExpressionNode},
-        codec::Encode,
+        codec::{Decode, Encode},
         keygen::types::MultiStarkProvingKey,
         p3_field::PrimeCharacteristicRing,
     },
@@ -37,6 +37,7 @@ use openvm_transpiler::{elf::Elf, openvm_platform::memory::MEM_SIZE, FromElf};
 use openvm_verify_stark_host::{
     verify_vm_stark_proof_decoded,
     vk::{write_vk_to_file, VmStarkVerifyingKey},
+    VmStarkProof,
 };
 pub use reth_ethereum_primitives as reth_primitives;
 use tracing::{info, info_span};
@@ -61,6 +62,8 @@ pub enum BenchMode {
     ProveApp,
     /// Generate a full end-to-end STARK proof with aggregation.
     ProveStark,
+    #[cfg(feature = "evm-verify")]
+    ProveRoot,
     /// Generate a full end-to-end halo2 proof for EVM verifier.
     #[cfg(feature = "evm-verify")]
     ProveEvm,
@@ -81,6 +84,8 @@ impl std::fmt::Display for BenchMode {
             Self::ExecuteMetered => write!(f, "execute_metered"),
             Self::ProveApp => write!(f, "prove_app"),
             Self::ProveStark => write!(f, "prove_stark"),
+            #[cfg(feature = "evm-verify")]
+            Self::ProveRoot => write!(f, "prove_root"),
             #[cfg(feature = "evm-verify")]
             Self::ProveEvm => write!(f, "prove_evm"),
             Self::Keygen => write!(f, "keygen"),
@@ -194,6 +199,14 @@ pub fn reth_vm_config() -> SdkVmConfig {
 
 const VM_MAX_CONSTRAINT_DEGREE: usize = 4;
 
+fn eprint_time<R>(msg: &str, f: impl FnOnce() -> R) -> R {
+    eprint!("{msg} ... ");
+    let start = Instant::now();
+    let result = f();
+    eprintln!("done in {:.3}s", start.elapsed().as_secs_f64());
+    result
+}
+
 pub async fn run_reth_benchmark(args: HostArgs, openvm_client_eth_elf: &[u8]) -> eyre::Result<()> {
     // Initialize the environment variables.
     dotenv::dotenv().ok();
@@ -218,13 +231,6 @@ pub async fn run_reth_benchmark(args: HostArgs, openvm_client_eth_elf: &[u8]) ->
         tracing::debug!("air_idx={air_idx} | {}", air.name());
     }
 
-    if args.app_pk_path.is_some() != args.agg_pk_path.is_some() {
-        eyre::bail!("app_pk_path and agg_pk_path must be provided together");
-    }
-    if let Some(_app_pk_path) = args.app_pk_path {
-        todo!();
-    }
-
     let transpiler = vm_config.transpiler().clone();
 
     let app_params = app_params_with_100_bits_security(DEFAULT_LOG_STACKED_HEIGHT);
@@ -232,7 +238,50 @@ pub async fn run_reth_benchmark(args: HostArgs, openvm_client_eth_elf: &[u8]) ->
     // Setup: this can all be done once before receiving proof input
     let app_config = AppConfig::new(vm_config, app_params);
     let agg_params = AggregationSystemParams::default();
-    let sdk = Sdk::new(app_config, agg_params)?;
+
+    // Resolve key paths: explicit flag wins; otherwise fall back to <output_dir>/<name>.pk
+    // if the file exists. The chain agg->app and root->agg->app is enforced by the builder,
+    // so skip later stages whenever an earlier stage isn't available.
+    let app_pk_path = args.app_pk_path.clone().or_else(|| {
+        let p = args.output_dir.join("app.pk");
+        p.exists().then_some(p)
+    });
+    let agg_pk_path = args.agg_pk_path.clone().or_else(|| {
+        let p = args.output_dir.join("agg.pk");
+        p.exists().then_some(p)
+    });
+
+    #[cfg(feature = "evm-verify")]
+    let root_pk_path = args.output_dir.join("root.pk");
+
+    let mut sdk_builder = Sdk::builder();
+
+    if let Some(p) = app_pk_path {
+        let msg = format!("Loading app proving key from {}", p.display());
+        let app_pk = eprint_time(&msg, || read_object_from_file(&p))?;
+        sdk_builder = sdk_builder.app_pk(app_pk);
+    } else {
+        sdk_builder = sdk_builder.app_config(app_config);
+    }
+
+    if let Some(p) = agg_pk_path {
+        let msg = format!("Loading agg proving key from {}", p.display());
+        let agg_pk = eprint_time(&msg, || read_object_from_file(&p))?;
+        sdk_builder = sdk_builder.agg_pk(agg_pk);
+    } else {
+        sdk_builder = sdk_builder.agg_params(agg_params);
+    }
+
+    #[cfg(feature = "evm-verify")]
+    {
+        if root_pk_path.exists() {
+            let msg = format!("Loading root proving key from {}", root_pk_path.display());
+            let root_pk = eprint_time(&msg, || read_object_from_file(&root_pk_path))?;
+            sdk_builder = sdk_builder.root_pk(root_pk);
+        }
+    }
+
+    let sdk = sdk_builder.build()?;
 
     if matches!(args.mode, BenchMode::DumpAirStats) {
         dump_air_stats(&sdk, &args.air_stats_path)?;
@@ -250,7 +299,7 @@ pub async fn run_reth_benchmark(args: HostArgs, openvm_client_eth_elf: &[u8]) ->
         };
         let vk_path = PathBuf::from("reth.vm.vk");
         write_vk_to_file(&vk_path, &vk)?;
-        info!("VM verifying key written to {}", vk_path.display());
+        eprintln!("VM verifying key written to {}", vk_path.display());
         return Ok(());
     }
 
@@ -334,7 +383,7 @@ pub async fn run_reth_benchmark(args: HostArgs, openvm_client_eth_elf: &[u8]) ->
                 fs::create_dir_all(parent)?;
             }
             fs::write(path, serde_json::to_string(&json)?)?;
-            info!("Wrote input JSON to {}", path.display());
+            eprintln!("Wrote input JSON to {}", path.display());
         } else {
             println!("{}", serde_json::to_string_pretty(&json)?);
         }
@@ -352,7 +401,7 @@ pub async fn run_reth_benchmark(args: HostArgs, openvm_client_eth_elf: &[u8]) ->
         })?;
         let elapsed = start.elapsed();
         let block_hash = header.hash_slow();
-        info!("Host execution: {:.6}s, block hash: {}", elapsed.as_secs_f64(), block_hash,);
+        eprintln!("Host execution: {:.6}s, block hash: {}", elapsed.as_secs_f64(), block_hash);
         println!("BENCH_HOST_NS={}", elapsed.as_nanos());
         println!("BENCH_BLOCK_HASH={block_hash}");
         return Ok(());
@@ -403,6 +452,42 @@ pub async fn run_reth_benchmark(args: HostArgs, openvm_client_eth_elf: &[u8]) ->
                     verify_vm_stark_proof_decoded(&vk, &proof)?;
                 }
                 #[cfg(feature = "evm-verify")]
+                BenchMode::ProveRoot => {
+                    let mut evm_prover = sdk.evm_prover_without_halo2(exe)?;
+                    evm_prover.stark_prover.app_prover.set_program_name(&program_name);
+                    fs::create_dir_all(&args.output_dir)?;
+
+                    let proof_file = args.output_dir.join("stark.bitcode");
+                    let _root_proof = if proof_file.exists() {
+                        info!("Loading cached stark proof from: {}", proof_file.display());
+                        let stark_proof_file =
+                            fs::File::open(&proof_file).expect("failed to open stark file");
+                        let mut stark_proof_reader = std::io::BufReader::new(stark_proof_file);
+
+                        let stark_proof = VmStarkProof::decode(&mut stark_proof_reader)
+                            .expect("failed stark proof deserialization");
+                        let ctx = evm_prover.root_prover.generate_proving_ctx(stark_proof).expect(
+                            "failed to generate root proving ctx from deserialized stark proof",
+                        );
+                        evm_prover.root_prover.prove_from_ctx(ctx)?
+                    } else {
+                        info!(
+                            "No cached stark proof found at: {}; generating fresh",
+                            proof_file.display()
+                        );
+                        let (root_proof, stark_proof) =
+                            evm_prover.prove_unwrapped_with_agg_proof(stdin, &[])?;
+                        info!("Writing stark proof cache to: {}", proof_file.display());
+                        let stark_proof_file =
+                            fs::File::create(&proof_file).expect("failed to create stark file");
+                        let mut stark_proof_writer = std::io::BufWriter::new(stark_proof_file);
+                        stark_proof
+                            .encode(&mut stark_proof_writer)
+                            .expect("failed to write stark proof");
+                        root_proof
+                    };
+                }
+                #[cfg(feature = "evm-verify")]
                 BenchMode::ProveEvm => {
                     let mut evm_prover = sdk.evm_prover(exe)?;
                     evm_prover.stark_prover.app_prover.set_program_name(&program_name);
@@ -425,6 +510,9 @@ pub async fn run_reth_benchmark(args: HostArgs, openvm_client_eth_elf: &[u8]) ->
                     let agg_pk_path =
                         args.agg_pk_path.unwrap_or_else(|| args.output_dir.join("agg.pk"));
 
+                    #[cfg(feature = "evm-verify")]
+                    let root_pk_path = args.output_dir.join("root.pk");
+
                     info!("Generating app proving key...");
                     let (app_pk, app_vk) = sdk.app_keygen();
 
@@ -433,6 +521,14 @@ pub async fn run_reth_benchmark(args: HostArgs, openvm_client_eth_elf: &[u8]) ->
 
                     info!("Saving app verifying key to: {}", app_vk_path.display());
                     write_object_to_file(&app_vk_path, &app_vk)?;
+
+                    #[cfg(feature = "evm-verify")]
+                    {
+                        info!("Generating root proving key...");
+                        let root_pk = sdk.root_pk();
+                        info!("Saving app root key to: {}", root_pk_path.display());
+                        write_object_to_file(&root_pk_path, &root_pk)?;
+                    }
 
                     info!("Generating aggregation proving key...");
                     let agg_pk = sdk.agg_pk();
@@ -444,6 +540,8 @@ pub async fn run_reth_benchmark(args: HostArgs, openvm_client_eth_elf: &[u8]) ->
                     info!("  App PK: {}", app_pk_path.display());
                     info!("  App VK: {}", app_vk_path.display());
                     info!("  Agg PK: {}", agg_pk_path.display());
+                    #[cfg(feature = "evm-verify")]
+                    info!("  Root PK: {}", root_pk_path.display());
                 }
                 _ => {
                     // MakeInput, ExecuteHost, GenerateVmVkey, DumpAirStats handled earlier
@@ -470,7 +568,7 @@ fn dump_air_stats(sdk: &Sdk, output_path: &PathBuf) -> eyre::Result<()> {
     let agg_pk = sdk.agg_pk();
     dump_pk_stats("agg_leaf", &agg_pk.prefix.leaf, &mut file)?;
 
-    info!("AIR statistics written to {}", output_path.display());
+    eprintln!("AIR statistics written to {}", output_path.display());
     Ok(())
 }
 
