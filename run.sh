@@ -166,12 +166,8 @@ while [[ $# -gt 0 ]]; do
             APC_SKIP="$2"
             shift 2
             ;;
-        --apc-cache-dir)
-            APC_CACHE_DIR="$2"
-            shift 2
-            ;;
-        --apc-setup-name)
-            APC_SETUP_NAME="$2"
+        --artifacts-dir)
+            ARTIFACTS_DIR="$2"
             shift 2
             ;;
         --pgo-type)
@@ -337,9 +333,11 @@ fi
 APC="${APC:-0}"
 APC_SKIP="${APC_SKIP:-0}"
 PGO_TYPE="${PGO_TYPE:-cell}"
-APC_CACHE_DIR="${APC_CACHE_DIR:-$REPO_ROOT/apc-cache}"
-APC_SETUP_NAME="${APC_SETUP_NAME:-reth-apc-${APC}}"
-mkdir -p "$APC_CACHE_DIR"
+# powdr's StagedPipeline writes `generate` / `select` / `setup` blobs under here.
+# Sweeping `--apc N` with `--pgo-type cell` reuses the `generate` blob across
+# every selection size; only `select` and `setup` are recomputed.
+ARTIFACTS_DIR="${ARTIFACTS_DIR:-$REPO_ROOT/apc-cache}"
+mkdir -p "$ARTIFACTS_DIR"
 # Default the apc-candidates dump dir so callers (CI, local users) don't have
 # to set it. The bin reads `POWDR_APC_CANDIDATES_DIR` and writes per-block
 # JSON/TXT plus a combined `apc_candidates.json` there.
@@ -349,8 +347,7 @@ BIN_ARGS="$BIN_ARGS \
 --apc $APC \
 --apc-skip $APC_SKIP \
 --pgo-type $PGO_TYPE \
---apc-cache-dir $APC_CACHE_DIR \
---apc-setup-name $APC_SETUP_NAME"
+--artifacts-dir $ARTIFACTS_DIR"
 if [[ -n ${LEAF_LOG_STACKED_HEIGHT:-} ]]; then
     BIN_ARGS="$BIN_ARGS --leaf-log-stacked-height $LEAF_LOG_STACKED_HEIGHT"
 fi

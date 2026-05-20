@@ -1,11 +1,8 @@
 #![cfg_attr(feature = "tco", allow(incomplete_features))]
 #![cfg_attr(feature = "tco", feature(explicit_tail_calls))]
-use std::{
-    fs::{self, File},
-    io::{BufReader, BufWriter, Write},
-    path::PathBuf,
-    time::Instant,
-};
+use std::{fs, io::Write, path::PathBuf, time::Instant};
+
+use powdr_openvm_riscv::StagedPipeline;
 
 use alloy_provider::RootProvider;
 use alloy_rpc_client::RpcClient;
@@ -48,15 +45,15 @@ use openvm_verify_stark_host::{
 use powdr_autoprecompiles::{
     empirical_constraints::EmpiricalConstraints, execution_profile::execution_profile, PgoType,
 };
-use powdr_openvm::{
-    default_powdr_openvm_config, extraction_utils::OriginalVmConfig, BabyBearOpenVmApcAdapter,
-    CompiledProgram, OriginalCompiledProgram, PowdrExecutionProfileSdkCpu, Prog,
-};
 #[cfg(not(feature = "cuda"))]
 use powdr_openvm::PowdrSdkCpu;
 #[cfg(feature = "cuda")]
 use powdr_openvm::PowdrSdkGpu;
-use powdr_openvm_riscv::{compile_exe, ExtendedVmConfig, PgoConfig, RiscvISA};
+use powdr_openvm::{
+    default_powdr_openvm_config, extraction_utils::OriginalVmConfig, BabyBearOpenVmApcAdapter,
+    CompiledProgram, OriginalCompiledProgram, PowdrExecutionProfileSdkCpu, Prog,
+};
+use powdr_openvm_riscv::{ExtendedVmConfig, RiscvISA};
 use powdr_openvm_riscv_hints_circuit::HintsExtension;
 use serde::{Deserialize, Serialize};
 use tracing::{info, info_span};
@@ -188,13 +185,12 @@ pub struct HostArgs {
     #[clap(long, value_delimiter = ',')]
     pub pgo_block_numbers: Vec<u64>,
 
-    /// Directory where compiled APC programs are cached.
+    /// Root for powdr's staged APC artifact cache. Setting this enables reuse
+    /// of the `generate` / `select` / `setup` stages across runs; sweeping
+    /// `--apc N` under `--pgo-type cell` will only build candidates once and
+    /// reuse them across every selection size.
     #[clap(long, default_value = "apc-cache")]
-    pub apc_cache_dir: PathBuf,
-
-    /// Cache key for the compiled APC setup (filename under `--apc-cache-dir`).
-    #[clap(long, default_value = "reth-apc")]
-    pub apc_setup_name: String,
+    pub artifacts_dir: PathBuf,
 
     /// Number of APCs to generate. `0` disables APC entirely.
     #[clap(long, default_value_t = 0)]
@@ -340,10 +336,14 @@ pub struct PrecomputedProverData {
     program: CompiledProgram<RiscvISA>,
 }
 
-/// Compile the APC-specialised program and cache the result on disk. When
-/// `args.apc == 0` this is a fast identity specialisation — no PGO, no APCs
-/// selected, and `compile_exe` returns a `SpecializedConfig` that wraps the
-/// given `vm_config` with zero autoprecompiles.
+/// Compile the APC-specialised program through powdr's [`StagedPipeline`],
+/// which transparently caches the `generate` / `select` / `setup` stages
+/// under `--artifacts-dir`. With `args.apc == 0` this is a fast identity
+/// specialisation — no PGO, zero APCs selected.
+///
+/// Stage cache keys are chosen so a sweep across `--apc N` values under
+/// `--pgo-type cell` reuses the candidate ranking: the `generate` key omits
+/// `--apc` / `--apc-skip`, while `select` and `setup` add them back.
 pub async fn precompute_prover_data(
     args: &HostArgs,
     vm_config: &ExtendedVmConfig,
@@ -352,67 +352,38 @@ pub async fn precompute_prover_data(
     // OpenVM only installs its tracing subscriber when `run_with_metric_collection`
     // is entered, so we install a local one here to surface powdr's APC compile
     // progress logs.
-    let subscriber = tracing_subscriber::FmtSubscriber::builder()
-        .with_max_level(tracing::Level::DEBUG)
-        .finish();
+    let subscriber =
+        tracing_subscriber::FmtSubscriber::builder().with_max_level(tracing::Level::DEBUG).finish();
     let _guard = tracing::subscriber::set_default(subscriber);
 
-    let cache_file_path =
-        args.apc_cache_dir.join(&args.apc_setup_name).with_extension("bin");
+    // With --apc 0, nothing to select, so force PGO off regardless of flag.
+    let pgo_type = if args.apc == 0 { PgoType::None } else { args.pgo_type };
 
-    // MessagePack (rmp-serde) instead of bincode because powdr's `CompiledProgram`
-    // pulls in dynamically-typed serde bits that bincode2 errors on
-    // (`AnyNotSupported`).
-    if let Some(setup) = File::open(&cache_file_path).ok().map(BufReader::new).and_then(|f| {
-        match rmp_serde::from_read::<_, PrecomputedProverData>(f) {
-            Ok(s) => Some(s),
-            Err(e) => {
-                tracing::warn!(
-                    "Found cached precomputed prover data but deserialisation failed: {e:?}; recomputing"
-                );
-                None
-            }
-        }
-    }) {
-        tracing::info!(
-            "Precomputed prover data for key {} found in cache",
-            args.apc_setup_name
-        );
-        return Ok(setup);
-    }
-
-    tracing::info!(
-        "Precomputed prover data for key {} not found in cache. Precomputing.",
-        args.apc_setup_name
-    );
-    println!(
-        "precompute: compiling {} autoprecompiles (pgo={:?})",
-        args.apc, args.pgo_type
-    );
-
-    // PGO is only meaningful when we'll actually select APCs. With --apc 0
-    // skip it — `compile_exe` is called with `PgoConfig::None` below either
-    // way, but this also saves us from executing the guest N times just to
-    // produce a profile nothing will consume.
-    let pgo_stdins = if args.apc == 0 {
+    let pgo_blocks: Vec<u64> = if args.apc == 0 {
         Vec::new()
     } else {
         let block_number = args
             .block_number
             .ok_or_else(|| eyre::eyre!("--block-number is required for APC compile"))?;
-        let pgo_blocks: Vec<u64> = if args.pgo_block_numbers.is_empty() {
+        if args.pgo_block_numbers.is_empty() {
             vec![block_number]
         } else {
             args.pgo_block_numbers.clone()
-        };
+        }
+    };
+
+    // Pre-fetch the PGO stdins. Cheap on warm runs because `load_stateless_input`
+    // hits the local rpc-cache; the expensive RPC path only fires on cold cache.
+    // Pre-fetching keeps the closure passed to `generate_apcs` synchronous.
+    let mut pgo_stdins: Vec<StdIn> = Vec::new();
+    if !pgo_blocks.is_empty() {
         let provider_config = args.provider.clone().into_provider().await?;
-        let mut pgo_stdins = Vec::new();
-        for block_id in pgo_blocks {
+        for block_id in &pgo_blocks {
             let pgo_input = load_stateless_input(
                 &provider_config,
                 &args.cache_dir,
                 CHAIN_ID_ETH_MAINNET,
-                block_id,
+                *block_id,
                 args.preimage_cache_nibbles,
             )
             .await?;
@@ -420,8 +391,7 @@ pub async fn precompute_prover_data(
             stdin.write(&pgo_input);
             pgo_stdins.push(stdin);
         }
-        pgo_stdins
-    };
+    }
 
     let system_params = app_params_with_100_bits_security(DEFAULT_LOG_STACKED_HEIGHT);
     let app_config = AppConfig::new(vm_config.clone(), system_params);
@@ -435,68 +405,59 @@ pub async fn precompute_prover_data(
         profile_sdk.convert_to_exe(elf)?
     };
     let elf = powdr_riscv_elf::load_elf_from_buffer(openvm_client_eth_elf);
+    let original_program =
+        OriginalCompiledProgram::new(exe, OriginalVmConfig::new(vm_config.clone()), elf);
 
-    let program = compile_apc_program(
-        OriginalCompiledProgram::new(exe, OriginalVmConfig::new(vm_config.clone()), elf),
+    let pipeline = StagedPipeline::new(original_program, Some(args.artifacts_dir.clone()));
+
+    // Cache keys. The generate-stage key intentionally omits --apc / --apc-skip
+    // so `--pgo-type cell` sweeps reuse the candidate ranking; select/setup add
+    // them back.
+    let generate_key =
+        format!("v1|gen|pgo={pgo_type:?}|blocks={pgo_blocks:?}|chain={CHAIN_ID_ETH_MAINNET}");
+    let select_key = format!("v1|sel|gen={generate_key}|apc={}|skip={}", args.apc, args.apc_skip);
+    let setup_key = format!("v1|set|sel={select_key}");
+
+    tracing::info!(
+        "precompute: compiling {} autoprecompiles (pgo={pgo_type:?}, artifacts_dir={})",
         args.apc,
-        args.apc_skip,
-        // With --apc 0, nothing to select, so force PGO off regardless of flag.
-        if args.apc == 0 { PgoType::None } else { args.pgo_type },
-        pgo_stdins,
-        app_config,
-    )?;
+        args.artifacts_dir.display()
+    );
 
-    let setup = PrecomputedProverData { program };
-    tracing::info!("Saving prover data to cache at {}", cache_file_path.display());
-    std::fs::create_dir_all(&args.apc_cache_dir)?;
-    let mut writer = BufWriter::new(File::create(&cache_file_path)?);
-    rmp_serde::encode::write(&mut writer, &setup)
-        .map_err(|e| eyre::eyre!("failed to serialise precomputed prover data: {e}"))?;
+    // Same PowdrConfig for select & setup — both need autoprecompiles/skip;
+    // generate uses a (0, 0) variant so its cache key is independent of them.
+    // The `apc_candidates` default is applied inside `generate_apcs`.
+    let setup_select_config = default_powdr_openvm_config(args.apc as u64, args.apc_skip as u64);
+    let pgo_stdins_ref = &pgo_stdins;
+    let app_config_for_closure = app_config.clone();
 
-    Ok(setup)
-}
+    let program = pipeline.setup(&setup_key, &setup_select_config, |p| {
+        p.select_apcs(&select_key, &setup_select_config, || {
+            let gen_config = default_powdr_openvm_config(0, 0);
+            p.generate_apcs(
+                &generate_key,
+                &gen_config,
+                pgo_type,
+                None, // max_columns
+                |guest| {
+                    let prog = Prog::from(&guest.exe.program);
+                    let exec_sdk = PowdrExecutionProfileSdkCpu::<RiscvISA>::new(
+                        app_config_for_closure.clone(),
+                        AggregationSystemParams::default(),
+                    )
+                    .unwrap();
+                    execution_profile::<BabyBearOpenVmApcAdapter<'_, RiscvISA>>(&prog, || {
+                        for stdin in pgo_stdins_ref {
+                            exec_sdk.execute_interpreted(guest.exe.clone(), stdin.clone()).unwrap();
+                        }
+                    })
+                },
+                EmpiricalConstraints::default,
+            )
+        })
+    });
 
-fn compile_apc_program<'a>(
-    original_program: OriginalCompiledProgram<'a, RiscvISA>,
-    apc: usize,
-    apc_skip: usize,
-    pgo_type: PgoType,
-    pgo_stdin: Vec<StdIn>,
-    app_config: AppConfig<ExtendedVmConfig>,
-) -> eyre::Result<CompiledProgram<RiscvISA>> {
-    let profile_sdk =
-        PowdrExecutionProfileSdkCpu::<RiscvISA>::new(app_config, AggregationSystemParams::default())?;
-    let program = Prog::from(&original_program.exe.program);
-
-    let execute = || {
-        for stdin in &pgo_stdin {
-            profile_sdk
-                .execute_interpreted(original_program.exe.clone(), stdin.clone())
-                .unwrap();
-        }
-    };
-
-    let pgo_config = match pgo_type {
-        PgoType::None => PgoConfig::None,
-        PgoType::Instruction => PgoConfig::Instruction(execution_profile::<
-            BabyBearOpenVmApcAdapter<'_, RiscvISA>,
-        >(&program, execute)),
-        PgoType::Cell => PgoConfig::Cell(
-            execution_profile::<BabyBearOpenVmApcAdapter<'_, RiscvISA>>(&program, execute),
-            None,
-        ),
-    };
-
-    // Uses powdr's DEFAULT_DEGREE_BOUND (identities=3, bus_interactions=2).
-    let mut powdr_config = default_powdr_openvm_config(apc as u64, apc_skip as u64);
-    if let Ok(path) = std::env::var("POWDR_APC_CANDIDATES_DIR") {
-        fs::create_dir_all(&path)?;
-        powdr_config = powdr_config.with_apc_candidates_dir(path);
-    }
-
-    let empirical_constraints = EmpiricalConstraints::default();
-    compile_exe(original_program, powdr_config, pgo_config, empirical_constraints)
-        .map_err(|e| eyre::eyre!("compile_exe failed: {e}"))
+    Ok(PrecomputedProverData { program })
 }
 
 /// Load stateless input either from bincode cache under `cache_dir` or by
@@ -519,10 +480,7 @@ async fn load_stateless_input(
         RpcClient::builder().layer(RetryBackoffLayer::new(5, 1000, 100)).http(rpc_url.clone());
     let provider = RootProvider::new(client);
     let rpc_executor = RpcExecutor::new(provider, preimage_cache_nibbles);
-    let stateless_input = rpc_executor
-        .execute(block_number)
-        .await
-        .expect("failed to execute host");
+    let stateless_input = rpc_executor.execute(block_number).await.expect("failed to execute host");
     if let Some(cache_dir) = cache_dir {
         let input_folder = cache_dir.join(format!("input/{chain_id}"));
         if !input_folder.exists() {
@@ -581,7 +539,7 @@ pub async fn run_reth_benchmark(args: HostArgs, openvm_client_eth_elf: &[u8]) ->
     let CompiledProgram { exe, vm_config: specialized_vm_config, .. } = program;
 
     if matches!(args.mode, BenchMode::Compile) {
-        info!("APC compile finished (cache key: {})", args.apc_setup_name);
+        info!("APC compile finished (artifacts_dir={})", args.artifacts_dir.display());
         return Ok(());
     }
 
