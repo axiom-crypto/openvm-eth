@@ -424,19 +424,20 @@ pub async fn precompute_prover_data(
         args.artifacts_dir.display()
     );
 
-    // Same PowdrConfig for select & setup — both need autoprecompiles/skip;
-    // generate uses a (0, 0) variant so its cache key is independent of them.
-    // The `apc_candidates` default is applied inside `generate_apcs`.
-    let setup_select_config = default_powdr_openvm_config(args.apc as u64, args.apc_skip as u64);
+    // One PowdrConfig for all three stages — the apc_candidates default is
+    // applied inside `generate_apcs` from `autoprecompiles + apc_skip`. The
+    // generate cache key (built by hand above) intentionally omits these
+    // values so a `--apc N` sweep under `--pgo-type cell` still reuses the
+    // generate-stage blob even though `powdr_config.autoprecompiles` differs.
+    let powdr_config = default_powdr_openvm_config(args.apc as u64, args.apc_skip as u64);
     let pgo_stdins_ref = &pgo_stdins;
     let app_config_for_closure = app_config.clone();
 
-    let program = pipeline.setup(&setup_key, &setup_select_config, |p| {
-        p.select_apcs(&select_key, &setup_select_config, || {
-            let gen_config = default_powdr_openvm_config(0, 0);
+    let program = pipeline.setup(&setup_key, &powdr_config, |p| {
+        p.select_apcs(&select_key, &powdr_config, || {
             p.generate_apcs(
                 &generate_key,
-                &gen_config,
+                &powdr_config,
                 pgo_type,
                 None, // max_columns
                 |guest| {
