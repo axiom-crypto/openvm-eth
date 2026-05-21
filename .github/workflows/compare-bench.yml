@@ -22,6 +22,7 @@ on:
           - execute-metered
           - prove-app
           - prove-stark
+          - prove-root
           - prove-evm
         default: prove-stark
       block_number:
