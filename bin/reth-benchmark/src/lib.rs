@@ -37,7 +37,6 @@ use openvm_transpiler::{elf::Elf, openvm_platform::memory::MEM_SIZE, FromElf};
 use openvm_verify_stark_host::{
     verify_vm_stark_proof_decoded,
     vk::{write_vk_to_file, VmStarkVerifyingKey},
-    VmStarkProof,
 };
 pub use reth_ethereum_primitives as reth_primitives;
 use tracing::{info, info_span};
@@ -464,24 +463,35 @@ pub async fn run_reth_benchmark(args: HostArgs, openvm_client_eth_elf: &[u8]) ->
                             fs::File::open(&proof_file).expect("failed to open stark file");
                         let mut stark_proof_reader = std::io::BufReader::new(stark_proof_file);
 
-                        let stark_proof = VmStarkProof::decode(&mut stark_proof_reader)
-                            .expect("failed stark proof deserialization");
-                        let ctx = evm_prover.root_prover.generate_proving_ctx(stark_proof).expect(
-                            "failed to generate root proving ctx from deserialized stark proof",
-                        );
-                        evm_prover.root_prover.prove_from_ctx(ctx)?
+                        let (stark_proof, mut internal_meta) =
+                            Decode::decode(&mut stark_proof_reader)
+                                .expect("failed stark proof deserialization");
+                        let root_proof = evm_prover
+                            .prove_unwrapped_with_stark_proof(stark_proof, &mut internal_meta)
+                            .expect(
+                                "failed to generate root proving ctx from deserialized stark proof",
+                            );
+                        root_proof
                     } else {
                         info!(
                             "No cached stark proof found at: {}; generating fresh",
                             proof_file.display()
                         );
-                        let (root_proof, stark_proof) =
-                            evm_prover.prove_unwrapped_with_agg_proof(stdin, &[])?;
+                        let (stark_proof, metadata) = evm_prover
+                            .stark_prover
+                            .prove(stdin, &[])
+                            .expect("failed to prove stark");
+                        let root_proof = evm_prover
+                            .prove_unwrapped_with_stark_proof(
+                                stark_proof.clone(),
+                                &mut metadata.clone(),
+                            )
+                            .expect("failed to prove root");
                         info!("Writing stark proof cache to: {}", proof_file.display());
                         let stark_proof_file =
                             fs::File::create(&proof_file).expect("failed to create stark file");
                         let mut stark_proof_writer = std::io::BufWriter::new(stark_proof_file);
-                        stark_proof
+                        (stark_proof, metadata)
                             .encode(&mut stark_proof_writer)
                             .expect("failed to write stark proof");
                         root_proof
