@@ -198,14 +198,6 @@ pub fn reth_vm_config() -> SdkVmConfig {
 
 const VM_MAX_CONSTRAINT_DEGREE: usize = 4;
 
-fn eprint_time<R>(msg: &str, f: impl FnOnce() -> R) -> R {
-    eprint!("{msg} ... ");
-    let start = Instant::now();
-    let result = f();
-    eprintln!("done in {:.3}s", start.elapsed().as_secs_f64());
-    result
-}
-
 pub async fn run_reth_benchmark(args: HostArgs, openvm_client_eth_elf: &[u8]) -> eyre::Result<()> {
     // Initialize the environment variables.
     dotenv::dotenv().ok();
@@ -257,7 +249,7 @@ pub async fn run_reth_benchmark(args: HostArgs, openvm_client_eth_elf: &[u8]) ->
 
     if let Some(p) = app_pk_path {
         let msg = format!("Loading app proving key from {}", p.display());
-        let app_pk = eprint_time(&msg, || read_object_from_file(&p))?;
+        let app_pk = read_object_from_file(&p)?;
         sdk_builder = sdk_builder.app_pk(app_pk);
     } else {
         sdk_builder = sdk_builder.app_config(app_config);
@@ -265,7 +257,7 @@ pub async fn run_reth_benchmark(args: HostArgs, openvm_client_eth_elf: &[u8]) ->
 
     if let Some(p) = agg_pk_path {
         let msg = format!("Loading agg proving key from {}", p.display());
-        let agg_pk = eprint_time(&msg, || read_object_from_file(&p))?;
+        let agg_pk = read_object_from_file(&p)?;
         sdk_builder = sdk_builder.agg_pk(agg_pk);
     } else {
         sdk_builder = sdk_builder.agg_params(agg_params);
@@ -275,7 +267,7 @@ pub async fn run_reth_benchmark(args: HostArgs, openvm_client_eth_elf: &[u8]) ->
     {
         if root_pk_path.exists() {
             let msg = format!("Loading root proving key from {}", root_pk_path.display());
-            let root_pk = eprint_time(&msg, || read_object_from_file(&root_pk_path))?;
+            let root_pk = read_object_from_file(&root_pk_path)?;
             sdk_builder = sdk_builder.root_pk(root_pk);
         }
     }
@@ -298,7 +290,7 @@ pub async fn run_reth_benchmark(args: HostArgs, openvm_client_eth_elf: &[u8]) ->
         };
         let vk_path = PathBuf::from("reth.vm.vk");
         write_vk_to_file(&vk_path, &vk)?;
-        eprintln!("VM verifying key written to {}", vk_path.display());
+        info!("VM verifying key written to {}", vk_path.display());
         return Ok(());
     }
 
@@ -382,7 +374,7 @@ pub async fn run_reth_benchmark(args: HostArgs, openvm_client_eth_elf: &[u8]) ->
                 fs::create_dir_all(parent)?;
             }
             fs::write(path, serde_json::to_string(&json)?)?;
-            eprintln!("Wrote input JSON to {}", path.display());
+            info!("Wrote input JSON to {}", path.display());
         } else {
             println!("{}", serde_json::to_string_pretty(&json)?);
         }
@@ -400,7 +392,7 @@ pub async fn run_reth_benchmark(args: HostArgs, openvm_client_eth_elf: &[u8]) ->
         })?;
         let elapsed = start.elapsed();
         let block_hash = header.hash_slow();
-        eprintln!("Host execution: {:.6}s, block hash: {}", elapsed.as_secs_f64(), block_hash);
+        info!("Host execution: {:.6}s, block hash: {}", elapsed.as_secs_f64(), block_hash);
         println!("BENCH_HOST_NS={}", elapsed.as_nanos());
         println!("BENCH_BLOCK_HASH={block_hash}");
         return Ok(());
@@ -578,7 +570,7 @@ fn dump_air_stats(sdk: &Sdk, output_path: &PathBuf) -> eyre::Result<()> {
     let agg_pk = sdk.agg_pk();
     dump_pk_stats("agg_leaf", &agg_pk.prefix.leaf, &mut file)?;
 
-    eprintln!("AIR statistics written to {}", output_path.display());
+    info!("AIR statistics written to {}", output_path.display());
     Ok(())
 }
 
