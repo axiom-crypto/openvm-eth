@@ -43,6 +43,7 @@ on:
           - execute-metered
           - prove-app
           - prove-stark
+          - prove-root
           - prove-evm
         default: prove-stark
       profiling:
@@ -127,7 +128,7 @@ on:
       mode:
         type: string
         required: false
-        description: Running mode, one of {execute, execute-metered, prove-app, prove-stark, prove-evm}
+        description: Running mode, one of {execute, execute-metered, prove-app, prove-stark, prove-root, prove-evm}
         default: prove-stark
       profiling:
         type: string
@@ -325,7 +326,7 @@ jobs:
           fi
 
           MODE="${{ inputs.mode || github.event.inputs.mode }}"
-          if [[ "$MODE" == "prove-evm" ]]; then
+          if [[ "$MODE" == "prove-evm" || "$MODE" == "prove-root" ]]; then
             FEATURES="${FEATURES},evm-verify"
           fi
 
