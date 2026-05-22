@@ -248,9 +248,6 @@ pub async fn run_reth_benchmark(args: HostArgs, openvm_client_eth_elf: &[u8]) ->
         p.exists().then_some(p)
     });
 
-    #[cfg(feature = "evm-verify")]
-    let root_pk_path = args.output_dir.join("root.pk");
-
     let mut sdk_builder = Sdk::builder();
 
     if let Some(p) = app_pk_path {
@@ -271,6 +268,7 @@ pub async fn run_reth_benchmark(args: HostArgs, openvm_client_eth_elf: &[u8]) ->
 
     #[cfg(feature = "evm-verify")]
     {
+        let root_pk_path = args.output_dir.join("root.pk");
         if root_pk_path.exists() {
             info!("Loading root proving key from {}", root_pk_path.display());
             let root_pk = read_object_from_file(&root_pk_path)?;
