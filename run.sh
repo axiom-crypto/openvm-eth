@@ -15,6 +15,9 @@
 #   --perf              Run with perf + samply host profiling and upload to Firefox Profiler
 #   --nsys              Run with nsys profiling and output summary stats
 #   --<tool>            Run with compute-sanitizer --tool <tool> where tool is one of memcheck, synccheck, or racecheck
+#   --proof-cache <DIR> Directory to cache the intermediate stark proof for prove-root mode.
+#                       If set, the stark proof is stored at <DIR>/stark.bitcode and reused
+#                       on subsequent runs. If unset, no proof caching is performed.
 #
 # Examples:
 #   ./run.sh                              # Run with defaults
@@ -138,6 +141,10 @@ while [[ $# -gt 0 ]]; do
             exit 1
             fi
             launch_count="$2"
+            shift 2
+            ;;
+        --proof-cache)
+            PROOF_CACHE="$2"
             shift 2
             ;;
         --memcheck)
@@ -290,6 +297,10 @@ if [[ -n $APP_L_SKIP ]]
 then
     CONFIG_ARGS="$CONFIG_ARGS --app-l-skip ${APP_L_SKIP}"
 fi
+if [[ -n $PROOF_CACHE ]]
+then
+    CONFIG_ARGS="$CONFIG_ARGS --proof-cache ${PROOF_CACHE}"
+fi
 
 BIN_ARGS="--mode $MODE \
 --max-segment-length $MAX_SEGMENT_LENGTH \
@@ -308,6 +319,8 @@ fi
 
 export RUST_LOG="info,p3_=warn"
 
+echo "Run command:"
+echo "$BIN $BIN_ARGS"
 if [ "$USE_PERF" = "true" ]; then
     # Set sampling frequency based on mode
     if [[ "$MODE" == "execute-host" || "$MODE" == "execute" || "$MODE" == "execute-metered" ]]; then
@@ -318,11 +331,11 @@ if [ "$USE_PERF" = "true" ]; then
 
     echo "Running with perf profiling (freq=${PERF_FREQ})..."
     export OUTPUT_PATH="metrics.json"
-    perf record -F $PERF_FREQ --call-graph=fp -g -o perf.data -- $BIN $BIN_ARGS
+    perf record -F $PERF_FREQ --call-graph=dwarf -g -o perf.data -- $BIN $BIN_ARGS
 
     echo "Converting perf.data with samply..."
     mkdir -p samply_profile
-    samply import perf.data --presymbolicate --save-only --output samply_profile/profile.json.gz
+    samply import perf.data --unstable-presymbolicate --save-only --output samply_profile/profile.json.gz
     echo "Saved profile: samply_profile/profile.json.gz"
 
     FIREFOX_PROFILER_URL=$(python3 "$REPO_ROOT/scripts/upload_firefox_profile.py" samply_profile/profile.json.gz) || true
