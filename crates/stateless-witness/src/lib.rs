@@ -1,7 +1,7 @@
 //! Crate providing middleware for Reth stateless [ExecutionWitness] generation and conversion to
 //! the input format used by the OpenVM stateless executor. The provided functions are intended for
 //! use either within the Reth SDK, as part of a Reth ExEx, or by Reth RPC clients.
-use alloy_consensus::Header;
+use alloy_consensus::{BlockHeader as _, Header};
 use alloy_rlp::Encodable;
 use alloy_rpc_types_debug::ExecutionWitness;
 use openvm_mpt::{resolver::MptResolver, EthereumState};
@@ -14,10 +14,10 @@ use reth_ethereum_primitives::Block;
 use reth_evm::{execute::Executor, ConfigureEvm};
 use reth_node_api::{FullNodeComponents, NodeTypes};
 use reth_primitives_traits::{NodePrimitives, RecoveredBlock};
-use reth_provider::{BlockReaderIdExt, HeaderProvider, StateProviderFactory};
+use reth_provider::{HeaderProvider, StateProviderFactory};
 use reth_revm::{
     database::StateProviderDatabase,
-    primitives::{alloy_primitives::BlockNumber, keccak256, Bytes, HashMap, B256},
+    primitives::{keccak256, Bytes, HashMap, B256},
     state::Bytecode,
     witness::ExecutionWitnessRecord,
     State,
@@ -98,7 +98,6 @@ pub fn generate_stateless_input_from_witness_and_ancestor_headers(
 pub fn generate_block_execution_witness<Node>(
     provider: Node::Provider,
     evm_config: Node::Evm,
-    number: BlockNumber,
     recovered_block: RecoveredBlock<
         <<Node::Types as NodeTypes>::Primitives as NodePrimitives>::Block,
     >,
@@ -106,12 +105,12 @@ pub fn generate_block_execution_witness<Node>(
 where
     Node: FullNodeComponents<Types: NodeTypes<Primitives = EthPrimitives>>,
 {
-    let parent_block_number = number - 1;
+    let number = recovered_block.number;
 
-    let parent_block = provider
-        .block_by_id(parent_block_number.into())?
-        .ok_or(WitnessError::ParentBlockNotFound(parent_block_number))?;
-    let state_provider = provider.state_by_block_id(parent_block_number.into())?;
+    let parent_hash = recovered_block.parent_hash();
+    let parent_header =
+        provider.header(parent_hash)?.ok_or(WitnessError::ParentBlockNotFound(parent_hash))?;
+    let state_provider = provider.state_by_block_hash(parent_hash)?;
     let db = StateProviderDatabase::new(&state_provider);
     let executor = evm_config.executor(db);
     let mut witness_record = ExecutionWitnessRecord::default();
@@ -164,7 +163,7 @@ where
     Ok((
         BlockExecutionWitness {
             execution_witness,
-            parent_state_root: parent_block.state_root,
+            parent_state_root: parent_header.state_root(),
             current_block: recovered_block.into_block(),
         },
         ancestor_headers,
@@ -178,9 +177,23 @@ pub fn resolve_ethereum_state(
     keys: Vec<Bytes>,
 ) -> WitnessResult<EthereumState> {
     let mut node_store = Vec::with_capacity(reth_state.len());
+    let mut has_state_root_node = state_root == EMPTY_ROOT_HASH;
     for node in reth_state {
-        node_store.push((keccak256(&node), node));
+        let hash = keccak256(&node);
+        has_state_root_node |= hash == state_root;
+        node_store.push((hash, node));
     }
+
+    // Explicit guard: the witness must contain the state-trie root node hashing to
+    // `state_root`. If it's absent, the witness `state` and `parent_state_root` come from
+    // different snapshots (e.g. a reorg split the two provider reads during witness
+    // generation). Fail loudly here with the expected root rather than letting the resolver
+    // stub the root as an unresolved `Digest` and surface later as an opaque
+    // "reached an unresolved node" deep inside a `get_rlp` traversal.
+    if !has_state_root_node {
+        return Err(WitnessError::StateRootNodeMissing(state_root));
+    }
+
     let mpt_resolver = MptResolver::from_iter(node_store);
 
     let state_trie = mpt_resolver.resolve(&state_root)?;
