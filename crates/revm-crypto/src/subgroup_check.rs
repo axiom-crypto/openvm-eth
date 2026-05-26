@@ -131,7 +131,10 @@ mod impl_bn {
             let endomorphism_point = {
                 let psi_x = self.x().frobenius_map(1) * P_POWER_ENDOMORPHISM_COEFF_0;
                 let psi_y = self.y().frobenius_map(1) * P_POWER_ENDOMORPHISM_COEFF_1;
-                Self::from_xy_unchecked(psi_x, psi_y)
+                // SAFETY: ψ(P) is derived from valid Bn254 curve coordinates
+                // via the documented untwist-Frobenius-twist endomorphism, so
+                // the resulting (x, y) lies on the curve.
+                unsafe { Self::from_xy_unchecked(psi_x, psi_y) }
             };
 
             x_times_point.eq(&endomorphism_point)
@@ -352,7 +355,10 @@ mod impl_bls {
                 let psi_x_c1 = P_POWER_ENDOMORPHISM_COEFF_0.c1 * tmp_x.c0;
                 let psi_x = bls::Fp2::new(psi_x_c0, psi_x_c1);
                 let psi_y = self.y().frobenius_map(1) * P_POWER_ENDOMORPHISM_COEFF_1;
-                Self::from_xy_unchecked(psi_x, psi_y)
+                // SAFETY: ψ(P) is derived from valid Bls12-381 G2 coordinates
+                // via the documented Frobenius endomorphism, so the resulting
+                // (x, y) lies on the twist curve.
+                unsafe { Self::from_xy_unchecked(psi_x, psi_y) }
             };
 
             x_times_point.eq(&endomorphism_point)

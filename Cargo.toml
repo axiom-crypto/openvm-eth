@@ -87,23 +87,23 @@ revm = { version = "=38.0.0", features = ["serde"], default-features = false }
 revm-primitives = { version = "=23.0.0", default-features = false }
 
 # alloy
-alloy-chains = { version = "=0.2.33", default-features = false }
-alloy-json-rpc = { version = "=2.0.0", default-features = false }
-alloy-primitives = { version = "=1.5.6", default-features = false }
-alloy-rlp = { version = "=0.3.13", default-features = false, features = ["core-net"] }
-alloy-trie = { version = "=0.9.4", default-features = false }
+alloy-chains = { version = "0.2.33", default-features = false }
+alloy-json-rpc = { version = "2.0.0", default-features = false }
+alloy-primitives = { version = "1.5.6", default-features = false }
+alloy-rlp = { version = "0.3.13", default-features = false, features = ["core-net"] }
+alloy-trie = { version = "0.9.4", default-features = false }
 
-alloy-hardforks = { version = "=0.4.7", default-features = false }
+alloy-hardforks = { version = "0.4.7", default-features = false }
 
-alloy = { version = "=2.0.0", default-features = false }
-alloy-eips = { version = "=2.0.0", default-features = false }
-alloy-consensus = { version = "=2.0.0", default-features = false }
-alloy-provider = { version = "=2.0.0", default-features = false }
-alloy-rpc-client = { version = "=2.0.0", default-features = false }
-alloy-rpc-types = { version = "=2.0.0", default-features = false }
-alloy-rpc-types-debug = { version = "=2.0.0", default-features = false }
-alloy-transport = { version = "=2.0.0", default-features = false }
-alloy-transport-http = { version = "=2.0.0", default-features = false, features = ["reqwest-rustls-tls"] }
+alloy = { version = "2.0.0", default-features = false }
+alloy-eips = { version = "2.0.0", default-features = false }
+alloy-consensus = { version = "2.0.0", default-features = false }
+alloy-provider = { version = "2.0.0", default-features = false }
+alloy-rpc-client = { version = "2.0.0", default-features = false }
+alloy-rpc-types = { version = "2.0.0", default-features = false }
+alloy-rpc-types-debug = { version = "2.0.0", default-features = false }
+alloy-transport = { version = "2.0.0", default-features = false }
+alloy-transport-http = { version = "2.0.0", default-features = false, features = ["reqwest-rustls-tls"] }
 
 openvm = { git = "https://github.com/openvm-org/openvm.git", branch = "develop-v2.0.0-rc.1", default-features = false }
 openvm-circuit = { git = "https://github.com/openvm-org/openvm.git", branch = "develop-v2.0.0-rc.1", default-features = false }

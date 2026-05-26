@@ -402,7 +402,10 @@ fn read_bn_g1_point(input: &[u8]) -> Result<bn::G1Affine, PrecompileHalt> {
     }
     let px = read_bn_fq(&input[0..BN_FQ_LEN])?;
     let py = read_bn_fq(&input[BN_FQ_LEN..BN_G1_LEN])?;
-    let point = bn::G1Affine::from_xy(px, py).ok_or(PrecompileHalt::Bn254AffineGFailedToCreate)?;
+    // SAFETY: `from_xy` rejects coordinates that are not on the curve via
+    // its `Option` return value, so passing arbitrary field elements is sound.
+    let point = unsafe { bn::G1Affine::from_xy(px, py) }
+        .ok_or(PrecompileHalt::Bn254AffineGFailedToCreate)?;
     if point.is_in_correct_subgroup() {
         Ok(point)
     } else {
@@ -417,7 +420,9 @@ fn read_bn_g2_point(input: &[u8]) -> Result<bn::G2Affine, PrecompileHalt> {
     }
     let c0 = read_bn_fq2(&input[0..BN_G1_LEN])?;
     let c1 = read_bn_fq2(&input[BN_G1_LEN..BN_G2_LEN])?;
-    let point = bn::G2Affine::from_xy(c0, c1).ok_or(PrecompileHalt::Bn254AffineGFailedToCreate)?;
+    // SAFETY: `from_xy` rejects off-curve coordinates via its `Option` return.
+    let point = unsafe { bn::G2Affine::from_xy(c0, c1) }
+        .ok_or(PrecompileHalt::Bn254AffineGFailedToCreate)?;
     if point.is_in_correct_subgroup() {
         Ok(point)
     } else {
@@ -478,7 +483,9 @@ fn read_bls_fp2(c0: &[u8], c1: &[u8]) -> Result<bls::Fp2, PrecompileHalt> {
 fn read_bls_g1_point(point: &BlsG1Point) -> Result<bls::G1Affine, PrecompileHalt> {
     let px = read_bls_fp(&point.0)?;
     let py = read_bls_fp(&point.1)?;
-    let point = bls::G1Affine::from_xy(px, py).ok_or(PrecompileHalt::Bls12381G1NotOnCurve)?;
+    // SAFETY: `from_xy` rejects off-curve coordinates via its `Option` return.
+    let point =
+        unsafe { bls::G1Affine::from_xy(px, py) }.ok_or(PrecompileHalt::Bls12381G1NotOnCurve)?;
     if point.is_in_correct_subgroup() {
         Ok(point)
     } else {
@@ -490,7 +497,9 @@ fn read_bls_g1_point(point: &BlsG1Point) -> Result<bls::G1Affine, PrecompileHalt
 fn read_bls_g2_point(point: &BlsG2Point) -> Result<bls::G2Affine, PrecompileHalt> {
     let x = read_bls_fp2(&point.0, &point.1)?;
     let y = read_bls_fp2(&point.2, &point.3)?;
-    let point = bls::G2Affine::from_xy(x, y).ok_or(PrecompileHalt::Bls12381G2NotOnCurve)?;
+    // SAFETY: `from_xy` rejects off-curve coordinates via its `Option` return.
+    let point =
+        unsafe { bls::G2Affine::from_xy(x, y) }.ok_or(PrecompileHalt::Bls12381G2NotOnCurve)?;
     if point.is_in_correct_subgroup() {
         Ok(point)
     } else {
