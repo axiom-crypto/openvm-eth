@@ -7,11 +7,10 @@ pub enum WitnessError {
     #[error("parent block not found for block hash {0}")]
     ParentBlockNotFound(B256),
 
-    #[error(
-        "witness is missing the state trie root node for parent state root {0}; the witness \
-         `state` and `parent_state_root` describe different snapshots (e.g. a reorg during \
-         witness generation)"
-    )]
+    #[error("state provider state root is {actual}, expected {expected}")]
+    StateProviderRootMismatch { actual: B256, expected: B256 },
+
+    #[error("witness is missing the state trie root node for parent state root {0}")]
     StateRootNodeMissing(B256),
 
     #[error("provider error: {0}")]
