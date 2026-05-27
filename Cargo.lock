@@ -6595,7 +6595,7 @@ dependencies = [
  "openvm-circuit-primitives-derive",
  "openvm-cpu-backend",
  "openvm-cuda-backend",
- "openvm-cuda-builder",
+ "openvm-cuda-builder 2.0.0-alpha (git+https://github.com/openvm-org/stark-backend.git?branch=develop-v2)",
  "openvm-cuda-common",
  "openvm-instructions",
  "openvm-rv32-adapters",
@@ -6679,7 +6679,7 @@ dependencies = [
  "openvm-circuit-primitives-derive",
  "openvm-cpu-backend",
  "openvm-cuda-backend",
- "openvm-cuda-builder",
+ "openvm-cuda-builder 2.0.0-alpha (git+https://github.com/openvm-org/stark-backend.git?branch=develop-v2)",
  "openvm-cuda-common",
  "openvm-instructions",
  "openvm-poseidon2-air",
@@ -6721,7 +6721,7 @@ dependencies = [
  "openvm-circuit-primitives-derive",
  "openvm-cpu-backend",
  "openvm-cuda-backend",
- "openvm-cuda-builder",
+ "openvm-cuda-builder 2.0.0-alpha (git+https://github.com/openvm-org/stark-backend.git?branch=develop-v2)",
  "openvm-cuda-common",
  "openvm-stark-backend",
  "rand 0.9.2",
@@ -6765,7 +6765,7 @@ dependencies = [
  "openvm-circuit-primitives",
  "openvm-cpu-backend",
  "openvm-cuda-backend",
- "openvm-cuda-builder",
+ "openvm-cuda-builder 2.0.0-alpha (git+https://github.com/openvm-org/stark-backend.git?branch=develop-v2)",
  "openvm-cuda-common",
  "openvm-poseidon2-air",
  "openvm-recursion-circuit",
@@ -6814,7 +6814,7 @@ dependencies = [
  "getset",
  "glob",
  "itertools 0.14.0",
- "openvm-cuda-builder",
+ "openvm-cuda-builder 2.0.0-alpha (git+https://github.com/openvm-org/stark-backend.git?branch=develop-v2)",
  "openvm-cuda-common",
  "openvm-stark-backend",
  "openvm-stark-sdk",
@@ -6842,15 +6842,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "openvm-cuda-builder"
+version = "2.0.0-alpha"
+source = "git+https://github.com/Aalanli/stark-backend.git?branch=no_vmm#5a8c23c60897ebe8561ccaa8311aef0f06e3ce71"
+dependencies = [
+ "cc",
+ "glob",
+]
+
+[[package]]
 name = "openvm-cuda-common"
 version = "2.0.0-alpha"
-source = "git+https://github.com/openvm-org/stark-backend.git?branch=develop-v2#4cbc6b23dc9569be78ad8fa0c1188a4f88adfa4a"
+source = "git+https://github.com/Aalanli/stark-backend.git?branch=no_vmm#5a8c23c60897ebe8561ccaa8311aef0f06e3ce71"
 dependencies = [
  "bytesize",
  "ctor",
  "lazy_static",
  "metrics 0.23.1",
- "openvm-cuda-builder",
+ "openvm-cuda-builder 2.0.0-alpha (git+https://github.com/Aalanli/stark-backend.git?branch=no_vmm)",
  "thiserror 1.0.69",
  "tracing",
 ]
@@ -6882,7 +6891,7 @@ dependencies = [
  "openvm-circuit-primitives-derive",
  "openvm-cpu-backend",
  "openvm-cuda-backend",
- "openvm-cuda-builder",
+ "openvm-cuda-builder 2.0.0-alpha (git+https://github.com/openvm-org/stark-backend.git?branch=develop-v2)",
  "openvm-cuda-common",
  "openvm-deferral-transpiler",
  "openvm-instructions",
@@ -7051,7 +7060,7 @@ dependencies = [
  "openvm-circuit-primitives-derive",
  "openvm-cpu-backend",
  "openvm-cuda-backend",
- "openvm-cuda-builder",
+ "openvm-cuda-builder 2.0.0-alpha (git+https://github.com/openvm-org/stark-backend.git?branch=develop-v2)",
  "openvm-cuda-common",
  "openvm-instructions",
  "openvm-keccak256-transpiler",
@@ -7276,7 +7285,7 @@ dependencies = [
  "derivative",
  "lazy_static",
  "openvm-circuit-primitives",
- "openvm-cuda-builder",
+ "openvm-cuda-builder 2.0.0-alpha (git+https://github.com/openvm-org/stark-backend.git?branch=develop-v2)",
  "openvm-stark-backend",
  "openvm-stark-sdk",
  "p3-poseidon2",
@@ -7298,7 +7307,7 @@ dependencies = [
  "openvm-circuit-primitives",
  "openvm-cpu-backend",
  "openvm-cuda-backend",
- "openvm-cuda-builder",
+ "openvm-cuda-builder 2.0.0-alpha (git+https://github.com/openvm-org/stark-backend.git?branch=develop-v2)",
  "openvm-cuda-common",
  "openvm-poseidon2-air",
  "openvm-recursion-circuit-derive",
@@ -7468,7 +7477,7 @@ dependencies = [
  "openvm-circuit-primitives-derive",
  "openvm-cpu-backend",
  "openvm-cuda-backend",
- "openvm-cuda-builder",
+ "openvm-cuda-builder 2.0.0-alpha (git+https://github.com/openvm-org/stark-backend.git?branch=develop-v2)",
  "openvm-cuda-common",
  "openvm-instructions",
  "openvm-rv32im-transpiler",
@@ -7623,7 +7632,7 @@ dependencies = [
  "openvm-circuit-primitives-derive",
  "openvm-cpu-backend",
  "openvm-cuda-backend",
- "openvm-cuda-builder",
+ "openvm-cuda-builder 2.0.0-alpha (git+https://github.com/openvm-org/stark-backend.git?branch=develop-v2)",
  "openvm-cuda-common",
  "openvm-instructions",
  "openvm-rv32im-circuit",
