@@ -492,7 +492,7 @@ jobs:
             fi
 
             perf --version
-            perf record -F $PERF_FREQ --call-graph=fp -g -o perf.data -- ./run_benchmark.sh
+            perf record -F $PERF_FREQ --call-graph=dwarf -g -o perf.data -- ./run_benchmark.sh
             # perf doesn't track GPU memory, set peak to 0
             echo "GPU_PEAK_MEMORY_MIB=0" >> $GITHUB_ENV
           elif [[ "${{ inputs.profiling || github.event.inputs.profiling }}" == "nsys" ]]; then
@@ -620,6 +620,7 @@ jobs:
           SAMPLY_PROFILE_PATH=samply_profile
 
           samply import perf.data --presymbolicate --save-only --output $SAMPLY_PROFILE_PATH/profile.json.gz
+          python3 "$GITHUB_WORKSPACE/scripts/symbolicate_profile.py" $SAMPLY_PROFILE_PATH/profile.json.gz
           echo "Saved profile: $SAMPLY_PROFILE_PATH/profile.json.gz"
           echo "SAMPLY_PROFILE_PATH=${SAMPLY_PROFILE_PATH}" >> $GITHUB_ENV
 

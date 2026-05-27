@@ -336,6 +336,7 @@ if [ "$USE_PERF" = "true" ]; then
     echo "Converting perf.data with samply..."
     mkdir -p samply_profile
     samply import perf.data --unstable-presymbolicate --save-only --output samply_profile/profile.json.gz
+    python3 "$REPO_ROOT/scripts/symbolicate_profile.py" samply_profile/profile.json.gz
     echo "Saved profile: samply_profile/profile.json.gz"
 
     FIREFOX_PROFILER_URL=$(python3 "$REPO_ROOT/scripts/upload_firefox_profile.py" samply_profile/profile.json.gz) || true
