@@ -22,7 +22,7 @@ use reth_revm::{
     witness::ExecutionWitnessRecord,
     State,
 };
-use reth_trie::ExecutionWitnessMode;
+use reth_trie::{ExecutionWitnessMode, HashedPostState};
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 use tracing::{info_span, instrument};
@@ -110,7 +110,17 @@ where
     let parent_hash = recovered_block.parent_hash();
     let parent_header =
         provider.header(parent_hash)?.ok_or(WitnessError::ParentBlockNotFound(parent_hash))?;
-    let state_provider = provider.state_by_block_hash(parent_hash)?;
+    let state_provider = {
+        let sp = provider.state_by_block_hash(parent_hash)?;
+        let sp_root = sp.state_root(HashedPostState::default())?;
+        if sp_root != parent_header.state_root {
+            return Err(WitnessError::StateProviderRootMismatch {
+                actual: sp_root,
+                expected: parent_header.state_root,
+            });
+        }
+        sp
+    };
     let db = StateProviderDatabase::new(&state_provider);
     let executor = evm_config.executor(db);
     let mut witness_record = ExecutionWitnessRecord::default();
@@ -184,12 +194,7 @@ pub fn resolve_ethereum_state(
         node_store.push((hash, node));
     }
 
-    // Explicit guard: the witness must contain the state-trie root node hashing to
-    // `state_root`. If it's absent, the witness `state` and `parent_state_root` come from
-    // different snapshots (e.g. a reorg split the two provider reads during witness
-    // generation). Fail loudly here with the expected root rather than letting the resolver
-    // stub the root as an unresolved `Digest` and surface later as an opaque
-    // "reached an unresolved node" deep inside a `get_rlp` traversal.
+    // Parent state root must be present in the witness
     if !has_state_root_node {
         return Err(WitnessError::StateRootNodeMissing(state_root));
     }
