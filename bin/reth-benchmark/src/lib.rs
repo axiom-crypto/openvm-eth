@@ -19,13 +19,10 @@ use openvm_sdk::{
 use openvm_sdk_config::{SdkVmConfig, TranspilerConfig};
 use openvm_stark_sdk::{
     bench::run_with_metric_collection,
-    config::{
-        app_params_with_100_bits_security,
-        baby_bear_poseidon2::{D_EF, F},
-    },
+    config::{app_params_with_100_bits_security, baby_bear_poseidon2::F},
     openvm_stark_backend::{
         air_builders::symbolic::{SymbolicExpressionDag, SymbolicExpressionNode},
-        codec::{Decode, Encode},
+        codec::Encode,
         keygen::types::MultiStarkProvingKey,
         p3_field::PrimeCharacteristicRing,
     },
@@ -209,7 +206,6 @@ pub async fn run_reth_benchmark(args: HostArgs, openvm_client_eth_elf: &[u8]) ->
     dotenv::dotenv().ok();
 
     let app_log_blowup = args.benchmark.app_log_blowup;
-    let app_l_skip = args.benchmark.app_l_skip;
 
     #[cfg(feature = "cuda")]
     println!("CUDA Backend Enabled");
@@ -409,156 +405,192 @@ pub async fn run_reth_benchmark(args: HostArgs, openvm_client_eth_elf: &[u8]) ->
 
     let stdin = vec![encoded_stateless_input].into();
 
-    run_with_metric_collection("OUTPUT_PATH", move || {
-        info_span!("reth-block", block_number = block_number).in_scope(|| -> eyre::Result<()> {
-            match args.mode {
-                BenchMode::Execute => {
-                    let public_values = info_span!("sdk.execute", group = program_name)
-                        .in_scope(|| sdk.execute(exe, stdin))?;
-                    let block_hash = hex::encode(&public_values);
-                    info!("Execute completed, block hash: {}", block_hash);
-                    println!("BENCH_BLOCK_HASH={block_hash}");
-                }
-                BenchMode::ExecuteMetered => {
-                    let (public_values, segments) =
-                        info_span!("sdk.execute_metered", group = program_name)
-                            .in_scope(|| sdk.execute_metered(exe, stdin))?;
-                    let block_hash = hex::encode(&public_values);
-                    info!("Execute metered completed, block hash: {}", block_hash);
-                    println!("BENCH_BLOCK_HASH={block_hash}");
-                }
-                BenchMode::ProveApp => {
-                    let mut prover = sdk.app_prover(exe)?;
-                    prover.set_program_name(program_name);
-                    let app_proof = prover.prove(stdin)?;
-                    let (_, app_vk) = sdk.app_keygen();
-                    verify_segments(&prover.vm().engine, &app_vk.vk, &app_proof.per_segment)?;
-                }
-                BenchMode::ProveStark => {
-                    let (proof, baseline) = sdk.prove(exe, stdin, &[])?;
-                    let vk = VmStarkVerifyingKey { mvk: (*sdk.agg_vk()).clone(), baseline };
-                    let encoded = proof.encode_to_vec()?;
-                    let compressed = zstd::encode_all(&encoded[..], 19)?;
-                    tracing::info!(
-                        "Proof Size (bytes): {}, Compressed Size: {}",
-                        encoded.len(),
-                        compressed.len()
-                    );
-                    verify_vm_stark_proof_decoded(&vk, &proof)?;
-                }
-                #[cfg(feature = "evm-verify")]
-                BenchMode::ProveRoot => {
-                    let mut evm_prover = sdk.evm_prover_without_halo2(exe)?;
-                    evm_prover.stark_prover.app_prover.set_program_name(&program_name);
+    match args.mode {
+        BenchMode::Execute => {
+            run_with_metric_collection("OUTPUT_PATH", move || {
+                info_span!("reth-block", block_number = block_number).in_scope(
+                    || -> eyre::Result<_> {
+                        let public_values = info_span!("sdk.execute", group = program_name)
+                            .in_scope(|| sdk.execute(exe, stdin))?;
+                        let block_hash = hex::encode(&public_values);
+                        info!("Execute completed, block hash: {}", block_hash);
+                        println!("BENCH_BLOCK_HASH={block_hash}");
+                        Ok(())
+                    },
+                )
+            })?;
+        }
+        BenchMode::ExecuteMetered => {
+            run_with_metric_collection("OUTPUT_PATH", move || {
+                info_span!("reth-block", block_number = block_number).in_scope(
+                    || -> eyre::Result<_> {
+                        let (public_values, _segments) =
+                            info_span!("sdk.execute_metered", group = program_name)
+                                .in_scope(|| sdk.execute_metered(exe, stdin))?;
+                        let block_hash = hex::encode(&public_values);
+                        info!("Execute metered completed, block hash: {}", block_hash);
+                        println!("BENCH_BLOCK_HASH={block_hash}");
+                        Ok(())
+                    },
+                )
+            })?;
+        }
+        BenchMode::ProveApp => {
+            let mut prover = sdk.app_prover(exe)?;
+            prover.set_program_name(program_name);
 
-                    let proof_file = args.proof_cache.as_ref().map(|d| d.join("stark.bitcode"));
-                    let cached = proof_file.as_ref().filter(|p| p.exists());
+            let (app_proof, app_vk) = run_with_metric_collection("OUTPUT_PATH", || {
+                info_span!("reth-block", block_number = block_number).in_scope(
+                    || -> eyre::Result<_> {
+                        let app_proof = prover.prove(stdin)?;
+                        let (_, app_vk) = sdk.app_keygen();
 
-                    let _root_proof = if let Some(proof_file) = cached {
-                        info!("Loading cached stark proof from: {}", proof_file.display());
-                        let stark_proof_file =
-                            fs::File::open(proof_file).expect("failed to open stark file");
-                        let mut stark_proof_reader = std::io::BufReader::new(stark_proof_file);
-                        let (stark_proof, mut internal_meta) =
-                            Decode::decode(&mut stark_proof_reader)
-                                .expect("failed stark proof deserialization");
-                        evm_prover
-                            .prove_unwrapped_with_stark_proof(stark_proof, &mut internal_meta)
-                            .expect("failed to prove root from cached stark proof")
-                    } else {
-                        if let Some(p) = &proof_file {
-                            info!("No cached stark proof at {}; generating fresh", p.display());
-                        }
-                        let (stark_proof, metadata) = evm_prover
-                            .stark_prover
-                            .prove(stdin, &[])
-                            .expect("failed to prove stark");
-                        let root_proof = evm_prover
-                            .prove_unwrapped_with_stark_proof(
-                                stark_proof.clone(),
-                                &mut metadata.clone(),
-                            )
-                            .expect("failed to prove root");
-                        if let Some(proof_file) = &proof_file {
-                            if let Some(parent) = proof_file.parent() {
-                                fs::create_dir_all(parent)?;
-                            }
-                            info!("Writing stark proof cache to: {}", proof_file.display());
+                        Ok((app_proof, app_vk))
+                    },
+                )
+            })?;
+            verify_segments(&prover.vm().engine, &app_vk.vk, &app_proof.per_segment)?;
+        }
+        BenchMode::ProveStark => {
+            let mut prover = sdk.prover(exe)?;
+
+            let (proof, baseline) = run_with_metric_collection("OUTPUT_PATH", || {
+                info_span!("reth-block", block_number = block_number).in_scope(
+                    || -> eyre::Result<_> {
+                        let proof = prover.prove(stdin, &[])?.0;
+                        let baseline = prover.generate_baseline();
+                        Ok((proof, baseline))
+                    },
+                )
+            })?;
+            let vk = VmStarkVerifyingKey { mvk: (*sdk.agg_vk()).clone(), baseline };
+            let encoded = proof.encode_to_vec()?;
+            let compressed = zstd::encode_all(&encoded[..], 19)?;
+            tracing::info!(
+                "Proof Size (bytes): {}, Compressed Size: {}",
+                encoded.len(),
+                compressed.len()
+            );
+            verify_vm_stark_proof_decoded(&vk, &proof)?;
+        }
+        #[cfg(feature = "evm-verify")]
+        BenchMode::ProveRoot => {
+            let mut evm_prover = sdk.evm_prover_without_halo2(exe)?;
+            evm_prover.stark_prover.app_prover.set_program_name(&program_name);
+
+            let proof_file = args.proof_cache.as_ref().map(|d| d.join("stark.bitcode"));
+            let cached = proof_file.as_ref().filter(|p| p.exists());
+            run_with_metric_collection("OUTPUT_PATH", || {
+                info_span!("reth-block", block_number = block_number).in_scope(
+                    || -> eyre::Result<_> {
+                        let _root_proof = if let Some(proof_file) = cached {
+                            info!("Loading cached stark proof from: {}", proof_file.display());
                             let stark_proof_file =
-                                fs::File::create(proof_file).expect("failed to create stark file");
-                            let mut stark_proof_writer = std::io::BufWriter::new(stark_proof_file);
-                            (stark_proof, metadata)
-                                .encode(&mut stark_proof_writer)
-                                .expect("failed to write stark proof");
-                        }
-                        root_proof
-                    };
-                }
-                #[cfg(feature = "evm-verify")]
-                BenchMode::ProveEvm => {
-                    let mut evm_prover = sdk.evm_prover(exe)?;
-                    evm_prover.stark_prover.app_prover.set_program_name(&program_name);
-                    let proof = evm_prover.prove_evm(stdin, &[])?;
-                    let block_hash = &proof.user_public_values;
-                    println!("block_hash (prove_evm): {}", hex::encode(block_hash));
-                    let openvm_verifier = sdk.generate_halo2_verifier_solidity()?;
-                    let gas_cost = Sdk::verify_evm_halo2_proof(&openvm_verifier, proof)?;
-                    tracing::info!("EVM verifier gas cost: {gas_cost}");
-                }
-                BenchMode::Keygen => {
-                    // Create output directory
-                    fs::create_dir_all(&args.output_dir)?;
+                                fs::File::open(proof_file).expect("failed to open stark file");
+                            let mut stark_proof_reader = std::io::BufReader::new(stark_proof_file);
+                            let (stark_proof, mut internal_meta) =
+                                Decode::decode(&mut stark_proof_reader)
+                                    .expect("failed stark proof deserialization");
+                            evm_prover
+                                .prove_unwrapped_with_stark_proof(stark_proof, &mut internal_meta)
+                                .expect("failed to prove root from cached stark proof")
+                        } else {
+                            if let Some(p) = &proof_file {
+                                info!("No cached stark proof at {}; generating fresh", p.display());
+                            }
+                            let (stark_proof, metadata) = evm_prover
+                                .stark_prover
+                                .prove(stdin, &[])
+                                .expect("failed to prove stark");
+                            let root_proof = evm_prover
+                                .prove_unwrapped_with_stark_proof(
+                                    stark_proof.clone(),
+                                    &mut metadata.clone(),
+                                )
+                                .expect("failed to prove root");
+                            if let Some(proof_file) = &proof_file {
+                                if let Some(parent) = proof_file.parent() {
+                                    fs::create_dir_all(parent)?;
+                                }
+                                info!("Writing stark proof cache to: {}", proof_file.display());
+                                let stark_proof_file = fs::File::create(proof_file)
+                                    .expect("failed to create stark file");
+                                let mut stark_proof_writer =
+                                    std::io::BufWriter::new(stark_proof_file);
+                                (stark_proof, metadata)
+                                    .encode(&mut stark_proof_writer)
+                                    .expect("failed to write stark proof");
+                            }
+                            root_proof
+                        };
+                        Ok(())
+                    },
+                )
+            })?;
+        }
+        #[cfg(feature = "evm-verify")]
+        BenchMode::ProveEvm => {
+            let mut evm_prover = sdk.evm_prover(exe)?;
+            evm_prover.stark_prover.app_prover.set_program_name(&program_name);
+            let proof = run_with_metric_collection("OUTPUT_PATH", || {
+                info_span!("reth-block", block_number = block_number)
+                    .in_scope(|| -> eyre::Result<_> { evm_prover.prove_evm(stdin, &[]) })
+            })?;
 
-                    // Determine output paths
-                    let app_pk_path =
-                        args.app_pk_path.unwrap_or_else(|| args.output_dir.join("app.pk"));
-                    let app_vk_path =
-                        args.app_vk_path.unwrap_or_else(|| args.output_dir.join("app.vk"));
-                    let agg_pk_path =
-                        args.agg_pk_path.unwrap_or_else(|| args.output_dir.join("agg.pk"));
+            let block_hash = &proof.user_public_values;
+            println!("block_hash (prove_evm): {}", hex::encode(block_hash));
+            let openvm_verifier = sdk.generate_halo2_verifier_solidity()?;
+            let gas_cost = Sdk::verify_evm_halo2_proof(&openvm_verifier, proof)?;
+            tracing::info!("EVM verifier gas cost: {gas_cost}");
+        }
+        BenchMode::Keygen => {
+            // Create output directory
+            fs::create_dir_all(&args.output_dir)?;
 
-                    #[cfg(feature = "evm-verify")]
-                    let root_pk_path = args.output_dir.join("root.pk");
+            // Determine output paths
+            let app_pk_path = args.app_pk_path.unwrap_or_else(|| args.output_dir.join("app.pk"));
+            let app_vk_path = args.app_vk_path.unwrap_or_else(|| args.output_dir.join("app.vk"));
+            let agg_pk_path = args.agg_pk_path.unwrap_or_else(|| args.output_dir.join("agg.pk"));
 
-                    info!("Generating app proving key...");
-                    let (app_pk, app_vk) = sdk.app_keygen();
+            #[cfg(feature = "evm-verify")]
+            let root_pk_path = args.output_dir.join("root.pk");
 
-                    info!("Saving app proving key to: {}", app_pk_path.display());
-                    write_object_to_file(&app_pk_path, &app_pk)?;
+            info!("Generating app proving key...");
+            let (app_pk, app_vk) = sdk.app_keygen();
 
-                    info!("Saving app verifying key to: {}", app_vk_path.display());
-                    write_object_to_file(&app_vk_path, &app_vk)?;
+            info!("Saving app proving key to: {}", app_pk_path.display());
+            write_object_to_file(&app_pk_path, &app_pk)?;
 
-                    #[cfg(feature = "evm-verify")]
-                    {
-                        info!("Generating root proving key...");
-                        let root_pk = sdk.root_pk();
-                        info!("Saving app root key to: {}", root_pk_path.display());
-                        write_object_to_file(&root_pk_path, &root_pk)?;
-                    }
+            info!("Saving app verifying key to: {}", app_vk_path.display());
+            write_object_to_file(&app_vk_path, &app_vk)?;
 
-                    info!("Generating aggregation proving key...");
-                    let agg_pk = sdk.agg_pk();
-
-                    info!("Saving agg proving key to: {}", agg_pk_path.display());
-                    write_object_to_file(&agg_pk_path, &agg_pk)?;
-
-                    info!("Keygen completed successfully!");
-                    info!("  App PK: {}", app_pk_path.display());
-                    info!("  App VK: {}", app_vk_path.display());
-                    info!("  Agg PK: {}", agg_pk_path.display());
-                    #[cfg(feature = "evm-verify")]
-                    info!("  Root PK: {}", root_pk_path.display());
-                }
-                _ => {
-                    // MakeInput, ExecuteHost, GenerateVmVkey, DumpAirStats handled earlier
-                    unreachable!();
-                }
+            #[cfg(feature = "evm-verify")]
+            {
+                info!("Generating root proving key...");
+                let root_pk = sdk.root_pk();
+                info!("Saving app root key to: {}", root_pk_path.display());
+                write_object_to_file(&root_pk_path, &root_pk)?;
             }
 
-            Ok(())
-        })
-    })?;
+            info!("Generating aggregation proving key...");
+            let agg_pk = sdk.agg_pk();
+
+            info!("Saving agg proving key to: {}", agg_pk_path.display());
+            write_object_to_file(&agg_pk_path, &agg_pk)?;
+
+            info!("Keygen completed successfully!");
+            info!("  App PK: {}", app_pk_path.display());
+            info!("  App VK: {}", app_vk_path.display());
+            info!("  Agg PK: {}", agg_pk_path.display());
+            #[cfg(feature = "evm-verify")]
+            info!("  Root PK: {}", root_pk_path.display());
+        }
+        _ => {
+            // MakeInput, ExecuteHost, GenerateVmVkey, DumpAirStats handled earlier
+            unreachable!();
+        }
+    }
+
     Ok(())
 }
 
