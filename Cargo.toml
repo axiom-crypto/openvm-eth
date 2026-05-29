@@ -1,14 +1,14 @@
 [workspace]
 members = [
-    "bin/reth-benchmark",
-    "bin/reth-verify",
-    "crates/mpt",
-    "crates/revm-crypto",
-    "crates/stateless-executor",
-    "crates/chainspec",
-    "crates/stateless-witness",
-    "crates/mpt-tools",
-    "crates/rpc-proxy"
+  "bin/reth-benchmark",
+  "bin/reth-verify",
+  "crates/mpt",
+  "crates/revm-crypto",
+  "crates/stateless-executor",
+  "crates/chainspec",
+  "crates/stateless-witness",
+  "crates/mpt-tools",
+  "crates/rpc-proxy",
 ]
 exclude = []
 resolver = "3"
@@ -27,8 +27,8 @@ eyre = "0.6"
 tracing = { version = "0.1", default-features = false }
 tracing-subscriber = "0.3"
 tokio = { version = "1.44.2", default-features = false, features = [
-    "rt",
-    "rt-multi-thread",
+  "rt",
+  "rt-multi-thread",
 ] }
 serde_json = "1.0.110"
 serde = { version = "1.0", default-features = false, features = ["derive"] }
@@ -38,9 +38,9 @@ thiserror = "2.0.12"
 hex-literal = "1.0.0"
 rayon = "1.10.0"
 bincode = { version = "2.0.1", default-features = false, features = [
-    "derive",
-    "alloc",
-    "serde",
+  "derive",
+  "alloc",
+  "serde",
 ] }
 toml = "0.9.2"
 smallvec = "1.13"
@@ -90,7 +90,9 @@ revm-primitives = { version = "=23.0.0", default-features = false }
 alloy-chains = { version = "=0.2.33", default-features = false }
 alloy-json-rpc = { version = "=2.0.0", default-features = false }
 alloy-primitives = { version = "=1.5.6", default-features = false }
-alloy-rlp = { version = "=0.3.13", default-features = false, features = ["core-net"] }
+alloy-rlp = { version = "=0.3.13", default-features = false, features = [
+  "core-net",
+] }
 alloy-trie = { version = "=0.9.4", default-features = false }
 
 alloy-hardforks = { version = "=0.4.7", default-features = false }
@@ -103,7 +105,9 @@ alloy-rpc-client = { version = "=2.0.0", default-features = false }
 alloy-rpc-types = { version = "=2.0.0", default-features = false }
 alloy-rpc-types-debug = { version = "=2.0.0", default-features = false }
 alloy-transport = { version = "=2.0.0", default-features = false }
-alloy-transport-http = { version = "=2.0.0", default-features = false, features = ["reqwest-rustls-tls"] }
+alloy-transport-http = { version = "=2.0.0", default-features = false, features = [
+  "reqwest-rustls-tls",
+] }
 
 openvm = { git = "https://github.com/openvm-org/openvm.git", branch = "develop-v2.0.0-rc.1", default-features = false }
 openvm-circuit = { git = "https://github.com/openvm-org/openvm.git", branch = "develop-v2.0.0-rc.1", default-features = false }
@@ -111,8 +115,8 @@ openvm-verify-stark-host = { git = "https://github.com/openvm-org/openvm.git", b
 openvm-ecc-guest = { git = "https://github.com/openvm-org/openvm.git", branch = "develop-v2.0.0-rc.1", default-features = false }
 openvm-keccak256 = { git = "https://github.com/openvm-org/openvm.git", branch = "develop-v2.0.0-rc.1", default-features = false }
 openvm-pairing = { git = "https://github.com/openvm-org/openvm.git", branch = "develop-v2.0.0-rc.1", default-features = false, features = [
-    "bn254",
-    "bls12_381",
+  "bn254",
+  "bls12_381",
 ] }
 openvm-sha2 = { git = "https://github.com/openvm-org/openvm.git", branch = "develop-v2.0.0-rc.1", default-features = false }
 openvm-k256 = { git = "https://github.com/openvm-org/openvm.git", package = "k256", branch = "develop-v2.0.0-rc.1" }
@@ -148,3 +152,69 @@ opt-level = 3
 [profile.bench-with-debug]
 inherits = "release"
 debug = 1
+
+[patch."https://github.com/openvm-org/stark-backend.git"]
+openvm-codec-derive = { git = "https://github.com/Aalanli/stark-backend", branch = "no_bn254_root" }
+openvm-cpu-backend = { git = "https://github.com/Aalanli/stark-backend", branch = "no_bn254_root" }
+openvm-cuda-backend = { git = "https://github.com/Aalanli/stark-backend", branch = "no_bn254_root" }
+openvm-cuda-builder = { git = "https://github.com/Aalanli/stark-backend", branch = "no_bn254_root" }
+openvm-cuda-common = { git = "https://github.com/Aalanli/stark-backend", branch = "no_bn254_root" }
+openvm-stark-backend = { git = "https://github.com/Aalanli/stark-backend", branch = "no_bn254_root" }
+openvm-stark-sdk = { git = "https://github.com/Aalanli/stark-backend", branch = "no_bn254_root" }
+
+# [patch."https://github.com/openvm-org/openvm.git"]
+# k256 = { path = "/home/allanl/Programs/openvm-worktree/no_bn254_root/guest-libs/k256" }
+# openvm = { path = "/home/allanl/Programs/openvm-worktree/no_bn254_root/crates/toolchain/openvm" }
+# openvm-algebra-circuit = { path = "/home/allanl/Programs/openvm-worktree/no_bn254_root/extensions/algebra/circuit" }
+# openvm-algebra-complex-macros = { path = "/home/allanl/Programs/openvm-worktree/no_bn254_root/extensions/algebra/complex-macros" }
+# openvm-algebra-guest = { path = "/home/allanl/Programs/openvm-worktree/no_bn254_root/extensions/algebra/guest" }
+# openvm-algebra-moduli-macros = { path = "/home/allanl/Programs/openvm-worktree/no_bn254_root/extensions/algebra/moduli-macros" }
+# openvm-algebra-transpiler = { path = "/home/allanl/Programs/openvm-worktree/no_bn254_root/extensions/algebra/transpiler" }
+# openvm-bigint-circuit = { path = "/home/allanl/Programs/openvm-worktree/no_bn254_root/extensions/bigint/circuit" }
+# openvm-bigint-guest = { path = "/home/allanl/Programs/openvm-worktree/no_bn254_root/extensions/bigint/guest" }
+# openvm-bigint-transpiler = { path = "/home/allanl/Programs/openvm-worktree/no_bn254_root/extensions/bigint/transpiler" }
+# openvm-build = { path = "/home/allanl/Programs/openvm-worktree/no_bn254_root/crates/toolchain/build" }
+# openvm-circuit = { path = "/home/allanl/Programs/openvm-worktree/no_bn254_root/crates/vm" }
+# openvm-circuit-derive = { path = "/home/allanl/Programs/openvm-worktree/no_bn254_root/crates/vm/derive" }
+# openvm-circuit-primitives = { path = "/home/allanl/Programs/openvm-worktree/no_bn254_root/crates/circuits/primitives" }
+# openvm-circuit-primitives-derive = { path = "/home/allanl/Programs/openvm-worktree/no_bn254_root/crates/circuits/primitives/derive" }
+# openvm-continuations = { path = "/home/allanl/Programs/openvm-worktree/no_bn254_root/crates/continuations" }
+# openvm-custom-insn = { path = "/home/allanl/Programs/openvm-worktree/no_bn254_root/crates/toolchain/custom_insn" }
+# openvm-deferral-circuit = { path = "/home/allanl/Programs/openvm-worktree/no_bn254_root/extensions/deferral/circuit" }
+# openvm-deferral-guest = { path = "/home/allanl/Programs/openvm-worktree/no_bn254_root/extensions/deferral/guest" }
+# openvm-deferral-transpiler = { path = "/home/allanl/Programs/openvm-worktree/no_bn254_root/extensions/deferral/transpiler" }
+# openvm-ecc-circuit = { path = "/home/allanl/Programs/openvm-worktree/no_bn254_root/extensions/ecc/circuit" }
+# openvm-ecc-guest = { path = "/home/allanl/Programs/openvm-worktree/no_bn254_root/extensions/ecc/guest" }
+# openvm-ecc-sw-macros = { path = "/home/allanl/Programs/openvm-worktree/no_bn254_root/extensions/ecc/sw-macros" }
+# openvm-ecc-transpiler = { path = "/home/allanl/Programs/openvm-worktree/no_bn254_root/extensions/ecc/transpiler" }
+# openvm-instructions = { path = "/home/allanl/Programs/openvm-worktree/no_bn254_root/crates/toolchain/instructions" }
+# openvm-instructions-derive = { path = "/home/allanl/Programs/openvm-worktree/no_bn254_root/crates/toolchain/instructions/derive" }
+# openvm-keccak256 = { path = "/home/allanl/Programs/openvm-worktree/no_bn254_root/guest-libs/keccak256" }
+# openvm-keccak256-circuit = { path = "/home/allanl/Programs/openvm-worktree/no_bn254_root/extensions/keccak256/circuit" }
+# openvm-keccak256-guest = { path = "/home/allanl/Programs/openvm-worktree/no_bn254_root/extensions/keccak256/guest" }
+# openvm-keccak256-transpiler = { path = "/home/allanl/Programs/openvm-worktree/no_bn254_root/extensions/keccak256/transpiler" }
+# openvm-macros-common = { path = "/home/allanl/Programs/openvm-worktree/no_bn254_root/crates/toolchain/macros" }
+# openvm-mod-circuit-builder = { path = "/home/allanl/Programs/openvm-worktree/no_bn254_root/crates/circuits/mod-builder" }
+# openvm-pairing = { path = "/home/allanl/Programs/openvm-worktree/no_bn254_root/guest-libs/pairing" }
+# openvm-pairing-circuit = { path = "/home/allanl/Programs/openvm-worktree/no_bn254_root/extensions/pairing/circuit" }
+# openvm-pairing-guest = { path = "/home/allanl/Programs/openvm-worktree/no_bn254_root/extensions/pairing/guest" }
+# openvm-pairing-transpiler = { path = "/home/allanl/Programs/openvm-worktree/no_bn254_root/extensions/pairing/transpiler" }
+# openvm-platform = { path = "/home/allanl/Programs/openvm-worktree/no_bn254_root/crates/toolchain/platform" }
+# openvm-poseidon2-air = { path = "/home/allanl/Programs/openvm-worktree/no_bn254_root/crates/circuits/poseidon2-air" }
+# openvm-recursion-circuit = { path = "/home/allanl/Programs/openvm-worktree/no_bn254_root/crates/recursion" }
+# openvm-recursion-circuit-derive = { path = "/home/allanl/Programs/openvm-worktree/no_bn254_root/crates/recursion/derive" }
+# openvm-rv32-adapters = { path = "/home/allanl/Programs/openvm-worktree/no_bn254_root/extensions/rv32-adapters" }
+# openvm-rv32im-circuit = { path = "/home/allanl/Programs/openvm-worktree/no_bn254_root/extensions/rv32im/circuit" }
+# openvm-rv32im-guest = { path = "/home/allanl/Programs/openvm-worktree/no_bn254_root/extensions/rv32im/guest" }
+# openvm-rv32im-transpiler = { path = "/home/allanl/Programs/openvm-worktree/no_bn254_root/extensions/rv32im/transpiler" }
+# openvm-sdk = { path = "/home/allanl/Programs/openvm-worktree/no_bn254_root/crates/sdk" }
+# openvm-sdk-config = { path = "/home/allanl/Programs/openvm-worktree/no_bn254_root/crates/sdk-config" }
+# openvm-sha2 = { path = "/home/allanl/Programs/openvm-worktree/no_bn254_root/guest-libs/sha2" }
+# openvm-sha2-air = { path = "/home/allanl/Programs/openvm-worktree/no_bn254_root/crates/circuits/sha2-air" }
+# openvm-sha2-circuit = { path = "/home/allanl/Programs/openvm-worktree/no_bn254_root/extensions/sha2/circuit" }
+# openvm-sha2-guest = { path = "/home/allanl/Programs/openvm-worktree/no_bn254_root/extensions/sha2/guest" }
+# openvm-sha2-transpiler = { path = "/home/allanl/Programs/openvm-worktree/no_bn254_root/extensions/sha2/transpiler" }
+# openvm-static-verifier = { path = "/home/allanl/Programs/openvm-worktree/no_bn254_root/crates/static-verifier" }
+# openvm-transpiler = { path = "/home/allanl/Programs/openvm-worktree/no_bn254_root/crates/toolchain/transpiler" }
+# openvm-verify-stark-host = { path = "/home/allanl/Programs/openvm-worktree/no_bn254_root/crates/verify" }
+# p256 = { path = "/home/allanl/Programs/openvm-worktree/no_bn254_root/guest-libs/p256" }
