@@ -20,7 +20,7 @@ use openvm_sdk_config::{SdkVmConfig, TranspilerConfig};
 use openvm_stark_sdk::{
     bench::run_with_metric_collection,
     config::{
-        app_params_with_100_bits_security,
+        app_params_with_100_bits_security, internal_params_with_100_bits_security,
         baby_bear_poseidon2::{D_EF, F},
     },
     openvm_stark_backend::{
@@ -269,11 +269,7 @@ pub async fn run_reth_benchmark(args: HostArgs, openvm_client_eth_elf: &[u8]) ->
     #[cfg(feature = "evm-verify")]
     {
         let root_pk_path = args.output_dir.join("root.pk");
-        if root_pk_path.exists() {
-            info!("Loading root proving key from {}", root_pk_path.display());
-            let root_pk = read_object_from_file(&root_pk_path)?;
-            sdk_builder = sdk_builder.root_pk(root_pk);
-        }
+        sdk_builder = sdk_builder.root_params(internal_params_with_100_bits_security());
     }
 
     let sdk = sdk_builder.build()?;
