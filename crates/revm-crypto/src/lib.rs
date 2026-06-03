@@ -122,7 +122,8 @@ struct OpenVmCrypto;
 impl Crypto for OpenVmCrypto {
     /// Custom SHA-256 implementation with openvm optimization
     fn sha256(&self, input: &[u8]) -> [u8; 32] {
-        #[cfg(not(openvm_intrinsics))]
+        // openvm now provides `digest` via the `Digest` trait for both the host and the
+        // zkvm (intrinsics) impls, so the trait must be in scope unconditionally.
         use openvm_sha2::Digest;
         openvm_sha2::Sha256::digest(input).into()
     }

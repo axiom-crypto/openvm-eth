@@ -121,6 +121,21 @@ openvm-p256 = { git = "https://github.com/openvm-org/openvm.git", package = "p25
 openvm-kzg = { git = "https://github.com/axiom-crypto/openvm-kzg.git", branch = "develop-v2.1.0-rv64", default-features = false }
 openvm-stark-sdk = { git = "https://github.com/openvm-org/stark-backend.git", branch = "develop-v2", default-features = false }
 
+# openvm develop-v2.1.0-rv64 @ 50b720b9 builds against stark-backend 260062e9 (Plonky3 0.4.1),
+# but the stark-backend develop-v2 branch head has since advanced to a Plonky3 0.4.3 commit that
+# conflicts with the p3 0.4.1 openvm pins. cargo refuses to [patch] a git branch dep with a `rev`
+# of the same URL ("patches must point to different sources"), so we pin via a local checkout of
+# stark-backend @ 260062e9. NOTE: the absolute paths below are machine-specific — this is a local
+# workaround until the upstream branches are re-synced (or a release/tag tracks the same commit).
+[patch."https://github.com/openvm-org/stark-backend.git"]
+openvm-stark-backend = { path = "/home/gunadig/openvm-stark-backend/crates/stark-backend" }
+openvm-codec-derive = { path = "/home/gunadig/openvm-stark-backend/crates/stark-backend/codec-derive" }
+openvm-stark-sdk = { path = "/home/gunadig/openvm-stark-backend/crates/stark-sdk" }
+openvm-cpu-backend = { path = "/home/gunadig/openvm-stark-backend/crates/cpu-backend" }
+openvm-cuda-backend = { path = "/home/gunadig/openvm-stark-backend/crates/cuda-backend" }
+openvm-cuda-common = { path = "/home/gunadig/openvm-stark-backend/crates/cuda-common" }
+openvm-cuda-builder = { path = "/home/gunadig/openvm-stark-backend/crates/cuda-builder" }
+
 [workspace.lints]
 rust.missing_debug_implementations = "warn"
 rust.unreachable_pub = "warn"
