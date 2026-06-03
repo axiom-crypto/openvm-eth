@@ -2,8 +2,6 @@
 #![cfg_attr(feature = "tco", feature(explicit_tail_calls))]
 use std::{fs, io::Write, path::PathBuf, time::Instant};
 
-use powdr_openvm_riscv::StagedPipeline;
-
 use alloy_provider::RootProvider;
 use alloy_rpc_client::RpcClient;
 use alloy_transport::layers::RetryBackoffLayer;
@@ -43,16 +41,16 @@ use openvm_verify_stark_host::{
     vk::{write_vk_to_file, VmStarkVerifyingKey},
 };
 use powdr_autoprecompiles::{
-    empirical_constraints::EmpiricalConstraints, execution_profile::execution_profile,
-    GenerateConfig, PgoConfig, PgoType, SelectConfig,
+    execution_profile::execution_profile, PgoConfig, PgoType, SelectConfig,
 };
 #[cfg(not(feature = "cuda"))]
 use powdr_openvm::PowdrSdkCpu;
 #[cfg(feature = "cuda")]
 use powdr_openvm::PowdrSdkGpu;
 use powdr_openvm::{
-    default_generate_config, extraction_utils::OriginalVmConfig, BabyBearOpenVmApcAdapter,
-    CompiledProgram, OriginalCompiledProgram, PowdrExecutionProfileSdkCpu, Prog,
+    default_generate_config, extraction_utils::OriginalVmConfig,
+    make_default_empirical_constraints, BabyBearOpenVmApcAdapter, CompiledProgram,
+    OriginalCompiledProgram, PowdrExecutionProfileSdkCpu, Prog, StagedPipeline,
 };
 use powdr_openvm_riscv::{ExtendedVmConfig, RiscvISA};
 use powdr_openvm_riscv_hints_circuit::HintsExtension;
@@ -455,14 +453,6 @@ pub async fn precompute_prover_data(
     );
 
     Ok(PrecomputedProverData { program })
-}
-
-fn make_default_empirical_constraints(
-    _guest: &OriginalCompiledProgram<'static, RiscvISA>,
-    _generate: &GenerateConfig,
-    _inputs: &[u8],
-) -> EmpiricalConstraints {
-    EmpiricalConstraints::default()
 }
 
 /// Load stateless input either from bincode cache under `cache_dir` or by
