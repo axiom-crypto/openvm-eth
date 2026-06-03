@@ -20,8 +20,9 @@ ENV CARGO_HOME="/root/.cargo" \
 RUN rustup toolchain install nightly-2026-01-18 \
     && rustup component add rust-src --toolchain nightly-2026-01-18
 
-# Install cargo-openvm (builds the guest ELF)
-RUN cargo +1.91.1 install --git https://github.com/openvm-org/openvm.git --locked --force cargo-openvm
+# Install cargo-openvm (builds the guest ELF). Pin to the same openvm branch the workspace
+# tracks so it supports `toolchain install` and emits the riscv64im-unknown-openvm-elf target.
+RUN cargo +1.91.1 install --git https://github.com/openvm-org/openvm.git --branch develop-v2.1.0-rv64 --locked --force cargo-openvm
 
 WORKDIR /app
 # Copy only Rust workspace files to keep build cache stable when server/ changes
@@ -32,9 +33,13 @@ COPY rustfmt.toml ./
 
 # Build guest ELF and place where host expects it
 WORKDIR /app/bin/stateless-guest
-RUN RUSTFLAGS="" OPENVM_RUST_TOOLCHAIN=nightly-2026-01-18 cargo openvm build --no-transpile --profile=release \
+# Install the prebuilt openvm Rust toolchain that provides the riscv64im-unknown-openvm-elf
+# guest target (openvm PR #2765 replaced the in-repo target JSON with a forked toolchain
+# fetched from openvm-org/rust releases), then build the guest against it.
+RUN cargo openvm toolchain install \
+    && RUSTFLAGS="" cargo openvm build --no-transpile --profile=release \
     && mkdir -p ../reth-benchmark/elf \
-    && cp target/riscv32im-risc0-zkvm-elf/release/openvm-stateless-guest ../reth-benchmark/elf/
+    && cp target/riscv64im-unknown-openvm-elf/release/openvm-stateless-guest ../reth-benchmark/elf/
 
 # Build host binary
 WORKDIR /app

@@ -10,12 +10,19 @@ edition = "2021"
 openvm-stateless-executor = { path = "../../crates/stateless-executor", default-features = false }
 
 # openvm
-openvm = { git = "https://github.com/openvm-org/openvm.git", branch = "develop-v2.1.0-rv64", default-features = false }
+# getrandom-unsupported provides openvm's custom getrandom backend (always-errors) and the
+# `custom` feature for getrandom 0.2/0.3, which are pulled in transitively (e.g. via k256/p256)
+# but never invoked — the stateless executor only verifies, so it needs no RNG. Without this the
+# riscv64im-unknown-openvm-elf guest build fails ("getrandom: target is not supported").
+openvm = { git = "https://github.com/openvm-org/openvm.git", branch = "develop-v2.1.0-rv64", default-features = false, features = ["getrandom-unsupported"] }
 openvm-algebra-guest = { git = "https://github.com/openvm-org/openvm.git", branch = "develop-v2.1.0-rv64", optional = true }
 openvm-ecc-guest = { git = "https://github.com/openvm-org/openvm.git", branch = "develop-v2.1.0-rv64", optional = true }
 
-# Enable std feature for host builds (provides critical-section implementation)
-[target.'cfg(not(target_os = "none"))'.dependencies]
+# Enable std feature for host builds (provides critical-section implementation).
+# The zkVM guest target now reports target_os = "openvm" (it was "none" before the
+# riscv64im-unknown-openvm-elf rename); exclude both so std is only pulled in on the host
+# and never cascades into the no_std guest (which would drag in std-only crates like quanta).
+[target.'cfg(not(any(target_os = "none", target_os = "openvm")))'.dependencies]
 openvm-stateless-executor = { path = "../../crates/stateless-executor", default-features = false, features = ["std"] }
 
 [package.metadata.cargo-machete]

@@ -32,9 +32,14 @@ REPO_ROOT=$(git rev-parse --show-toplevel)
 WORKDIR=$REPO_ROOT
 
 cd "$REPO_ROOT/bin/stateless-guest"
-OPENVM_RUST_TOOLCHAIN=nightly-2026-01-18 cargo openvm build
+# Download + link the openvm custom Rust toolchain that provides the
+# riscv64im-unknown-openvm-elf guest target (idempotent; no-op if already linked).
+# Required since openvm PR #2765 replaced the in-repo target spec JSON with a
+# prebuilt forked toolchain fetched from the openvm-org/rust releases.
+cargo openvm toolchain install
+cargo openvm build
 mkdir -p ../reth-benchmark/elf
-SRC="target/riscv64im-openvm-none-elf/release/openvm-stateless-guest"
+SRC="target/riscv64im-unknown-openvm-elf/release/openvm-stateless-guest"
 DEST="../reth-benchmark/elf/openvm-stateless-guest"
 
 if [ ! -f "$DEST" ] || ! cmp -s "$SRC" "$DEST"; then
