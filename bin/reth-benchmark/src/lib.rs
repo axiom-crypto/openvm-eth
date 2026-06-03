@@ -43,8 +43,8 @@ use openvm_verify_stark_host::{
     vk::{write_vk_to_file, VmStarkVerifyingKey},
 };
 use powdr_autoprecompiles::{
-    empirical_constraints::EmpiricalConstraints, execution_profile::execution_profile, PgoConfig,
-    PgoType, SelectConfig,
+    empirical_constraints::EmpiricalConstraints, execution_profile::execution_profile,
+    GenerateConfig, PgoConfig, PgoType, SelectConfig,
 };
 #[cfg(not(feature = "cuda"))]
 use powdr_openvm::PowdrSdkCpu;
@@ -376,22 +376,20 @@ pub async fn precompute_prover_data(
     // Pre-fetch the PGO stdins. Cheap on warm runs because `load_stateless_input`
     // hits the local rpc-cache; the expensive RPC path only fires on cold cache.
     // Pre-fetching keeps the closure passed to `generate_apcs` synchronous.
+    let provider_config = args.provider.clone().into_provider().await?;
     let mut pgo_stdins: Vec<StdIn> = Vec::new();
-    if !pgo_blocks.is_empty() {
-        let provider_config = args.provider.clone().into_provider().await?;
-        for block_id in &pgo_blocks {
-            let pgo_input = load_stateless_input(
-                &provider_config,
-                &args.cache_dir,
-                CHAIN_ID_ETH_MAINNET,
-                *block_id,
-                args.preimage_cache_nibbles,
-            )
-            .await?;
-            let mut stdin = StdIn::default();
-            stdin.write(&pgo_input);
-            pgo_stdins.push(stdin);
-        }
+    for block_id in pgo_blocks {
+        let pgo_input = load_stateless_input(
+            &provider_config,
+            &args.cache_dir,
+            CHAIN_ID_ETH_MAINNET,
+            block_id,
+            args.preimage_cache_nibbles,
+        )
+        .await?;
+        let mut stdin = StdIn::default();
+        stdin.write(&pgo_input);
+        pgo_stdins.push(stdin);
     }
 
     let system_params = app_params_with_100_bits_security(DEFAULT_LOG_STACKED_HEIGHT);
@@ -411,23 +409,17 @@ pub async fn precompute_prover_data(
 
     let pipeline = StagedPipeline::new(original_program, Some(args.artifacts_dir.clone()));
 
-    // Build `PgoConfig.inputs` as serialized stdins so the make_pgo_profile
-    // closure can be a pure function of `(guest, inputs)` — and so the
-    // staged cache key sees them.
-    let mut generate = default_generate_config();
-    // Dump per-candidate JSON/TXT + a combined `apc_candidates.json` when the
-    // caller (CI, run.sh) points `POWDR_APC_CANDIDATES_DIR` somewhere. This is a
-    // side effect of the `generate` stage, so it only refreshes on a generate
-    // cache miss — fine for the bench, which runs against a fresh apc-cache.
+    let select = SelectConfig::new(args.apc as u64, args.apc_skip as u64);
+    let mut generate = default_generate_config().with_select_defaults(pgo_type, select);
+
     if let Ok(path) = std::env::var("POWDR_APC_CANDIDATES_DIR") {
         fs::create_dir_all(&path)?;
         generate = generate.with_apc_candidates_dir(path);
     }
-    let select = SelectConfig::new(args.apc as u64, args.apc_skip as u64);
-    let generate = generate.with_select_defaults(pgo_type, select);
+
     let pgo_inputs = bincode::serde::encode_to_vec(&pgo_stdins, bincode::config::standard())
         .expect("serialize pgo_stdins for PgoConfig::inputs");
-    let pgo_config = PgoConfig::new(pgo_type, None /* max_columns */, pgo_inputs);
+    let pgo_config = PgoConfig::new(pgo_type, None, pgo_inputs);
 
     tracing::info!(
         "precompute: compiling {} autoprecompiles (pgo={pgo_type:?}, artifacts_dir={})",
@@ -453,22 +445,24 @@ pub async fn precompute_prover_data(
             }
         })
     };
-    // openvm-eth doesn't use optimistic precompiles — empirical constraints
-    // are always default.
-    let make_empirical_constraints =
-        |_guest: &OriginalCompiledProgram<'static, RiscvISA>,
-         _generate: &powdr_autoprecompiles::GenerateConfig,
-         _inputs: &[u8]| EmpiricalConstraints::default();
 
     let program = pipeline.setup(
         &generate,
         &pgo_config,
         select,
         make_pgo_profile,
-        make_empirical_constraints,
+        make_default_empirical_constraints,
     );
 
     Ok(PrecomputedProverData { program })
+}
+
+fn make_default_empirical_constraints(
+    _guest: &OriginalCompiledProgram<'static, RiscvISA>,
+    _generate: &GenerateConfig,
+    _inputs: &[u8],
+) -> EmpiricalConstraints {
+    EmpiricalConstraints::default()
 }
 
 /// Load stateless input either from bincode cache under `cache_dir` or by
