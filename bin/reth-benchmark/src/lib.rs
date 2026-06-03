@@ -414,7 +414,15 @@ pub async fn precompute_prover_data(
     // Build `PgoConfig.inputs` as serialized stdins so the make_pgo_profile
     // closure can be a pure function of `(guest, inputs)` — and so the
     // staged cache key sees them.
-    let generate = default_generate_config();
+    let mut generate = default_generate_config();
+    // Dump per-candidate JSON/TXT + a combined `apc_candidates.json` when the
+    // caller (CI, run.sh) points `POWDR_APC_CANDIDATES_DIR` somewhere. This is a
+    // side effect of the `generate` stage, so it only refreshes on a generate
+    // cache miss — fine for the bench, which runs against a fresh apc-cache.
+    if let Ok(path) = std::env::var("POWDR_APC_CANDIDATES_DIR") {
+        fs::create_dir_all(&path)?;
+        generate = generate.with_apc_candidates_dir(path);
+    }
     let select = SelectConfig::new(args.apc as u64, args.apc_skip as u64);
     let generate = generate.with_select_defaults(pgo_type, select);
     let pgo_inputs = bincode::serde::encode_to_vec(&pgo_stdins, bincode::config::standard())
