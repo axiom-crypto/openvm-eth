@@ -29,4 +29,5 @@ workspace = true
 
 [features]
 default = []
-host = []
+std = []
+host = ["std"]
