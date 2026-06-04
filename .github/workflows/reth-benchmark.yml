@@ -76,6 +76,15 @@ on:
         required: false
         description: Use TCO instead of AOT
         default: false
+      rpc_input_cache:
+        type: choice
+        required: false
+        description: RPC input cache mode
+        options:
+          - use
+          - refresh
+          - disabled
+        default: use
       # num_children_leaf:
       #   type: number
       #   required: false
@@ -168,6 +177,11 @@ on:
         type: string
         required: false
         description: Tag for cache keys (default is commit hash)
+      rpc_input_cache:
+        type: string
+        required: false
+        description: RPC input cache mode (use, refresh, disabled)
+        default: use
     secrets:
       GH_ACTIONS_DEPLOY_PRIVATE_KEY:
         required: true
@@ -433,11 +447,71 @@ jobs:
           path: target/${{ steps.set-build-profiles.outputs.host_profile }}/${{ env.BIN_NAME }}
           key: ${{ steps.cache-host-binary-restore.outputs.cache-primary-key }}
 
+      - name: Restore RPC input cache from S3
+        id: restore-rpc-input-cache
+        run: |
+          RPC_INPUT_CACHE_MODE="${{ inputs.rpc_input_cache || github.event.inputs.rpc_input_cache || 'use' }}"
+          BLOCK_NUMBER="${{ inputs.block_number || github.event.inputs.block_number }}"
+          CACHE_FILE="rpc-cache/input/1/${BLOCK_NUMBER}.bin"
+
+          if [[ "${RPC_INPUT_CACHE_MODE}" != "use" && "${RPC_INPUT_CACHE_MODE}" != "refresh" && "${RPC_INPUT_CACHE_MODE}" != "disabled" ]]; then
+            echo "Invalid rpc_input_cache mode: ${RPC_INPUT_CACHE_MODE}" >&2
+            exit 1
+          fi
+
+          S3_CACHE_FILE="${S3_FIXTURE_PATH}/rpc-input/v1/mainnet/${BLOCK_NUMBER}.bin"
+
+          echo "mode=${RPC_INPUT_CACHE_MODE}" >> "$GITHUB_OUTPUT"
+          echo "cache_file=${CACHE_FILE}" >> "$GITHUB_OUTPUT"
+          echo "s3_cache_file=${S3_CACHE_FILE}" >> "$GITHUB_OUTPUT"
+
+          if [[ "${RPC_INPUT_CACHE_MODE}" == "disabled" ]]; then
+            echo "RPC input cache disabled"
+            echo "cache-hit=false" >> "$GITHUB_OUTPUT"
+            echo "RPC input cache: disabled" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          mkdir -p "$(dirname "$CACHE_FILE")"
+
+          if [[ "${RPC_INPUT_CACHE_MODE}" == "refresh" ]]; then
+            echo "Skipping restore for refresh mode"
+            echo "cache-hit=false" >> "$GITHUB_OUTPUT"
+            echo "RPC input cache: refresh requested; skipped restore" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          if s5cmd cp "$S3_CACHE_FILE" "$CACHE_FILE"; then
+            echo "Restored RPC input cache from $S3_CACHE_FILE"
+            echo "cache-hit=true" >> "$GITHUB_OUTPUT"
+            echo "RPC input cache: restored from S3" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "No RPC input cache found at $S3_CACHE_FILE"
+            rm -f "$CACHE_FILE"
+            echo "cache-hit=false" >> "$GITHUB_OUTPUT"
+            echo "RPC input cache: miss" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
       - name: Set up run benchmark script
         run: |
-          mkdir -p rpc-cache
-          mkdir -p .bench_metrics
+          RPC_INPUT_CACHE_MODE="${{ steps.restore-rpc-input-cache.outputs.mode }}"
+          RPC_INPUT_CACHE_HIT="${{ steps.restore-rpc-input-cache.outputs.cache-hit }}"
           RPC_1=${{ secrets.RPC_URL_1 }}
+
+          if [[ "${RPC_INPUT_CACHE_MODE}" != "disabled" ]]; then
+            mkdir -p rpc-cache
+            CACHE_ARGS="--cache-dir rpc-cache"
+            if [[ "${RPC_INPUT_CACHE_HIT}" == "true" ]]; then
+              PROVIDER_ARGS="--chain-id 1"
+            else
+              PROVIDER_ARGS="--rpc-url $RPC_1"
+            fi
+          else
+            CACHE_ARGS=""
+            PROVIDER_ARGS="--rpc-url $RPC_1"
+          fi
+
+          mkdir -p .bench_metrics
           MODE=${{ inputs.mode || github.event.inputs.mode }}
           BLOCK_NUMBER=${{ inputs.block_number || github.event.inputs.block_number }}
           HOST_PROFILE=${{ steps.set-build-profiles.outputs.host_profile }}
@@ -457,7 +531,7 @@ jobs:
           cat > run_benchmark.sh <<EOF
           #!/bin/bash
           /usr/bin/time -v ./target/$HOST_PROFILE/${{ env.BIN_NAME }} \
-            --mode $MODE --block-number $BLOCK_NUMBER --rpc-url $RPC_1 --cache-dir rpc-cache \
+            --mode $MODE --block-number $BLOCK_NUMBER $PROVIDER_ARGS $CACHE_ARGS \
             --max-segment-length ${{ inputs.max_segment_length || github.event.inputs.max_segment_length }} \
             --segment-max-memory ${{ inputs.segment_max_memory || github.event.inputs.segment_max_memory }} \
             --app-l-skip ${{ inputs.app_l_skip || github.event.inputs.app_l_skip || 4 }} \
@@ -541,6 +615,20 @@ jobs:
             echo "GPU_LOG_FILE=${GPU_LOG_FILE}" >> $GITHUB_ENV
 
             echo "MEM_USAGE_PATH=memory_usage.png" >> $GITHUB_ENV
+          fi
+
+      - name: Save RPC input cache to S3
+        if: ${{ success() && steps.restore-rpc-input-cache.outputs.mode != 'disabled' && steps.restore-rpc-input-cache.outputs.cache-hit != 'true' }}
+        run: |
+          CACHE_FILE="${{ steps.restore-rpc-input-cache.outputs.cache_file }}"
+          S3_CACHE_FILE="${{ steps.restore-rpc-input-cache.outputs.s3_cache_file }}"
+
+          if [[ -f "$CACHE_FILE" ]]; then
+            s5cmd cp "$CACHE_FILE" "$S3_CACHE_FILE"
+            echo "Saved RPC input cache to $S3_CACHE_FILE"
+          else
+            echo "RPC input cache file not found at $CACHE_FILE" >&2
+            exit 1
           fi
 
 
