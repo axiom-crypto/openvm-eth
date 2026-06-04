@@ -17,15 +17,14 @@ use openvm_sdk::{
     Sdk, SC,
 };
 use openvm_sdk_config::{SdkVmConfig, TranspilerConfig};
+#[cfg(feature = "evm-verify")]
+use openvm_stark_sdk::openvm_stark_backend::codec::Decode;
 use openvm_stark_sdk::{
     bench::run_with_metric_collection,
-    config::{
-        app_params_with_100_bits_security,
-        baby_bear_poseidon2::{D_EF, F},
-    },
+    config::{app_params_with_100_bits_security, baby_bear_poseidon2::F},
     openvm_stark_backend::{
         air_builders::symbolic::{SymbolicExpressionDag, SymbolicExpressionNode},
-        codec::{Decode, Encode},
+        codec::Encode,
         keygen::types::MultiStarkProvingKey,
         p3_field::PrimeCharacteristicRing,
     },
@@ -61,6 +60,7 @@ pub enum BenchMode {
     ProveApp,
     /// Generate a full end-to-end STARK proof with aggregation.
     ProveStark,
+    /// Generate the root STARK proof without halo2 wrapping.
     #[cfg(feature = "evm-verify")]
     ProveRoot,
     /// Generate a full end-to-end halo2 proof for EVM verifier.
@@ -209,8 +209,6 @@ pub async fn run_reth_benchmark(args: HostArgs, openvm_client_eth_elf: &[u8]) ->
     dotenv::dotenv().ok();
 
     let app_log_blowup = args.benchmark.app_log_blowup;
-    let app_l_skip = args.benchmark.app_l_skip;
-
     #[cfg(feature = "cuda")]
     println!("CUDA Backend Enabled");
 
@@ -369,7 +367,7 @@ pub async fn run_reth_benchmark(args: HostArgs, openvm_client_eth_elf: &[u8]) ->
     // MakeInput: encode stateless_input as JSON and write to disk.
     if matches!(args.mode, BenchMode::MakeInput) {
         let words = openvm::serde::to_vec(&stateless_input)?;
-        let bytes: Vec<u8> = words.into_iter().flat_map(|w: u32| w.to_le_bytes()).collect();
+        let bytes: Vec<u8> = words.into_iter().flat_map(|w: u64| w.to_le_bytes()).collect();
         let hex = format!("0x01{}", hex::encode(&bytes));
         let json = serde_json::json!({ "input": [hex] });
 
@@ -420,7 +418,7 @@ pub async fn run_reth_benchmark(args: HostArgs, openvm_client_eth_elf: &[u8]) ->
                     println!("BENCH_BLOCK_HASH={block_hash}");
                 }
                 BenchMode::ExecuteMetered => {
-                    let (public_values, segments) =
+                    let (public_values, _) =
                         info_span!("sdk.execute_metered", group = program_name)
                             .in_scope(|| sdk.execute_metered(exe, stdin))?;
                     let block_hash = hex::encode(&public_values);
@@ -533,7 +531,7 @@ pub async fn run_reth_benchmark(args: HostArgs, openvm_client_eth_elf: &[u8]) ->
                     {
                         info!("Generating root proving key...");
                         let root_pk = sdk.root_pk();
-                        info!("Saving app root key to: {}", root_pk_path.display());
+                        info!("Saving root proving key to: {}", root_pk_path.display());
                         write_object_to_file(&root_pk_path, &root_pk)?;
                     }
 
