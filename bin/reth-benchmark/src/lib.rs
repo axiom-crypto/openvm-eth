@@ -25,7 +25,7 @@ use openvm_stark_sdk::{
     },
     openvm_stark_backend::{
         air_builders::symbolic::{SymbolicExpressionDag, SymbolicExpressionNode},
-        codec::{Decode, Encode},
+        codec::Encode,
         keygen::types::MultiStarkProvingKey,
         p3_field::PrimeCharacteristicRing,
     },
@@ -61,6 +61,7 @@ pub enum BenchMode {
     ProveApp,
     /// Generate a full end-to-end STARK proof with aggregation.
     ProveStark,
+    /// Generate the root STARK proof without halo2 wrapping.
     #[cfg(feature = "evm-verify")]
     ProveRoot,
     /// Generate a full end-to-end halo2 proof for EVM verifier.
@@ -369,7 +370,7 @@ pub async fn run_reth_benchmark(args: HostArgs, openvm_client_eth_elf: &[u8]) ->
     // MakeInput: encode stateless_input as JSON and write to disk.
     if matches!(args.mode, BenchMode::MakeInput) {
         let words = openvm::serde::to_vec(&stateless_input)?;
-        let bytes: Vec<u8> = words.into_iter().flat_map(|w: u32| w.to_le_bytes()).collect();
+        let bytes: Vec<u8> = words.into_iter().flat_map(|w: u64| w.to_le_bytes()).collect();
         let hex = format!("0x01{}", hex::encode(&bytes));
         let json = serde_json::json!({ "input": [hex] });
 
@@ -396,7 +397,7 @@ pub async fn run_reth_benchmark(args: HostArgs, openvm_client_eth_elf: &[u8]) ->
         })?;
         let elapsed = start.elapsed();
         let block_hash = header.hash_slow();
-        info!("Host execution: {:.6}s, block hash: {}", elapsed.as_secs_f64(), block_hash);
+        info!("Host execution: {:.6}s, block hash: {}", elapsed.as_secs_f64(), block_hash,);
         println!("BENCH_HOST_NS={}", elapsed.as_nanos());
         println!("BENCH_BLOCK_HASH={block_hash}");
         return Ok(());
@@ -448,51 +449,16 @@ pub async fn run_reth_benchmark(args: HostArgs, openvm_client_eth_elf: &[u8]) ->
                 }
                 #[cfg(feature = "evm-verify")]
                 BenchMode::ProveRoot => {
-                    let mut evm_prover = sdk.evm_prover_without_halo2(exe)?;
+                    // TODO: switch to `sdk.evm_prover_without_halo2` (avoids eager halo2
+                    // keygen) and restore `--proof-cache` support via
+                    // `prove_unwrapped_with_stark_proof` once the rv64 SDK catches up with
+                    // develop-v2.0.0-rc.1 (#609).
+                    if args.proof_cache.is_some() {
+                        todo!("--proof-cache requires prove_unwrapped_with_stark_proof, not yet in the rv64 SDK");
+                    }
+                    let mut evm_prover = sdk.evm_prover(exe)?;
                     evm_prover.stark_prover.app_prover.set_program_name(&program_name);
-
-                    let proof_file = args.proof_cache.as_ref().map(|d| d.join("stark.bitcode"));
-                    let cached = proof_file.as_ref().filter(|p| p.exists());
-
-                    let _root_proof = if let Some(proof_file) = cached {
-                        info!("Loading cached stark proof from: {}", proof_file.display());
-                        let stark_proof_file =
-                            fs::File::open(proof_file).expect("failed to open stark file");
-                        let mut stark_proof_reader = std::io::BufReader::new(stark_proof_file);
-                        let (stark_proof, mut internal_meta) =
-                            Decode::decode(&mut stark_proof_reader)
-                                .expect("failed stark proof deserialization");
-                        evm_prover
-                            .prove_unwrapped_with_stark_proof(stark_proof, &mut internal_meta)
-                            .expect("failed to prove root from cached stark proof")
-                    } else {
-                        if let Some(p) = &proof_file {
-                            info!("No cached stark proof at {}; generating fresh", p.display());
-                        }
-                        let (stark_proof, metadata) = evm_prover
-                            .stark_prover
-                            .prove(stdin, &[])
-                            .expect("failed to prove stark");
-                        let root_proof = evm_prover
-                            .prove_unwrapped_with_stark_proof(
-                                stark_proof.clone(),
-                                &mut metadata.clone(),
-                            )
-                            .expect("failed to prove root");
-                        if let Some(proof_file) = &proof_file {
-                            if let Some(parent) = proof_file.parent() {
-                                fs::create_dir_all(parent)?;
-                            }
-                            info!("Writing stark proof cache to: {}", proof_file.display());
-                            let stark_proof_file =
-                                fs::File::create(proof_file).expect("failed to create stark file");
-                            let mut stark_proof_writer = std::io::BufWriter::new(stark_proof_file);
-                            (stark_proof, metadata)
-                                .encode(&mut stark_proof_writer)
-                                .expect("failed to write stark proof");
-                        }
-                        root_proof
-                    };
+                    let _root_proof = evm_prover.prove_unwrapped(stdin, &[])?;
                 }
                 #[cfg(feature = "evm-verify")]
                 BenchMode::ProveEvm => {
@@ -533,7 +499,7 @@ pub async fn run_reth_benchmark(args: HostArgs, openvm_client_eth_elf: &[u8]) ->
                     {
                         info!("Generating root proving key...");
                         let root_pk = sdk.root_pk();
-                        info!("Saving app root key to: {}", root_pk_path.display());
+                        info!("Saving root proving key to: {}", root_pk_path.display());
                         write_object_to_file(&root_pk_path, &root_pk)?;
                     }
 

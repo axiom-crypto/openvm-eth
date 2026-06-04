@@ -4,14 +4,13 @@
 #
 # Options:
 #   --mode <MODE>       Set the proving mode (default: prove-app)
-#                       Valid modes: prove-app, prove-stark, prove-evm, keygen, generate-vm-vkey
+#                       Valid modes: prove-app, prove-stark, prove-root, prove-evm, keygen, keygen-root, generate-vm-vkey
 #   --generate-vm-vkey  Shortcut for --mode generate-vm-vkey
 #   --profile <PROFILE> Set the Cargo build profile (default: profiling)
 #                       Valid profiles: dev, release, profiling
 #   --block <N>         Set the block number to prove (default: 23992138)
 #   --app-l-skip <N>    Log of univariate skip domain size (default: 4)
 #   --cuda              Force CUDA acceleration (auto-detected if nvidia-smi available)
-#   --tco               Use TCO instead of AOT (default is AOT on x86_64)
 #   --perf              Run with perf + samply host profiling and upload to Firefox Profiler
 #   --nsys              Run with nsys profiling and output summary stats
 #   --<tool>            Run with compute-sanitizer --tool <tool> where tool is one of memcheck, synccheck, or racecheck
@@ -35,13 +34,17 @@ set -e
 REPO_ROOT=$(git rev-parse --show-toplevel)
 WORKDIR=$REPO_ROOT
 
-DEST="$REPO_ROOT/bin/reth-benchmark/elf/openvm-stateless-guest"
+cd "$REPO_ROOT/bin/stateless-guest"
+if ! rustup toolchain list | grep -q '^openvm-1\.94\.0'; then
+    echo "openvm-1.94.0 toolchain not found; installing..."
+    cargo openvm toolchain install
+fi
+OPENVM_RUST_TOOLCHAIN=openvm-1.94.0 cargo openvm build
+mkdir -p ../reth-benchmark/elf
+SRC="target/riscv64im-unknown-openvm-elf/release/openvm-stateless-guest"
+DEST="../reth-benchmark/elf/openvm-stateless-guest"
 
-if [ ! -f "$DEST" ]; then
-    cd "$REPO_ROOT/bin/stateless-guest"
-    OPENVM_RUST_TOOLCHAIN=nightly-2026-01-18 cargo openvm build
-    mkdir -p ../reth-benchmark/elf
-    SRC="target/riscv32im-risc0-zkvm-elf/release/openvm-stateless-guest"
+if [ ! -f "$DEST" ] || ! cmp -s "$SRC" "$DEST"; then
     cp "$SRC" "$DEST"
 fi
 
@@ -63,7 +66,6 @@ PROFILE_OVERRIDE=""
 BLOCK_NUMBER_OVERRIDE=""
 USE_CUDA=false
 CUDA_REASON=""
-USE_TCO=false
 USE_PERF=false
 USE_NSYS=false
 USE_NCU=false
@@ -102,10 +104,6 @@ while [[ $# -gt 0 ]]; do
         --cuda)
             USE_CUDA=true
             CUDA_REASON="requested via --cuda script argument"
-            shift
-            ;;
-        --tco)
-            USE_TCO=true
             shift
             ;;
         --perf)
@@ -211,8 +209,7 @@ case "${PROFILE_OVERRIDE:-release}" in
 esac
 FEATURES="parallel,metrics,jemalloc,unprotected"
 BLOCK_NUMBER="${BLOCK_NUMBER_OVERRIDE:-23992138}"
-# switch to +nightly-2026-01-18 if using tco
-TOOLCHAIN="+nightly-2026-01-18" # "+stable"
+TOOLCHAIN="+nightly-2026-01-18"
 BIN_NAME="openvm-reth-benchmark"
 MAX_SEGMENT_LENGTH=$((1 << 22))
 segment_max_memory=$((15 << 30))
@@ -232,6 +229,10 @@ if [ "$USE_NSYS" = "true" ]; then
 fi
 if [ "$MODE" = "prove-evm" ] || [ "$MODE" = "prove-root" ] || [ "$MODE" = "keygen-root" ]; then
     FEATURES="$FEATURES,evm-verify"
+    arch=$(uname -m)
+    if [ "$arch" = "x86_64" ] || [ "$arch" = "amd64" ]; then
+        FEATURES="$FEATURES,halo2-asm"
+    fi
 fi
 
 # `keygen-root` is a shell-level alias: enable evm-verify (handled above) and pass --mode keygen
@@ -241,32 +242,8 @@ if [ "$MODE" = "keygen-root" ]; then
     MODE="keygen"
 fi
 
-arch=$(uname -m)
-case $arch in
-arm64|aarch64)
-    RUSTFLAGS="-Ctarget-cpu=native"
-    if [ "$USE_TCO" = "false" ]; then
-        USE_TCO=true
-    fi
-    ;;
-x86_64|amd64)
-    RUSTFLAGS="-Ctarget-cpu=native"
-    if [ "$USE_TCO" = "false" ]; then
-        # aot enables halo2curves-axiom/asm which is x86_64-only
-        FEATURES="$FEATURES,aot"
-        if [ "$MODE" = "prove-evm" ]; then
-            FEATURES="$FEATURES,halo2-asm"
-        fi
-    fi
-    ;;
-*)
-echo "Unsupported architecture: $arch"
-exit 1
-;;
-esac
-if [ "$USE_TCO" = "true" ]; then
-    FEATURES="$FEATURES,tco"
-fi
+RUSTFLAGS="-Ctarget-cpu=native"
+FEATURES="$FEATURES,tco"
 if [ "$USE_PERF" = "true" ]; then
     RUSTFLAGS="$RUSTFLAGS -C force-frame-pointers=yes"
     # Default to profiling profile for host profiling if not overridden
@@ -331,11 +308,11 @@ if [ "$USE_PERF" = "true" ]; then
 
     echo "Running with perf profiling (freq=${PERF_FREQ})..."
     export OUTPUT_PATH="metrics.json"
-    perf record -F $PERF_FREQ --call-graph=dwarf -g -o perf.data -- $BIN $BIN_ARGS
+    perf record -F $PERF_FREQ --call-graph=fp -g -o perf.data -- $BIN $BIN_ARGS
 
     echo "Converting perf.data with samply..."
     mkdir -p samply_profile
-    samply import perf.data --unstable-presymbolicate --save-only --output samply_profile/profile.json.gz
+    samply import perf.data --presymbolicate --save-only --output samply_profile/profile.json.gz
     echo "Saved profile: samply_profile/profile.json.gz"
 
     FIREFOX_PROFILER_URL=$(python3 "$REPO_ROOT/scripts/upload_firefox_profile.py" samply_profile/profile.json.gz) || true

@@ -17,11 +17,13 @@ RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
 ENV CARGO_HOME="/root/.cargo" \
     RUSTUP_HOME="/root/.rustup" \
     PATH="/root/.cargo/bin:${PATH}"
-RUN rustup toolchain install nightly-2026-01-18 \
-    && rustup component add rust-src --toolchain nightly-2026-01-18
+RUN rustup toolchain install nightly-2026-01-18
 
 # Install cargo-openvm (builds the guest ELF)
-RUN cargo +1.91.1 install --git https://github.com/openvm-org/openvm.git --locked --force cargo-openvm
+RUN cargo +1.91.1 install --git https://github.com/openvm-org/openvm.git --branch develop-v2.1.0-rv64 --locked --force cargo-openvm
+
+# Install the openvm rust toolchain
+RUN cargo openvm toolchain install
 
 WORKDIR /app
 # Copy only Rust workspace files to keep build cache stable when server/ changes
@@ -32,9 +34,9 @@ COPY rustfmt.toml ./
 
 # Build guest ELF and place where host expects it
 WORKDIR /app/bin/stateless-guest
-RUN RUSTFLAGS="" OPENVM_RUST_TOOLCHAIN=nightly-2026-01-18 cargo openvm build --no-transpile --profile=release \
+RUN RUSTFLAGS="" OPENVM_RUST_TOOLCHAIN=openvm-1.94.0 cargo openvm build --no-transpile --profile=release \
     && mkdir -p ../reth-benchmark/elf \
-    && cp target/riscv32im-risc0-zkvm-elf/release/openvm-stateless-guest ../reth-benchmark/elf/
+    && cp target/riscv64im-unknown-openvm-elf/release/openvm-stateless-guest ../reth-benchmark/elf/
 
 # Build host binary
 WORKDIR /app
