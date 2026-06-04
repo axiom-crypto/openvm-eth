@@ -4,7 +4,7 @@
 #
 # Options:
 #   --mode <MODE>       Set the proving mode (default: prove-app)
-#                       Valid modes: prove-app, prove-stark, prove-evm, keygen, generate-vm-vkey
+#                       Valid modes: prove-app, prove-stark, prove-root, prove-evm, keygen, keygen-root, generate-vm-vkey
 #   --generate-vm-vkey  Shortcut for --mode generate-vm-vkey
 #   --profile <PROFILE> Set the Cargo build profile (default: profiling)
 #                       Valid profiles: dev, release, profiling
@@ -16,10 +16,11 @@
 #   --root-log-blowup <N>
 #   --num-children-leaf <N>
 #   --num-children-internal <N>
+#   --max-segment-length <N>
 #   --segment-max-memory <N>
 #   --cuda              Force CUDA acceleration (auto-detected if nvidia-smi available)
-#   --exec-mode <MODE>  Select the OpenVM execution backend: tco | aot | rvr.
-#                       Defaults to rvr. aot is not supported on arm64.
+#   --exec-mode <MODE>  Select the OpenVM execution backend: interpreter | tco | aot | rvr.
+#                       Defaults to interpreter. aot is not supported on arm64.
 #                       rvr requires clang-22 and lld on PATH.
 #   --perf              Run with perf + samply host profiling and upload to Firefox Profiler
 #   --nsys              Run with nsys profiling and output summary stats
@@ -48,16 +49,19 @@ REPO_ROOT=$(git rev-parse --show-toplevel)
 WORKDIR=$REPO_ROOT
 RUST_TOOLCHAIN=$(sed -n 's/^channel = "\(.*\)"/\1/p' "$REPO_ROOT/rust-toolchain.toml")
 
-DEST="$REPO_ROOT/bin/reth-benchmark/elf/openvm-stateless-guest"
+cd "$REPO_ROOT/bin/stateless-guest"
+if ! rustup toolchain list | grep -q '^openvm-1\.94\.0'; then
+    echo "openvm-1.94.0 toolchain not found; installing..."
+    cargo openvm toolchain install
+fi
+cargo openvm build
+mkdir -p ../reth-benchmark/elf
+SRC="target/riscv64im-unknown-openvm-elf/release/openvm-stateless-guest"
+DEST="../reth-benchmark/elf/openvm-stateless-guest"
 
-build_openvm_guest_elf() {
-    cd "$REPO_ROOT/bin/stateless-guest"
-    OPENVM_RUST_TOOLCHAIN=$RUST_TOOLCHAIN cargo openvm build
-    mkdir -p ../reth-benchmark/elf
-    SRC="target/riscv32im-risc0-zkvm-elf/release/openvm-stateless-guest"
+if [ ! -f "$DEST" ] || ! cmp -s "$SRC" "$DEST"; then
     cp "$SRC" "$DEST"
-    cd "$WORKDIR"
-}
+fi
 
 cd $WORKDIR
 
@@ -102,6 +106,10 @@ while [[ $# -gt 0 ]]; do
             BLOCK_NUMBER_OVERRIDE="$2"
             shift 2
             ;;
+        --max-segment-length)
+            MAX_SEGMENT_LENGTH="$2"
+            shift 2
+            ;;
         --segment-max-memory)
             SEGMENT_MAX_MEMORY="$2"
             shift 2
@@ -141,11 +149,11 @@ while [[ $# -gt 0 ]]; do
             ;;
         --exec-mode)
             case "${2:-}" in
-                tco|aot|rvr)
+                interpreter|tco|aot|rvr)
                     EXEC_MODE="$2"
                     ;;
                 *)
-                    echo "Error: --exec-mode requires one of: tco, aot, rvr (got '${2:-}')" >&2
+                    echo "Error: --exec-mode requires one of: interpreter, tco, aot, rvr (got '${2:-}')" >&2
                     exit 1
                     ;;
             esac
@@ -281,6 +289,10 @@ if [ "$USE_NSYS" = "true" ]; then
 fi
 if [ "$MODE" = "prove-evm" ] || [ "$MODE" = "prove-root" ] || [ "$MODE" = "keygen-root" ]; then
     FEATURES="$FEATURES,evm-verify"
+    arch=$(uname -m)
+    if [ "$arch" = "x86_64" ] || [ "$arch" = "amd64" ]; then
+        FEATURES="$FEATURES,halo2-asm"
+    fi
 fi
 
 # `keygen-root` is a shell-level alias: enable evm-verify (handled above) and pass --mode keygen
@@ -295,7 +307,7 @@ case $arch in
 arm64|aarch64)
     RUSTFLAGS="-Ctarget-cpu=native"
     if [ -z "$EXEC_MODE" ]; then
-        EXEC_MODE="rvr"
+        EXEC_MODE="interpreter"
     elif [ "$EXEC_MODE" = "aot" ]; then
         # aot enables halo2curves-axiom/asm which is x86_64-only
         echo "Error: --exec-mode aot is not supported on arm64" >&2
@@ -305,7 +317,7 @@ arm64|aarch64)
 x86_64|amd64)
     RUSTFLAGS="-Ctarget-cpu=native"
     if [ -z "$EXEC_MODE" ]; then
-        EXEC_MODE="rvr"
+        EXEC_MODE="interpreter"
     fi
     ;;
 *)
@@ -314,6 +326,9 @@ exit 1
 ;;
 esac
 case "$EXEC_MODE" in
+    interpreter)
+        # default interpreted execution; no extra backend feature
+        ;;
     tco)
         FEATURES="$FEATURES,tco"
         ;;
@@ -348,7 +363,6 @@ if [ "$USE_NSYS" = "false" ]; then
     export JEMALLOC_SYS_WITH_MALLOC_CONF="retain:true,background_thread:true,metadata_thp:always,dirty_decay_ms:10000,muzzy_decay_ms:10000,abort_conf:true"
 fi
 if [[ "${OPENVM_BENCH_SKIP_BUILD:-0}" != "1" ]]; then
-    build_openvm_guest_elf
     RUSTFLAGS=$RUSTFLAGS cargo $TOOLCHAIN build --bin $BIN_NAME --profile=$PROFILE --no-default-features --features=$FEATURES
 fi
 
@@ -387,6 +401,10 @@ if [[ -n $PROOF_CACHE ]]
 then
     CONFIG_ARGS="$CONFIG_ARGS --proof-cache ${PROOF_CACHE}"
 fi
+if [[ -n $MAX_SEGMENT_LENGTH ]]
+then
+    CONFIG_ARGS="$CONFIG_ARGS --max-segment-length ${MAX_SEGMENT_LENGTH}"
+fi
 if [[ -n $SEGMENT_MAX_MEMORY ]]
 then
     CONFIG_ARGS="$CONFIG_ARGS --segment-max-memory ${SEGMENT_MAX_MEMORY}"
@@ -415,11 +433,11 @@ if [ "$USE_PERF" = "true" ]; then
 
     echo "Running with perf profiling (freq=${PERF_FREQ})..."
     export OUTPUT_PATH="metrics.json"
-    perf record -F $PERF_FREQ --call-graph=dwarf -g -o perf.data -- $BIN $BIN_ARGS
+    perf record -F $PERF_FREQ --call-graph=fp -g -o perf.data -- $BIN $BIN_ARGS
 
     echo "Converting perf.data with samply..."
     mkdir -p samply_profile
-    samply import perf.data --unstable-presymbolicate --save-only --output samply_profile/profile.json.gz
+    samply import perf.data --presymbolicate --save-only --output samply_profile/profile.json.gz
     echo "Saved profile: samply_profile/profile.json.gz"
 
     FIREFOX_PROFILER_URL=$(python3 "$REPO_ROOT/scripts/upload_firefox_profile.py" samply_profile/profile.json.gz) || true
