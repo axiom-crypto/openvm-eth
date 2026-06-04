@@ -17,6 +17,7 @@ mod backend {
 
 #[cfg(not(all(not(target_os = "zkvm"), feature = "native-k256")))]
 mod backend {
+    use alloc::{boxed::Box, sync::Arc};
     use alloy_consensus::crypto::{
         backend::{install_default_provider, CryptoProvider},
         RecoveryError,
@@ -27,7 +28,6 @@ mod backend {
     };
     use openvm_keccak256::keccak256;
     use revm::precompile::PrecompileHalt;
-    use std::sync::Arc;
 
     /// Recovers a signer's public key hash from a signature over a prehashed message.
     ///
@@ -97,7 +97,7 @@ mod backend {
         }
     }
 
-    pub(crate) fn install_alloy_provider() -> Result<(), Box<dyn std::error::Error>> {
+    pub(crate) fn install_alloy_provider() -> Result<(), Box<dyn core::error::Error>> {
         install_default_provider(Arc::new(OpenVmK256Provider))?;
         Ok(())
     }

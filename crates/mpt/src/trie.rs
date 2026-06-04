@@ -1,4 +1,5 @@
-use std::{
+use alloc::vec::Vec;
+use core::{
     cell::{Cell, RefCell},
     mem::MaybeUninit,
 };
@@ -6,7 +7,7 @@ use std::{
 use alloy_rlp::Encodable;
 use bumpalo::Bump;
 use bytes::Buf;
-use revm_primitives::{hex, keccak256, B256};
+use revm_primitives::{keccak256, B256};
 use smallvec::SmallVec;
 
 use crate::{
@@ -1050,12 +1051,14 @@ impl<'a> Mpt<'a> {
     }
 }
 
+#[cfg(feature = "std")]
 impl Mpt<'_> {
     pub fn print_trie(&self) {
         self.print_trie_internal(self.root_id, 0);
     }
 
     fn print_trie_internal(&self, node_id: NodeId, depth: usize) {
+        use revm_primitives::hex;
         let indent = "  ".repeat(depth);
         match &self.nodes[node_id as usize] {
             NodeData::Null => {
