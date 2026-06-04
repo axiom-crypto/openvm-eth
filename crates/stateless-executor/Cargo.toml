@@ -36,7 +36,7 @@ revm.workspace = true
 revm-primitives.workspace = true
 
 # alloy
-alloy-primitives = { workspace = true, features = ["rayon", "map-foldhash"] }
+alloy-primitives = { workspace = true, features = ["map-foldhash"] }
 alloy-consensus = { workspace = true, features = ["crypto-backend", "serde-bincode-compat"] }
 alloy-rlp.workspace = true
 alloy-trie.workspace = true
@@ -49,5 +49,5 @@ bincode = { workspace = true, features = ["serde", "std"] }
 
 [features]
 default = []
-std = ["openvm-chainspec/std"]
+std = ["openvm-chainspec/std", "openvm-mpt/std"]
 openvm = ["dep:openvm-revm-crypto"]
