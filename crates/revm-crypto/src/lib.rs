@@ -3,6 +3,11 @@
 //! This module provides OpenVM-optimized implementations of cryptographic operations
 //! for both transaction validation (via Alloy crypto provider) and precompile execution.
 
+#![cfg_attr(not(feature = "std"), no_std)]
+
+extern crate alloc;
+
+use alloc::{boxed::Box, sync::Arc, vec, vec::Vec};
 use alloy_consensus::crypto::{
     backend::{install_default_provider, CryptoProvider},
     RecoveryError,
@@ -21,7 +26,6 @@ use openvm_pairing::{
     bn254::{self as bn, Bn254},
     PairingCheck,
 };
-use openvm_sha2::Digest;
 use revm::{
     install_crypto,
     precompile::{
@@ -36,7 +40,6 @@ use revm::{
         Crypto, PrecompileHalt,
     },
 };
-use std::{sync::Arc, vec::Vec};
 
 use openvm_curve_utils::SubgroupCheck;
 
@@ -116,6 +119,8 @@ struct OpenVmCrypto;
 impl Crypto for OpenVmCrypto {
     /// Custom SHA-256 implementation with openvm optimization
     fn sha256(&self, input: &[u8]) -> [u8; 32] {
+        #[cfg(not(openvm_intrinsics))]
+        use openvm_sha2::Digest;
         openvm_sha2::Sha256::digest(input).into()
     }
 
@@ -385,7 +390,7 @@ fn accelerated_modexp_bn254_fr(base: &[u8], exp: &[u8]) -> Vec<u8> {
 }
 
 /// Install OpenVM crypto implementations globally
-pub fn install_openvm_crypto() -> Result<bool, Box<dyn std::error::Error>> {
+pub fn install_openvm_crypto() -> Result<bool, Box<dyn core::error::Error>> {
     // Install OpenVM k256 provider for Alloy (transaction validation)
     install_default_provider(Arc::new(OpenVmK256Provider))?;
 
