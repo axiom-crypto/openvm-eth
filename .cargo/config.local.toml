@@ -58,10 +58,10 @@ openvm-keccak256-transpiler = { path = "../openvm-org/openvm/extensions/keccak25
 openvm-pairing-circuit = { path = "../openvm-org/openvm/extensions/pairing/circuit" }
 openvm-pairing-guest = { path = "../openvm-org/openvm/extensions/pairing/guest" }
 openvm-pairing-transpiler = { path = "../openvm-org/openvm/extensions/pairing/transpiler" }
-openvm-rv32-adapters = { path = "../openvm-org/openvm/extensions/rv32-adapters" }
-openvm-rv32im-circuit = { path = "../openvm-org/openvm/extensions/rv32im/circuit" }
-openvm-rv32im-guest = { path = "../openvm-org/openvm/extensions/rv32im/guest" }
-openvm-rv32im-transpiler = { path = "../openvm-org/openvm/extensions/rv32im/transpiler" }
+openvm-riscv-adapters = { path = "../openvm-org/openvm/extensions/riscv-adapters" }
+openvm-riscv-circuit = { path = "../openvm-org/openvm/extensions/riscv/circuit" }
+openvm-riscv-guest = { path = "../openvm-org/openvm/extensions/riscv/guest" }
+openvm-riscv-transpiler = { path = "../openvm-org/openvm/extensions/riscv/transpiler" }
 openvm-sha2-air = { path = "../openvm-org/openvm/crates/circuits/sha2-air" }
 openvm-sha2-circuit = { path = "../openvm-org/openvm/extensions/sha2/circuit" }
 openvm-sha2-guest = { path = "../openvm-org/openvm/extensions/sha2/guest" }
