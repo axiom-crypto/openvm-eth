@@ -71,11 +71,6 @@ on:
         required: false
         description: Log of univariate skip domain size
         default: 4
-      use_tco:
-        type: boolean
-        required: false
-        description: Use TCO instead of AOT
-        default: false
       # num_children_leaf:
       #   type: number
       #   required: false
@@ -149,11 +144,6 @@ on:
         required: false
         description: Log of univariate skip domain size
         default: 4
-      use_tco:
-        type: boolean
-        required: false
-        description: Use TCO instead of AOT
-        default: false
       # num_children_leaf:
       #   type: number
       #   required: false
@@ -185,6 +175,7 @@ on:
         value: ${{ jobs.run-reth.outputs.num_segments }}
 
 env:
+  OPENVM_BRANCH: develop-v2.1.0-rv64
   S3_MD_PATH: s3://${{ vars.S3_WORKFLOW_DATA_BUCKET }}/benchmark/github/results
   S3_FIXTURE_PATH: s3://${{ vars.S3_PUBLIC_DATA_BUCKET }}/benchmark/github/fixtures
   S3_METRICS_PATH: s3://${{ vars.S3_WORKFLOW_DATA_BUCKET }}/benchmark/github/metrics
@@ -269,7 +260,7 @@ jobs:
           ssh-keyscan github.com >> ~/.ssh/known_hosts
 
       - name: Checkout openvm (for scripts)
-        run: git clone --depth=1 --branch="develop-v2.0.0-rc.1" https://github.com/openvm-org/openvm.git
+        run: git clone --depth=1 --branch="$OPENVM_BRANCH" https://github.com/openvm-org/openvm.git
       - name: Build openvm-prof
         working-directory: openvm
         run: |
@@ -328,31 +319,14 @@ jobs:
           MODE="${{ inputs.mode || github.event.inputs.mode }}"
           if [[ "$MODE" == "prove-evm" || "$MODE" == "prove-root" ]]; then
             FEATURES="${FEATURES},evm-verify"
+            arch=$(uname -m)
+            if [[ "$arch" == "x86_64" || "$arch" == "amd64" ]]; then
+              FEATURES="${FEATURES},halo2-asm"
+            fi
           fi
 
-          USE_TCO="${{ inputs.use_tco || github.event.inputs.use_tco }}"
-
-          arch=$(uname -m)
-          case $arch in
-            arm64|aarch64)
-              RUSTFLAGS="-Ctarget-cpu=native"
-              USE_TCO="true"
-              ;;
-            x86_64|amd64)
-              RUSTFLAGS="-Ctarget-cpu=native"
-              if [[ "$USE_TCO" != "true" ]]; then
-                # aot enables halo2curves-axiom/asm which is x86_64-only
-                FEATURES="${FEATURES},aot"
-              fi
-              ;;
-            *)
-              echo "Unsupported architecture: $arch"
-              exit 1
-              ;;
-          esac
-          if [[ "$USE_TCO" == "true" ]]; then
-            FEATURES="${FEATURES},tco"
-          fi
+          RUSTFLAGS="-Ctarget-cpu=native"
+          FEATURES="${FEATURES},tco"
 
           if [[ "${{ inputs.profiling || github.event.inputs.profiling }}" == "host" ]]; then
             RUSTFLAGS="${RUSTFLAGS} -C force-frame-pointers=yes"
@@ -394,14 +368,24 @@ jobs:
         run: |
           cargo build --locked -p cargo-openvm
           echo "${{ github.workspace }}/openvm/target/debug" >> $GITHUB_PATH
+      - name: Restore openvm toolchain from cache
+        if: steps.cache-guest-elf-restore.outputs.cache-hit != 'true'
+        uses: runs-on/cache@v4
+        with:
+          path: ~/.openvm/toolchains
+          key: openvm-toolchain-openvm-1.94.0-${{ runner.os }}-${{ runner.arch }}
+      - name: Install openvm rust toolchain
+        if: steps.cache-guest-elf-restore.outputs.cache-hit != 'true'
+        # skips download if restored from cache, just re-links into rustup
+        run: cargo openvm toolchain install
       - name: Build Guest ELF
         if: steps.cache-guest-elf-restore.outputs.cache-hit != 'true'
         working-directory: bin/stateless-guest
         run: |
           GUEST_PROFILE=${{ steps.set-build-profiles.outputs.guest_profile }}
-          RUSTFLAGS="" OPENVM_RUST_TOOLCHAIN=nightly-2026-01-18 cargo openvm build --no-transpile --profile=$GUEST_PROFILE
+          RUSTFLAGS="" OPENVM_RUST_TOOLCHAIN=openvm-1.94.0 cargo openvm build --no-transpile --profile=$GUEST_PROFILE
           mkdir -p ../reth-benchmark/elf
-          cp target/riscv32im-risc0-zkvm-elf/$GUEST_PROFILE/openvm-stateless-guest ../reth-benchmark/elf/
+          cp target/riscv64im-unknown-openvm-elf/$GUEST_PROFILE/openvm-stateless-guest ../reth-benchmark/elf/
 
       - name: Save Guest ELF to cache
         if: steps.cache-guest-elf-restore.outputs.cache-hit != 'true'

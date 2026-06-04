@@ -3,6 +3,11 @@
 //! This module provides OpenVM-optimized implementations of cryptographic operations
 //! for both transaction validation (via Alloy crypto provider) and precompile execution.
 
+#![cfg_attr(not(feature = "std"), no_std)]
+
+extern crate alloc;
+
+use alloc::{boxed::Box, sync::Arc, vec, vec::Vec};
 use alloy_consensus::crypto::{
     backend::{install_default_provider, CryptoProvider},
     RecoveryError,
@@ -37,7 +42,6 @@ use revm::{
         Crypto, PrecompileHalt,
     },
 };
-use std::{sync::Arc, vec::Vec};
 
 mod subgroup_check;
 use subgroup_check::SubgroupCheck;
@@ -118,7 +122,7 @@ struct OpenVmCrypto;
 impl Crypto for OpenVmCrypto {
     /// Custom SHA-256 implementation with openvm optimization
     fn sha256(&self, input: &[u8]) -> [u8; 32] {
-        #[cfg(not(target_os = "zkvm"))]
+        #[cfg(not(openvm_intrinsics))]
         use openvm_sha2::Digest;
         openvm_sha2::Sha256::digest(input).into()
     }
@@ -367,7 +371,7 @@ fn accelerated_modexp_bn254_fr(base: &[u8], exp: &[u8]) -> Vec<u8> {
 }
 
 /// Install OpenVM crypto implementations globally
-pub fn install_openvm_crypto() -> Result<bool, Box<dyn std::error::Error>> {
+pub fn install_openvm_crypto() -> Result<bool, Box<dyn core::error::Error>> {
     // Install OpenVM k256 provider for Alloy (transaction validation)
     install_default_provider(Arc::new(OpenVmK256Provider))?;
 
@@ -402,10 +406,7 @@ fn read_bn_g1_point(input: &[u8]) -> Result<bn::G1Affine, PrecompileHalt> {
     }
     let px = read_bn_fq(&input[0..BN_FQ_LEN])?;
     let py = read_bn_fq(&input[BN_FQ_LEN..BN_G1_LEN])?;
-    // SAFETY: `read_bn_fq` produces canonical Fp elements; `from_xy` itself checks the curve
-    // equation and returns `None` if `(px, py)` is not on the curve.
-    let point = unsafe { bn::G1Affine::from_xy(px, py) }
-        .ok_or(PrecompileHalt::Bn254AffineGFailedToCreate)?;
+    let point = bn::G1Affine::from_xy(px, py).ok_or(PrecompileHalt::Bn254AffineGFailedToCreate)?;
     if point.is_in_correct_subgroup() {
         Ok(point)
     } else {
@@ -420,10 +421,7 @@ fn read_bn_g2_point(input: &[u8]) -> Result<bn::G2Affine, PrecompileHalt> {
     }
     let c0 = read_bn_fq2(&input[0..BN_G1_LEN])?;
     let c1 = read_bn_fq2(&input[BN_G1_LEN..BN_G2_LEN])?;
-    // SAFETY: `read_bn_fq2` produces canonical Fp2 elements; `from_xy` itself checks the curve
-    // equation and returns `None` if `(c0, c1)` is not on the twist.
-    let point = unsafe { bn::G2Affine::from_xy(c0, c1) }
-        .ok_or(PrecompileHalt::Bn254AffineGFailedToCreate)?;
+    let point = bn::G2Affine::from_xy(c0, c1).ok_or(PrecompileHalt::Bn254AffineGFailedToCreate)?;
     if point.is_in_correct_subgroup() {
         Ok(point)
     } else {
@@ -484,10 +482,7 @@ fn read_bls_fp2(c0: &[u8], c1: &[u8]) -> Result<bls::Fp2, PrecompileHalt> {
 fn read_bls_g1_point(point: &BlsG1Point) -> Result<bls::G1Affine, PrecompileHalt> {
     let px = read_bls_fp(&point.0)?;
     let py = read_bls_fp(&point.1)?;
-    // SAFETY: `read_bls_fp` produces canonical Fp elements; `from_xy` itself checks the curve
-    // equation and returns `None` if `(px, py)` is not on the curve.
-    let point =
-        unsafe { bls::G1Affine::from_xy(px, py) }.ok_or(PrecompileHalt::Bls12381G1NotOnCurve)?;
+    let point = bls::G1Affine::from_xy(px, py).ok_or(PrecompileHalt::Bls12381G1NotOnCurve)?;
     if point.is_in_correct_subgroup() {
         Ok(point)
     } else {
@@ -499,10 +494,7 @@ fn read_bls_g1_point(point: &BlsG1Point) -> Result<bls::G1Affine, PrecompileHalt
 fn read_bls_g2_point(point: &BlsG2Point) -> Result<bls::G2Affine, PrecompileHalt> {
     let x = read_bls_fp2(&point.0, &point.1)?;
     let y = read_bls_fp2(&point.2, &point.3)?;
-    // SAFETY: `read_bls_fp2` produces canonical Fp2 elements; `from_xy` itself checks the curve
-    // equation and returns `None` if `(x, y)` is not on the twist.
-    let point =
-        unsafe { bls::G2Affine::from_xy(x, y) }.ok_or(PrecompileHalt::Bls12381G2NotOnCurve)?;
+    let point = bls::G2Affine::from_xy(x, y).ok_or(PrecompileHalt::Bls12381G2NotOnCurve)?;
     if point.is_in_correct_subgroup() {
         Ok(point)
     } else {

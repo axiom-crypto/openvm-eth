@@ -131,11 +131,7 @@ mod impl_bn {
             let endomorphism_point = {
                 let psi_x = self.x().frobenius_map(1) * P_POWER_ENDOMORPHISM_COEFF_0;
                 let psi_y = self.y().frobenius_map(1) * P_POWER_ENDOMORPHISM_COEFF_1;
-                // SAFETY: ψ maps the BN254 G2 twist curve to itself, so applying it to `self`
-                // (already on the curve by precondition of this trait) yields a point on the
-                // curve. The identity is not produced because the Frobenius image of a
-                // non-identity coordinate pair is non-zero.
-                unsafe { Self::from_xy_unchecked(psi_x, psi_y) }
+                Self::from_xy_unchecked(psi_x, psi_y)
             };
 
             x_times_point.eq(&endomorphism_point)
@@ -227,9 +223,7 @@ mod impl_bn {
                 bn::Fp::from_le_bytes_unchecked(&y_c0_bytes),
                 bn::Fp::from_le_bytes_unchecked(&y_c1_bytes),
             );
-            // SAFETY: coordinates are valid Fp2 elements derived from canonical arkworks bytes.
-            let g2 =
-                unsafe { bn::G2Affine::from_xy(x, y) }.expect("G2 generator should be on curve");
+            let g2 = bn::G2Affine::from_xy(x, y).expect("G2 generator should be on curve");
             assert!(g2.is_in_correct_subgroup());
         }
 
@@ -254,16 +248,14 @@ mod impl_bn {
                 bn::Fp::from_be_bytes(&y_c0).unwrap(),
                 bn::Fp::from_be_bytes(&y_c1).unwrap(),
             );
-            // SAFETY: coordinates are valid Fp2 elements; `from_xy` itself verifies the curve
-            // equation and returns `None` if the point is not on the curve.
-            let point = unsafe { bn::G2Affine::from_xy(x, y) }.expect("point should be on curve");
+            let point = bn::G2Affine::from_xy(x, y).expect("point should be on curve");
             assert!(!point.is_in_correct_subgroup());
         }
     }
 }
 
 mod impl_bls {
-    use std::ops::{MulAssign, Neg};
+    use core::ops::{MulAssign, Neg};
 
     use alloy_primitives::hex;
     use openvm_ecc_guest::{algebra::field::FieldExtension, weierstrass::WeierstrassPoint, Group};
@@ -360,11 +352,7 @@ mod impl_bls {
                 let psi_x_c1 = P_POWER_ENDOMORPHISM_COEFF_0.c1 * tmp_x.c0;
                 let psi_x = bls::Fp2::new(psi_x_c0, psi_x_c1);
                 let psi_y = self.y().frobenius_map(1) * P_POWER_ENDOMORPHISM_COEFF_1;
-                // SAFETY: ψ maps the BLS12-381 G2 twist curve to itself, so applying it to
-                // `self` (already on the curve by precondition of this trait) yields a point
-                // on the curve. The identity is not produced because the Frobenius image of a
-                // non-identity coordinate pair is non-zero.
-                unsafe { Self::from_xy_unchecked(psi_x, psi_y) }
+                Self::from_xy_unchecked(psi_x, psi_y)
             };
 
             x_times_point.eq(&endomorphism_point)
@@ -430,10 +418,7 @@ mod impl_bls {
             let y_bytes = hex!("1a0111ea397fe69a4b1ba7b6434bacd764774b84f38512bf6730d2a0f6b0f6241eabfffeb153ffffb9feffffffffaaa9");
             let px = bls::Fp::from_be_bytes(&x_bytes).unwrap();
             let py = bls::Fp::from_be_bytes(&y_bytes).unwrap();
-            // SAFETY: coordinates are valid Fp elements; `from_xy` itself verifies the curve
-            // equation and returns `None` if the point is not on the curve.
-            let point =
-                unsafe { bls::G1Affine::from_xy(px, py) }.expect("point should be on curve");
+            let point = bls::G1Affine::from_xy(px, py).expect("point should be on curve");
             assert!(!point.is_in_correct_subgroup());
         }
 
@@ -457,9 +442,7 @@ mod impl_bls {
                 bls::Fp::from_le_bytes_unchecked(&y_c0_bytes),
                 bls::Fp::from_le_bytes_unchecked(&y_c1_bytes),
             );
-            // SAFETY: coordinates are valid Fp2 elements derived from canonical arkworks bytes.
-            let g2 =
-                unsafe { bls::G2Affine::from_xy(x, y) }.expect("G2 generator should be on curve");
+            let g2 = bls::G2Affine::from_xy(x, y).expect("G2 generator should be on curve");
             assert!(g2.is_in_correct_subgroup());
         }
 
@@ -482,10 +465,7 @@ mod impl_bls {
                 bls::Fp::from_be_bytes(&y_c0_bytes).unwrap(),
                 bls::Fp::from_be_bytes(&y_c1_bytes).unwrap(),
             );
-            // SAFETY: coordinates are valid Fp2 elements; `from_xy` itself verifies the curve
-            // equation and returns `None` if the point is not on the twist.
-            let point =
-                unsafe { bls::G2Affine::from_xy(x, y) }.expect("point should be on twist curve");
+            let point = bls::G2Affine::from_xy(x, y).expect("point should be on twist curve");
             assert!(!point.is_in_correct_subgroup());
         }
     }

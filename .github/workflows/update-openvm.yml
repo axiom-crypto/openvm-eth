@@ -2,11 +2,14 @@ name: "Update openvm rev in dependencies"
 # Warning: this workflow will only work if openvm has also been updated in revm
 # Otherwise, use the update-patches.yml workflow instead
 
+env:
+  OPENVM_BRANCH: develop-v2.1.0-rv64
+
 on:
   workflow_dispatch:
     inputs:
       OPENVM_REV:
-        description: "New openvm rev (defaults to main head)"
+        description: "New openvm rev"
         required: false
 
 jobs:
@@ -18,20 +21,20 @@ jobs:
       - name: Check out the repository
         uses: actions/checkout@v4
 
-      - name: Get default OPENVM_REV from main (if none provided)
+      - name: Get default OPENVM_REV (if none provided)
         id: get-openvm-rev
         uses: actions/github-script@v6
+        env:
+          OPENVM_REV_INPUT: ${{ github.event.inputs.OPENVM_REV }}
         with:
           script: |
-            if ("${{ github.event.inputs.OPENVM_REV }}" !== "") {
-              // If provided by user, simply return it
-              return "${{ github.event.inputs.OPENVM_REV }}";
+            if (process.env.OPENVM_REV_INPUT !== "") {
+              return process.env.OPENVM_REV_INPUT;
             } else {
-              // Otherwise fetch latest commit of main
               const { data } = await github.rest.repos.getCommit({
                 owner: 'openvm-org',
                 repo: 'openvm',
-                ref: 'main'
+                ref: process.env.OPENVM_BRANCH
               });
               return data.sha;
             }
