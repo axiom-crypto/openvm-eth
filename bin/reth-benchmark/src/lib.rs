@@ -6,28 +6,40 @@ use alloy_provider::RootProvider;
 use alloy_rpc_client::RpcClient;
 use alloy_transport::layers::RetryBackoffLayer;
 use clap::Parser;
-use openvm_circuit::arch::{instructions::exe::VmExe, *};
+use eyre::Result;
+use openvm_circuit::arch::{
+    execution_mode::metered::segment_ctx::{DEFAULT_MAX_MEMORY, DEFAULT_MAX_TRACE_HEIGHT},
+    instructions::exe::VmExe,
+    verify_segments, VmCircuitConfig,
+};
 use openvm_rpc_proxy::{RpcExecutor, DEFAULT_PREIMAGE_CACHE_NIBBLES};
 use openvm_sdk::{
     config::{
-        AggregationSystemParams, AppConfig, DEFAULT_APP_LOG_BLOWUP, DEFAULT_APP_L_SKIP,
-        DEFAULT_INTERNAL_LOG_BLOWUP, DEFAULT_LEAF_LOG_BLOWUP,
+        AggregationSystemParams, AggregationTreeConfig, AppConfig, DEFAULT_APP_LOG_BLOWUP,
+        DEFAULT_APP_L_SKIP, DEFAULT_INTERNAL_LOG_BLOWUP, DEFAULT_LEAF_LOG_BLOWUP,
+        DEFAULT_ROOT_LOG_BLOWUP,
     },
     fs::{read_object_from_file, write_object_to_file},
     Sdk, SC,
 };
 use openvm_sdk_config::{SdkVmConfig, TranspilerConfig};
+#[cfg(feature = "evm-verify")]
+use openvm_stark_sdk::config::root_params_with_100_bits_security;
+#[cfg(feature = "evm-verify")]
+use openvm_stark_sdk::openvm_stark_backend::codec::Decode;
 use openvm_stark_sdk::{
     bench::run_with_metric_collection,
     config::{
-        app_params_with_100_bits_security,
-        baby_bear_poseidon2::{D_EF, F},
+        app_params_with_100_bits_security, baby_bear_poseidon2::F,
+        internal_params_with_100_bits_security, leaf_params_with_100_bits_security,
+        MAX_APP_LOG_STACKED_HEIGHT, SECURITY_BITS_TARGET,
     },
     openvm_stark_backend::{
         air_builders::symbolic::{SymbolicExpressionDag, SymbolicExpressionNode},
-        codec::{Decode, Encode},
+        codec::Encode,
         keygen::types::MultiStarkProvingKey,
         p3_field::PrimeCharacteristicRing,
+        SystemParams,
     },
 };
 use openvm_stateless_executor::{
@@ -43,8 +55,6 @@ use tracing::{info, info_span};
 
 mod cli;
 use cli::ProviderArgs;
-
-pub const DEFAULT_LOG_STACKED_HEIGHT: usize = 24;
 
 /// Enum representing the execution mode of the host executable.
 #[derive(Debug, Clone, clap::ValueEnum)]
@@ -183,13 +193,20 @@ pub struct BenchmarkCli {
     #[arg(long, default_value_t = DEFAULT_INTERNAL_LOG_BLOWUP)]
     pub internal_log_blowup: usize,
 
+    /// Root level log blowup
+    #[arg(long, default_value_t = DEFAULT_ROOT_LOG_BLOWUP)]
+    pub root_log_blowup: usize,
+
+    #[command(flatten)]
+    pub agg_tree_config: AggregationTreeConfig,
+
     /// Max trace height per chip in segment for continuations
-    #[arg(long, alias = "max_segment_length")]
-    pub max_segment_length: Option<u32>,
+    #[arg(long, alias = "max_segment_length", default_value_t = DEFAULT_MAX_TRACE_HEIGHT)]
+    pub max_segment_length: u32,
 
     /// Total cells used in all chips in segment for continuations
-    #[arg(long)]
-    pub segment_max_memory: Option<usize>,
+    #[arg(long, default_value_t = DEFAULT_MAX_MEMORY)]
+    pub segment_max_memory: usize,
 }
 
 pub fn reth_vm_config() -> SdkVmConfig {
@@ -204,25 +221,47 @@ pub fn reth_vm_config() -> SdkVmConfig {
 
 const VM_MAX_CONSTRAINT_DEGREE: usize = 4;
 
-pub async fn run_reth_benchmark(args: HostArgs, openvm_client_eth_elf: &[u8]) -> eyre::Result<()> {
+fn override_system_params(
+    params: SystemParams,
+    log_blowup: usize,
+    l_skip: usize,
+) -> Result<SystemParams> {
+    let log_stacked_height = params.log_stacked_height();
+    if l_skip > log_stacked_height {
+        eyre::bail!("l_skip ({l_skip}) must be <= log_stacked_height ({log_stacked_height})");
+    }
+
+    let whir = params.whir().clone();
+    Ok(SystemParams::new(
+        log_blowup,
+        l_skip,
+        log_stacked_height - l_skip,
+        params.w_stack,
+        whir.log_final_poly_len(log_stacked_height),
+        whir.folding_pow_bits,
+        whir.mu_pow_bits,
+        whir.proximity,
+        SECURITY_BITS_TARGET,
+        params.logup,
+        params.max_constraint_degree,
+    ))
+}
+
+fn override_log_blowup(params: SystemParams, log_blowup: usize) -> Result<SystemParams> {
+    let l_skip = params.l_skip;
+    override_system_params(params, log_blowup, l_skip)
+}
+
+pub async fn run_reth_benchmark(args: HostArgs, openvm_client_eth_elf: &[u8]) -> Result<()> {
     // Initialize the environment variables.
     dotenv::dotenv().ok();
-
-    let app_log_blowup = args.benchmark.app_log_blowup;
-    let app_l_skip = args.benchmark.app_l_skip;
 
     #[cfg(feature = "cuda")]
     println!("CUDA Backend Enabled");
 
     let mut vm_config = reth_vm_config();
-    if let Some(max_trace_height) = args.benchmark.max_segment_length {
-        vm_config.as_mut().segmentation_config.limits.set_max_trace_height(max_trace_height);
-    }
-    if let Some(max_memory) = args.benchmark.segment_max_memory {
-        vm_config.as_mut().segmentation_config.limits.set_max_memory(max_memory);
-    }
-
-    vm_config.as_mut().segmentation_config.main_cell_weight = 1 + (1 << app_log_blowup);
+    vm_config.as_mut().segmentation_limits.set_max_trace_height(args.benchmark.max_segment_length);
+    vm_config.as_mut().segmentation_limits.set_max_memory(args.benchmark.segment_max_memory);
 
     for (air_idx, air) in VmCircuitConfig::<SC>::create_airs(&vm_config)?.into_airs().enumerate() {
         tracing::debug!("air_idx={air_idx} | {}", air.name());
@@ -230,11 +269,27 @@ pub async fn run_reth_benchmark(args: HostArgs, openvm_client_eth_elf: &[u8]) ->
 
     let transpiler = vm_config.transpiler().clone();
 
-    let app_params = app_params_with_100_bits_security(DEFAULT_LOG_STACKED_HEIGHT);
+    let app_params = override_system_params(
+        app_params_with_100_bits_security(MAX_APP_LOG_STACKED_HEIGHT),
+        args.benchmark.app_log_blowup,
+        args.benchmark.app_l_skip,
+    )?;
 
     // Setup: this can all be done once before receiving proof input
     let app_config = AppConfig::new(vm_config, app_params);
-    let agg_params = AggregationSystemParams::default();
+    let agg_params = AggregationSystemParams {
+        leaf: override_log_blowup(
+            leaf_params_with_100_bits_security(),
+            args.benchmark.leaf_log_blowup,
+        )?,
+        internal: override_log_blowup(
+            internal_params_with_100_bits_security(),
+            args.benchmark.internal_log_blowup,
+        )?,
+    };
+    #[cfg(feature = "evm-verify")]
+    let root_params =
+        override_log_blowup(root_params_with_100_bits_security(), args.benchmark.root_log_blowup)?;
 
     // Resolve key paths: explicit flag wins; otherwise fall back to <output_dir>/<name>.pk
     // if the file exists. The chain agg->app and root->agg->app is enforced by the builder,
@@ -248,7 +303,7 @@ pub async fn run_reth_benchmark(args: HostArgs, openvm_client_eth_elf: &[u8]) ->
         p.exists().then_some(p)
     });
 
-    let mut sdk_builder = Sdk::builder();
+    let mut sdk_builder = Sdk::builder().agg_tree_config(args.benchmark.agg_tree_config);
 
     if let Some(p) = app_pk_path {
         info!("Loading app proving key from {}", p.display());
@@ -273,6 +328,8 @@ pub async fn run_reth_benchmark(args: HostArgs, openvm_client_eth_elf: &[u8]) ->
             info!("Loading root proving key from {}", root_pk_path.display());
             let root_pk = read_object_from_file(&root_pk_path)?;
             sdk_builder = sdk_builder.root_pk(root_pk);
+        } else {
+            sdk_builder = sdk_builder.root_params(root_params);
         }
     }
 
@@ -410,7 +467,7 @@ pub async fn run_reth_benchmark(args: HostArgs, openvm_client_eth_elf: &[u8]) ->
     let stdin = vec![encoded_stateless_input].into();
 
     run_with_metric_collection("OUTPUT_PATH", move || {
-        info_span!("reth-block", block_number = block_number).in_scope(|| -> eyre::Result<()> {
+        info_span!("reth-block", block_number = block_number).in_scope(|| -> Result<()> {
             match args.mode {
                 BenchMode::Execute => {
                     let public_values = info_span!("sdk.execute", group = program_name)
@@ -420,7 +477,7 @@ pub async fn run_reth_benchmark(args: HostArgs, openvm_client_eth_elf: &[u8]) ->
                     println!("BENCH_BLOCK_HASH={block_hash}");
                 }
                 BenchMode::ExecuteMetered => {
-                    let (public_values, segments) =
+                    let (public_values, _segments) =
                         info_span!("sdk.execute_metered", group = program_name)
                             .in_scope(|| sdk.execute_metered(exe, stdin))?;
                     let block_hash = hex::encode(&public_values);
@@ -562,7 +619,7 @@ pub async fn run_reth_benchmark(args: HostArgs, openvm_client_eth_elf: &[u8]) ->
     Ok(())
 }
 
-fn dump_air_stats(sdk: &Sdk, output_path: &PathBuf) -> eyre::Result<()> {
+fn dump_air_stats(sdk: &Sdk, output_path: &PathBuf) -> Result<()> {
     let (app_pk, _app_vk) = sdk.app_keygen();
     let mut file = fs::File::create(output_path)?;
     writeln!(
@@ -579,11 +636,7 @@ fn dump_air_stats(sdk: &Sdk, output_path: &PathBuf) -> eyre::Result<()> {
     Ok(())
 }
 
-fn dump_pk_stats(
-    label: &str,
-    pk: &MultiStarkProvingKey<SC>,
-    file: &mut fs::File,
-) -> eyre::Result<()> {
+fn dump_pk_stats(label: &str, pk: &MultiStarkProvingKey<SC>, file: &mut fs::File) -> Result<()> {
     for (air_idx, air_pk) in pk.per_air.iter().enumerate() {
         let dag = &air_pk.vk.symbolic_constraints.constraints;
         let mono_start = Instant::now();
@@ -655,7 +708,7 @@ fn try_load_input_from_cache(
     cache_dir: Option<&PathBuf>,
     chain_id: u64,
     block_number: u64,
-) -> eyre::Result<Option<StatelessExecutorInput>> {
+) -> Result<Option<StatelessExecutorInput>> {
     Ok(if let Some(cache_dir) = cache_dir {
         let cache_path = cache_dir.join(format!("input/{chain_id}/{block_number}.bin"));
 
@@ -674,7 +727,7 @@ fn try_load_input_from_cache(
     })
 }
 
-fn try_load_input_from_path(path: &PathBuf) -> eyre::Result<StatelessExecutorInput> {
+fn try_load_input_from_path(path: &PathBuf) -> Result<StatelessExecutorInput> {
     let ext = path.extension().and_then(|s| s.to_str()).unwrap_or("");
     if ext.eq_ignore_ascii_case("json") {
         let s = std::fs::read_to_string(path)?;
