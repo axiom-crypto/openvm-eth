@@ -952,7 +952,7 @@ dependencies = [
  "alloy-rlp",
  "alloy-serde 2.0.1",
  "alloy-sol-types",
- "itertools 0.14.0",
+ "itertools 0.13.0",
  "serde",
  "serde_json",
  "serde_with",
@@ -1160,7 +1160,7 @@ checksum = "a29980e69119444ed26b75e7ee5bed2043870f904a64318297e55800db686564"
 dependencies = [
  "alloy-json-rpc",
  "alloy-transport",
- "itertools 0.14.0",
+ "itertools 0.13.0",
  "reqwest 0.13.3",
  "serde_json",
  "tower",
@@ -7090,7 +7090,7 @@ dependencies = [
 [[package]]
 name = "openvm-kzg"
 version = "0.2.0-alpha"
-source = "git+https://github.com/axiom-crypto/openvm-kzg.git?branch=develop-v2.0.0-rc.2#b49c29dbe30f0dea0fc7b4947ff03f8dfdf4c012"
+source = "git+https://github.com/axiom-crypto/openvm-kzg.git?branch=develop-v2.0.0-rc.2-pinned#b49c29dbe30f0dea0fc7b4947ff03f8dfdf4c012"
 dependencies = [
  "bls12_381 0.8.0",
  "hex",
@@ -8651,7 +8651,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "27c6023962132f4b30eb4c172c91ce92d933da334c59c23cddee82358ddafb0b"
 dependencies = [
  "anyhow",
- "itertools 0.14.0",
+ "itertools 0.10.5",
  "proc-macro2",
  "quote",
  "syn 2.0.102",

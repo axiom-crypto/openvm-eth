@@ -119,7 +119,7 @@ openvm-sha2 = { git = "https://github.com/openvm-org/openvm.git", rev = "4481449
 openvm-k256 = { git = "https://github.com/openvm-org/openvm.git", package = "k256", rev = "4481449dc1ce2670e7dd1f9ec0a4724a5ac31377" }
 openvm-p256 = { git = "https://github.com/openvm-org/openvm.git", package = "p256", rev = "4481449dc1ce2670e7dd1f9ec0a4724a5ac31377" }
 
-openvm-kzg = { git = "https://github.com/axiom-crypto/openvm-kzg.git", branch = "develop-v2.0.0-rc.2", default-features = false }
+openvm-kzg = { git = "https://github.com/axiom-crypto/openvm-kzg.git", branch = "develop-v2.0.0-rc.2-pinned", default-features = false }
 openvm-stark-sdk = { git = "https://github.com/openvm-org/stark-backend.git", branch = "develop-v2", default-features = false }
 
 [workspace.lints]
