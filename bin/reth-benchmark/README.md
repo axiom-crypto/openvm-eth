@@ -164,12 +164,13 @@ openvm-prof --json-paths metrics.json
 The benchmark command accepts additional arguments that can be used to configure the benchmark. **These are low-level and require knowledge of the proof system.** They include:
 
 - `--app-log-blowup`: Set the blowup factor for the App VM proofs (default: 1)
-- `--leaf-log-blowup`: Set the blowup factor for the leaf aggregation proofs (default: 1)
-- `--internal-log-blowup`: Set the blowup factor for the internal non-leaf aggregation proofs (default: 2)
-- `--root-log-blowup`: Set the blowup factor for the root STARK aggregation proof (default: 3)
+- `--app-l-skip`: Set the log of univariate skip domain size (default: 4)
+- `--leaf-log-blowup`: Set the blowup factor for the leaf aggregation proofs (default: 2)
+- `--internal-log-blowup`: Set the blowup factor for the internal non-leaf aggregation proofs (default: 3)
+- `--root-log-blowup`: Set the blowup factor for the root STARK aggregation proof (default: 4)
 - `--max-segment-length`: Set the threshold number of cycles before the execution should segment (default: `2 ** 22`)
-- `--segment-max-cells`: Set the maximum number of cells per segment
-- `--num-children-leaf`: Set the number of children for leaf aggregation (default: 1)
+- `--segment-max-memory`: Set the maximum metered memory per segment
+- `--num-children-leaf`: Set the number of children for leaf aggregation (default: 4)
 - `--num-children-internal`: Set the number of children for internal aggregation (default: 3)
 - `--preimage-cache-nibbles`: Set the preimage cache nibbles (default: 7)
 

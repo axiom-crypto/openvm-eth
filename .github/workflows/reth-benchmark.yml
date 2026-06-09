@@ -3,24 +3,29 @@ run-name: "Reth Benchmark (block ${{ inputs.block_number || github.event.inputs.
 
 on:
   workflow_dispatch:
-    # github workflow dispatch inputs has 10 input limit...
-    # > you may only define up to 10 `inputs` for a `workflow_dispatch` event
     inputs:
       instance_family:
         type: string
         required: false
         description: The family of the instance, can be multiple ones concat with "+" e.g. g6+g5
         default: g6e.2xlarge
+      memory_allocator:
+        type: choice
+        required: false
+        description: Memory allocator to use
+        options:
+          - jemalloc
+          - mimalloc
+        default: jemalloc
       block_number:
         type: number
         required: false
         description: Block number to run the benchmark on
         default: 23992138
-      # app_log_blowup:
-      #   type: number
-      #   required: false
-      #   description: Application level log blowup
-      #   default: 1
+      app_log_blowup:
+        type: number
+        required: false
+        description: Application level log blowup
       leaf_log_blowup:
         type: number
         required: false
@@ -29,11 +34,10 @@ on:
         type: number
         required: false
         description: Internal level log blowup
-      # root_log_blowup:
-      #   type: number
-      #   required: false
-      #   description: Root level log blowup (only for e2e)
-      #   default: 3
+      root_log_blowup:
+        type: number
+        required: false
+        description: Root level log blowup
       mode:
         type: choice
         required: false
@@ -59,18 +63,15 @@ on:
       max_segment_length:
         type: number
         required: false
-        description: Max segment length for continuations
-        default: 4194304 # 2**22, but the main criteria should be segment_max_memory
+        description: Max segment length override for continuations
       segment_max_memory:
         type: string
         required: false
-        description: GPU memory soft limit for segmentation
-        default: "16106127360" # 15gb
+        description: GPU memory soft limit override for segmentation
       app_l_skip:
         type: number
         required: false
-        description: Log of univariate skip domain size
-        default: 4
+        description: Log of univariate skip domain size override
       use_tco:
         type: boolean
         required: false
@@ -85,16 +86,14 @@ on:
           - refresh
           - disabled
         default: use
-      # num_children_leaf:
-      #   type: number
-      #   required: false
-      #   description: Number of app proofs that leaf verifier aggregates
-      #   default: 1
-      # num_children_internal:
-      #   type: number
-      #   required: false
-      #   description: Number of proofs that internal verifier aggregates
-      #   default: 3
+      num_children_leaf:
+        type: number
+        required: false
+        description: Number of app proofs that leaf verifier aggregates
+      num_children_internal:
+        type: number
+        required: false
+        description: Number of proofs that internal verifier aggregates
   workflow_call:
     inputs:
       ref:
@@ -116,11 +115,10 @@ on:
         required: false
         description: Block number to run the benchmark on
         default: 23992138
-      # app_log_blowup:
-      #   type: number
-      #   required: false
-      #   description: Application level log blowup
-      #   default: 1
+      app_log_blowup:
+        type: number
+        required: false
+        description: Application level log blowup
       leaf_log_blowup:
         type: number
         required: false
@@ -129,11 +127,10 @@ on:
         type: number
         required: false
         description: Internal level log blowup (only for e2e)
-      # root_log_blowup:
-      #   type: number
-      #   required: false
-      #   description: Root level log blowup (only for e2e)
-      #   default: 3
+      root_log_blowup:
+        type: number
+        required: false
+        description: Root level log blowup
       mode:
         type: string
         required: false
@@ -147,32 +144,28 @@ on:
       max_segment_length:
         type: number
         required: false
-        description: Max segment length for continuations
-        default: 4194304 # 2**22, but the main criteria should be segment_max_memory
+        description: Max segment length override for continuations
       segment_max_memory:
         type: string
         required: false
-        default: "16106127360"
+        description: GPU memory soft limit override for segmentation
       app_l_skip:
         type: number
         required: false
-        description: Log of univariate skip domain size
-        default: 4
+        description: Log of univariate skip domain size override
       use_tco:
         type: boolean
         required: false
         description: Use TCO instead of AOT
         default: false
-      # num_children_leaf:
-      #   type: number
-      #   required: false
-      #   description: Number of app proofs that leaf verifier aggregates
-      #   default: 1
-      # num_children_internal:
-      #   type: number
-      #   required: false
-      #   description: Number of proofs that internal verifier aggregates
-      #   default: 3
+      num_children_leaf:
+        type: number
+        required: false
+        description: Number of app proofs that leaf verifier aggregates
+      num_children_internal:
+        type: number
+        required: false
+        description: Number of proofs that internal verifier aggregates
       tag:
         type: string
         required: false
@@ -246,11 +239,7 @@ jobs:
 
       - name: Display workflow inputs
         run: |
-          if [[ "${{ inputs.manual_call }}" == "true" ]]; then
-            echo "${{ toJSON(inputs) }}"
-          else
-            echo "${{ toJSON(github.event.inputs) }}"
-          fi
+          echo '${{ toJSON(inputs || github.event.inputs) }}'
 
       - name: Get current commit hash
         run: |
@@ -515,26 +504,61 @@ jobs:
           MODE=${{ inputs.mode || github.event.inputs.mode }}
           BLOCK_NUMBER=${{ inputs.block_number || github.event.inputs.block_number }}
           HOST_PROFILE=${{ steps.set-build-profiles.outputs.host_profile }}
+          OPTIONAL_ARGS=""
+          APP_LOG_BLOWUP="${{ inputs.app_log_blowup || github.event.inputs.app_log_blowup }}"
           LEAF_LOG_BLOWUP="${{ inputs.leaf_log_blowup || github.event.inputs.leaf_log_blowup }}"
           INTERNAL_LOG_BLOWUP="${{ inputs.internal_log_blowup || github.event.inputs.internal_log_blowup }}"
+          ROOT_LOG_BLOWUP="${{ inputs.root_log_blowup || github.event.inputs.root_log_blowup }}"
+          MAX_SEGMENT_LENGTH="${{ inputs.max_segment_length || github.event.inputs.max_segment_length }}"
+          SEGMENT_MAX_MEMORY="${{ inputs.segment_max_memory || github.event.inputs.segment_max_memory }}"
+          APP_L_SKIP="${{ inputs.app_l_skip || github.event.inputs.app_l_skip }}"
+          NUM_CHILDREN_LEAF="${{ inputs.num_children_leaf || github.event.inputs.num_children_leaf }}"
+          NUM_CHILDREN_INTERNAL="${{ inputs.num_children_internal || github.event.inputs.num_children_internal }}"
+          HELP_OUTPUT="$(COLUMNS=240 ./target/$HOST_PROFILE/${{ env.BIN_NAME }} --help)"
+          read_default() {
+            awk -v arg="$1" '$0 ~ arg { in_arg = 1; next } in_arg && /\[default:/ { gsub(/.*\[default: |].*/, ""); print; exit }' <<< "$HELP_OUTPUT"
+          }
+          DEFAULT_MAX_SEGMENT_LENGTH="$(read_default "--max-segment-length ")"
+          DEFAULT_SEGMENT_MAX_MEMORY="$(read_default "--segment-max-memory ")"
+          if [[ -z "$DEFAULT_MAX_SEGMENT_LENGTH" || -z "$DEFAULT_SEGMENT_MAX_MEMORY" ]]; then
+            echo "Failed to read segmentation defaults from ${{ env.BIN_NAME }} --help" >&2
+            exit 1
+          fi
+          RESOLVED_MAX_SEGMENT_LENGTH="${MAX_SEGMENT_LENGTH:-$DEFAULT_MAX_SEGMENT_LENGTH}"
+          RESOLVED_SEGMENT_MAX_MEMORY="${SEGMENT_MAX_MEMORY:-$DEFAULT_SEGMENT_MAX_MEMORY}"
+          echo "RESOLVED_MAX_SEGMENT_LENGTH=$RESOLVED_MAX_SEGMENT_LENGTH" >> "$GITHUB_ENV"
+          echo "RESOLVED_SEGMENT_MAX_MEMORY=$RESOLVED_SEGMENT_MAX_MEMORY" >> "$GITHUB_ENV"
+          if [[ -n $APP_LOG_BLOWUP ]]; then
+            OPTIONAL_ARGS="$OPTIONAL_ARGS --app-log-blowup $APP_LOG_BLOWUP"
+          fi
           if [[ -n $LEAF_LOG_BLOWUP ]]; then
             OPTIONAL_ARGS="$OPTIONAL_ARGS --leaf-log-blowup $LEAF_LOG_BLOWUP"
           fi
           if [[ -n $INTERNAL_LOG_BLOWUP ]]; then
             OPTIONAL_ARGS="$OPTIONAL_ARGS --internal-log-blowup $INTERNAL_LOG_BLOWUP"
           fi
-          # TODO: make these configurable again when needed:
-          # OPTIONAL_ARGS="$OPTIONAL_ARGS --app-log-blowup <value>"
-          # OPTIONAL_ARGS="$OPTIONAL_ARGS --root-log-blowup <value>"
-          # OPTIONAL_ARGS="$OPTIONAL_ARGS --num-children-leaf <value>"
-          # OPTIONAL_ARGS="$OPTIONAL_ARGS --num-children-internal <value>"
+          if [[ -n $ROOT_LOG_BLOWUP ]]; then
+            OPTIONAL_ARGS="$OPTIONAL_ARGS --root-log-blowup $ROOT_LOG_BLOWUP"
+          fi
+          if [[ -n $MAX_SEGMENT_LENGTH ]]; then
+            OPTIONAL_ARGS="$OPTIONAL_ARGS --max-segment-length $MAX_SEGMENT_LENGTH"
+          fi
+          if [[ -n $SEGMENT_MAX_MEMORY ]]; then
+            OPTIONAL_ARGS="$OPTIONAL_ARGS --segment-max-memory $SEGMENT_MAX_MEMORY"
+          fi
+          if [[ -n $APP_L_SKIP ]]; then
+            OPTIONAL_ARGS="$OPTIONAL_ARGS --app-l-skip $APP_L_SKIP"
+          fi
+          if [[ -n $NUM_CHILDREN_LEAF ]]; then
+            OPTIONAL_ARGS="$OPTIONAL_ARGS --num-children-leaf $NUM_CHILDREN_LEAF"
+          fi
+          if [[ -n $NUM_CHILDREN_INTERNAL ]]; then
+            OPTIONAL_ARGS="$OPTIONAL_ARGS --num-children-internal $NUM_CHILDREN_INTERNAL"
+          fi
           cat > run_benchmark.sh <<EOF
           #!/bin/bash
           /usr/bin/time -v ./target/$HOST_PROFILE/${{ env.BIN_NAME }} \
             --mode $MODE --block-number $BLOCK_NUMBER $PROVIDER_ARGS $CACHE_ARGS \
-            --max-segment-length ${{ inputs.max_segment_length || github.event.inputs.max_segment_length }} \
-            --segment-max-memory ${{ inputs.segment_max_memory || github.event.inputs.segment_max_memory }} \
-            --app-l-skip ${{ inputs.app_l_skip || github.event.inputs.app_l_skip || 4 }} \
             $OPTIONAL_ARGS
           EOF
           chmod +x run_benchmark.sh
@@ -542,9 +566,8 @@ jobs:
       - name: Run benchmark
         id: run-benchmark
         run: |
-          MAX_MEMORY=${{ inputs.segment_max_memory || github.event.inputs.segment_max_memory }}
           export VPMM_PAGE_SIZE=$((4<<20))
-          export VPMM_PAGES=$((MAX_MEMORY / VPMM_PAGE_SIZE))
+          export VPMM_PAGES=$((RESOLVED_SEGMENT_MAX_MEMORY / VPMM_PAGE_SIZE))
           export JEMALLOC_SYS_WITH_MALLOC_CONF=${JEMALLOC_SYS_WITH_MALLOC_CONF}
           export RUST_LOG="info,p3_=warn"
           export OUTPUT_PATH=${METRIC_PATH}
@@ -687,7 +710,7 @@ jobs:
           source openvm/ci/scripts/utils.sh
 
           add_metadata $MD_PATH \
-            ${{ inputs.max_segment_length || github.event.inputs.max_segment_length }} \
+            $RESOLVED_MAX_SEGMENT_LENGTH \
             ${{ inputs.instance_family || github.event.inputs.instance_family }} \
             ${{ inputs.memory_allocator || github.event.inputs.memory_allocator || 'jemalloc' }} \
             $COMMIT_URL \
@@ -776,8 +799,10 @@ jobs:
 
       - name: Commit to gh-pages branch
         working-directory: gh-pages
+        env:
+          REF_NAME: ${{ github.head_ref || github.ref }}
         run: |
-          GH_PAGES_PATH="benchmarks-dispatch/${{ github.head_ref || github.ref }}"
+          GH_PAGES_PATH="benchmarks-dispatch/${REF_NAME}"
           echo "GH_PAGES_PATH=${GH_PAGES_PATH}" >> $GITHUB_ENV
           mkdir -p ${GH_PAGES_PATH}
           s5cmd cp $S3_MD_PATH "${GH_PAGES_PATH}/${METRIC_NAME}.md"
