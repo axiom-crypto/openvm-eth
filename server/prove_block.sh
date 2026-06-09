@@ -10,14 +10,8 @@ S3_PREFIX="${S3_PREFIX:-proofs/testing}"
 BIN_PATH="${OVM_BIN:-/usr/local/bin/openvm-reth-benchmark}"
 JOBS_DIR="${JOBS_DIR:-/app/jobs}"
 MODE="${MODE:-prove-stark}"
-APP_LOG_BLOWUP="${APP_LOG_BLOWUP:-1}"
-LEAF_LOG_BLOWUP="${LEAF_LOG_BLOWUP:-1}"
-INTERNAL_LOG_BLOWUP="${INTERNAL_LOG_BLOWUP:-2}"
-ROOT_LOG_BLOWUP="${ROOT_LOG_BLOWUP:-3}"
-MAX_SEGMENT_LENGTH="${MAX_SEGMENT_LENGTH:-4194304}"
-SEGMENT_MAX_CELLS="${SEGMENT_MAX_CELLS:-1200000000}"
 VPMM_PAGE_SIZE=$((4 << 20))
-VPMM_PAGES=$((12 * $MAX_SEGMENT_LENGTH/ $VPMM_PAGE_SIZE))
+VPMM_PAGES="${VPMM_PAGES:-$((16 << 8))}"
 
 if [[ $# -lt 1 ]]; then
   echo "[prove_block.sh] Usage: $0 <proof_uuid>" >&2
@@ -63,20 +57,44 @@ PROOF_JSON="$job_dir/proof.json"
 
 OUTPUT_PATH="$job_dir/metrics.json"
 
-"$BIN_PATH" \
+args=(
   --mode "$MODE" \
   --block-number 1234 \
   --input-path "$INPUT_PATH" \
-  --app-log-blowup "$APP_LOG_BLOWUP" \
-  --leaf-log-blowup "$LEAF_LOG_BLOWUP" \
-  --internal-log-blowup "$INTERNAL_LOG_BLOWUP" \
-  --root-log-blowup "$ROOT_LOG_BLOWUP" \
-  --max-segment-length "$MAX_SEGMENT_LENGTH" \
-  --segment-max-cells "$SEGMENT_MAX_CELLS" \
   --output-dir "$job_dir" \
   --app-pk-path /app/app_pk \
-  --agg-pk-path /app/agg_pk \
-  --skip-comparison
+  --agg-pk-path /app/agg_pk
+)
+
+if [[ -n "${APP_LOG_BLOWUP:-}" ]]; then
+  args+=(--app-log-blowup "$APP_LOG_BLOWUP")
+fi
+if [[ -n "${APP_L_SKIP:-}" ]]; then
+  args+=(--app-l-skip "$APP_L_SKIP")
+fi
+if [[ -n "${LEAF_LOG_BLOWUP:-}" ]]; then
+  args+=(--leaf-log-blowup "$LEAF_LOG_BLOWUP")
+fi
+if [[ -n "${INTERNAL_LOG_BLOWUP:-}" ]]; then
+  args+=(--internal-log-blowup "$INTERNAL_LOG_BLOWUP")
+fi
+if [[ -n "${ROOT_LOG_BLOWUP:-}" ]]; then
+  args+=(--root-log-blowup "$ROOT_LOG_BLOWUP")
+fi
+if [[ -n "${NUM_CHILDREN_LEAF:-}" ]]; then
+  args+=(--num-children-leaf "$NUM_CHILDREN_LEAF")
+fi
+if [[ -n "${NUM_CHILDREN_INTERNAL:-}" ]]; then
+  args+=(--num-children-internal "$NUM_CHILDREN_INTERNAL")
+fi
+if [[ -n "${MAX_SEGMENT_LENGTH:-}" ]]; then
+  args+=(--max-segment-length "$MAX_SEGMENT_LENGTH")
+fi
+if [[ -n "${SEGMENT_MAX_MEMORY:-}" ]]; then
+  args+=(--segment-max-memory "$SEGMENT_MAX_MEMORY")
+fi
+
+"$BIN_PATH" "${args[@]}"
 status=$?
 
 end_ts_ms=$(date +%s%3N)

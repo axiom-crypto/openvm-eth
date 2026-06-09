@@ -9,7 +9,15 @@
 #   --profile <PROFILE> Set the Cargo build profile (default: profiling)
 #                       Valid profiles: dev, release, profiling
 #   --block <N>         Set the block number to prove (default: 23992138)
+#   --app-log-blowup <N>
 #   --app-l-skip <N>    Log of univariate skip domain size (default: 4)
+#   --leaf-log-blowup <N>
+#   --internal-log-blowup <N>
+#   --root-log-blowup <N>
+#   --num-children-leaf <N>
+#   --num-children-internal <N>
+#   --max-segment-length <N>
+#   --segment-max-memory <N>
 #   --cuda              Force CUDA acceleration (auto-detected if nvidia-smi available)
 #   --tco               Use TCO instead of AOT (default is AOT on x86_64)
 #   --perf              Run with perf + samply host profiling and upload to Firefox Profiler
@@ -87,12 +95,36 @@ while [[ $# -gt 0 ]]; do
             BLOCK_NUMBER_OVERRIDE="$2"
             shift 2
             ;;
+        --max-segment-length)
+            MAX_SEGMENT_LENGTH="$2"
+            shift 2
+            ;;
+        --segment-max-memory)
+            SEGMENT_MAX_MEMORY="$2"
+            shift 2
+            ;;
+        --app-log-blowup)
+            APP_LOG_BLOWUP="$2"
+            shift 2
+            ;;
         --leaf-log-blowup)
             LEAF_LOG_BLOWUP="$2"
             shift 2
             ;;
         --internal-log-blowup)
             INTERNAL_LOG_BLOWUP="$2"
+            shift 2
+            ;;
+        --root-log-blowup)
+            ROOT_LOG_BLOWUP="$2"
+            shift 2
+            ;;
+        --num-children-leaf)
+            NUM_CHILDREN_LEAF="$2"
+            shift 2
+            ;;
+        --num-children-internal)
+            NUM_CHILDREN_INTERNAL="$2"
             shift 2
             ;;
         --app-l-skip)
@@ -214,8 +246,6 @@ BLOCK_NUMBER="${BLOCK_NUMBER_OVERRIDE:-23992138}"
 # switch to +nightly-2026-01-18 if using tco
 TOOLCHAIN="+nightly-2026-01-18" # "+stable"
 BIN_NAME="openvm-reth-benchmark"
-MAX_SEGMENT_LENGTH=$((1 << 22))
-segment_max_memory=$((15 << 30))
 export VPMM_PAGE_SIZE=$((4 << 20))
 if [[ -z "${VPMM_PAGES:-}" ]] && [[ "$MODE" == "prove-stark" || "$MODE" == "prove-app" || "$MODE" == "prove-evm" ]]; then
     export VPMM_PAGES=$((16 << 8)) # start with 16GB
@@ -285,6 +315,10 @@ fi
 BIN=$REPO_ROOT/target/$TARGET_DIR/$BIN_NAME
 
 CONFIG_ARGS=""
+if [[ -n $APP_LOG_BLOWUP ]]
+then
+    CONFIG_ARGS="$CONFIG_ARGS --app-log-blowup ${APP_LOG_BLOWUP}"
+fi
 if [[ -n $LEAF_LOG_BLOWUP ]]
 then
     CONFIG_ARGS="$CONFIG_ARGS --leaf-log-blowup ${LEAF_LOG_BLOWUP}"
@@ -297,14 +331,32 @@ if [[ -n $APP_L_SKIP ]]
 then
     CONFIG_ARGS="$CONFIG_ARGS --app-l-skip ${APP_L_SKIP}"
 fi
+if [[ -n $ROOT_LOG_BLOWUP ]]
+then
+    CONFIG_ARGS="$CONFIG_ARGS --root-log-blowup ${ROOT_LOG_BLOWUP}"
+fi
+if [[ -n $NUM_CHILDREN_LEAF ]]
+then
+    CONFIG_ARGS="$CONFIG_ARGS --num-children-leaf ${NUM_CHILDREN_LEAF}"
+fi
+if [[ -n $NUM_CHILDREN_INTERNAL ]]
+then
+    CONFIG_ARGS="$CONFIG_ARGS --num-children-internal ${NUM_CHILDREN_INTERNAL}"
+fi
 if [[ -n $PROOF_CACHE ]]
 then
     CONFIG_ARGS="$CONFIG_ARGS --proof-cache ${PROOF_CACHE}"
 fi
+if [[ -n $MAX_SEGMENT_LENGTH ]]
+then
+    CONFIG_ARGS="$CONFIG_ARGS --max-segment-length ${MAX_SEGMENT_LENGTH}"
+fi
+if [[ -n $SEGMENT_MAX_MEMORY ]]
+then
+    CONFIG_ARGS="$CONFIG_ARGS --segment-max-memory ${SEGMENT_MAX_MEMORY}"
+fi
 
 BIN_ARGS="--mode $MODE \
---max-segment-length $MAX_SEGMENT_LENGTH \
---segment-max-memory $segment_max_memory \
 $CONFIG_ARGS"
 
 if [ "$MODE" != "generate-vm-vkey" ]; then
@@ -313,10 +365,6 @@ if [ "$MODE" != "generate-vm-vkey" ]; then
 --rpc-url $RPC_1 \
 --cache-dir rpc-cache"
 fi
-# TODO: aggregation tree (internal nodes)
-# --num-children-leaf 1 \
-# --num-children-internal 3
-
 export RUST_LOG="info,p3_=warn"
 
 echo "Run command:"
