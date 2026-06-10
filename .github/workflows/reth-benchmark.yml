@@ -339,7 +339,18 @@ jobs:
             fi
           fi
 
-          RUSTFLAGS="-Ctarget-cpu=native"
+          # Resolve "native" to the explicit host CPU name (e.g. znver3). With the
+          # literal string "native", sccache keys and cargo fingerprints match across
+          # instance families, so artifacts built on a newer microarchitecture get
+          # reused on older CPUs and SIGILL. Resolve with the same toolchain used by
+          # the host build so the name is valid for that LLVM version.
+          TARGET_CPU=$(rustc +nightly-2026-01-18 --print target-cpus | sed -n 's/^ *native .*(currently \([a-zA-Z0-9_.-]*\)).*/\1/p')
+          if [[ -z "$TARGET_CPU" ]]; then
+            echo "::warning::Could not resolve native target CPU; falling back to -Ctarget-cpu=native (cross-instance-family cache poisoning possible)"
+            TARGET_CPU="native"
+          fi
+          echo "Resolved target CPU: ${TARGET_CPU}"
+          RUSTFLAGS="-Ctarget-cpu=${TARGET_CPU}"
           FEATURES="${FEATURES},tco"
 
           if [[ "${{ inputs.profiling || github.event.inputs.profiling }}" == "host" ]]; then
