@@ -33,7 +33,7 @@ on:
         description: "Instance family to use for benchmark"
         type: string
         required: false
-        default: g6e.2xlarge
+        default: g7e.2xlarge
       benchmark_block_number:
         description: "Block number to run the benchmark on"
         type: number
@@ -228,7 +228,7 @@ jobs:
     uses: ./.github/workflows/reth-benchmark.yml
     with:
       mode: ${{ inputs.benchmark_mode || github.event.inputs.benchmark_mode || 'prove-stark' }}
-      instance_family: ${{ inputs.instance_family || github.event.inputs.instance_family || 'g6e.2xlarge' }}
+      instance_family: ${{ inputs.instance_family || github.event.inputs.instance_family || 'g7e.2xlarge' }}
       ref: ${{ needs.patch.outputs.branch_name }}
       tag: ${{ needs.patch.outputs.tag }}
       block_number: ${{ fromJSON(inputs.benchmark_block_number || github.event.inputs.benchmark_block_number || '23992138') }}
