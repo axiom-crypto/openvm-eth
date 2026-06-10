@@ -314,6 +314,12 @@ jobs:
         if: ${{ (github.event.inputs.mode == 'prove-evm') || (inputs.mode == 'prove-evm') }}
         run: (hash svm 2>/dev/null || cargo install --locked --version 0.5.24 svm-rs) && svm install 0.8.19 && solc --version
 
+      - name: Read Rust toolchain channel
+        run: |
+          RUST_TOOLCHAIN=$(sed -n 's/^channel = "\(.*\)"/\1/p' rust-toolchain.toml)
+          [[ -n "$RUST_TOOLCHAIN" ]] || { echo "No channel in rust-toolchain.toml" >&2; exit 1; }
+          echo "RUST_TOOLCHAIN=${RUST_TOOLCHAIN}" >> $GITHUB_ENV
+
       - name: Set build profiles
         id: set-build-profiles
         run: |
@@ -342,7 +348,7 @@ jobs:
 
           # Resolve "native" to the host CPU name (e.g. znver3) so sccache keys and
           # cargo fingerprints differ across instance families (else SIGILL from reuse)
-          TARGET_CPU=$(rustc +nightly-2026-01-18 --print target-cpus | sed -n 's/^ *native.*(currently \([^)]*\)).*/\1/p')
+          TARGET_CPU=$(rustc "+${RUST_TOOLCHAIN}" --print target-cpus | sed -n 's/^ *native.*(currently \([^)]*\)).*/\1/p')
           TARGET_CPU="${TARGET_CPU:-native}"
           echo "Resolved target CPU: ${TARGET_CPU}"
           RUSTFLAGS="-Ctarget-cpu=${TARGET_CPU}"
@@ -412,7 +418,7 @@ jobs:
         working-directory: bin/stateless-guest
         run: |
           GUEST_PROFILE=${{ steps.set-build-profiles.outputs.guest_profile }}
-          RUSTFLAGS="" OPENVM_RUST_TOOLCHAIN=nightly-2026-01-18 cargo openvm build --no-transpile --profile=$GUEST_PROFILE
+          RUSTFLAGS="" OPENVM_RUST_TOOLCHAIN=${RUST_TOOLCHAIN} cargo openvm build --no-transpile --profile=$GUEST_PROFILE
           mkdir -p ../reth-benchmark/elf
           cp target/riscv32im-risc0-zkvm-elf/$GUEST_PROFILE/openvm-stateless-guest ../reth-benchmark/elf/
 
@@ -436,7 +442,7 @@ jobs:
         run: |
           export JEMALLOC_SYS_WITH_MALLOC_CONF=${JEMALLOC_SYS_WITH_MALLOC_CONF}
           HOST_PROFILE=${{ steps.set-build-profiles.outputs.host_profile }}
-          TOOLCHAIN="+nightly-2026-01-18"
+          TOOLCHAIN="+${RUST_TOOLCHAIN}"
           RUSTFLAGS=$RUSTFLAGS cargo $TOOLCHAIN build --bin ${{ env.BIN_NAME }} --profile=$HOST_PROFILE --no-default-features --features=$FEATURES
 
       - name: Save Host Binary to cache
