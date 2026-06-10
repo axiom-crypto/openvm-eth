@@ -301,6 +301,11 @@ jobs:
             fi
           fi
 
+      # TODO: remove once https://github.com/runs-on/runner-images-for-aws/issues/55 is fixed
+      - name: Setup GPU driver
+        if: ${{ startsWith(inputs.instance_family || github.event.inputs.instance_family, 'g') }}
+        run: bash ./scripts/gpu_driver_setup.sh
+
       - name: Setup halo2 KZG params
         if: ${{ (github.event.inputs.mode == 'prove-evm') || (inputs.mode == 'prove-evm') }}
         run: bash ./ci/trusted_setup_s3.sh

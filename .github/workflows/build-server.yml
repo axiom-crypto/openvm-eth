@@ -45,6 +45,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
 
+      # TODO: remove once https://github.com/runs-on/runner-images-for-aws/issues/55 is fixed
+      - name: Setup GPU driver
+        if: ${{ startsWith(inputs.instance_family, 'g') }}
+        run: bash ./scripts/gpu_driver_setup.sh
+
       - name: Determine image metadata
         id: meta
         shell: bash
