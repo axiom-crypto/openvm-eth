@@ -14,7 +14,7 @@ concurrency:
 jobs:
   lock-files:
     name: "Check lock files"
-    runs-on: ["runs-on", "runner=8cpu-linux-x64", "run-id=${{ github.run_id }}"]
+    runs-on: ["runs-on=${{ github.run_id }}", "runner=8cpu-linux-x64"]
     env:
       CARGO_NET_GIT_FETCH_WITH_CLI: "true"
     steps:
@@ -40,7 +40,7 @@ jobs:
 
   fmt:
     name: "Check code format"
-    runs-on: ["runs-on", "runner=8cpu-linux-x64", "run-id=${{ github.run_id }}"]
+    runs-on: ["runs-on=${{ github.run_id }}", "runner=8cpu-linux-x64"]
     steps:
       - name: Load SSH key
         uses: webfactory/ssh-agent@v0.9.0

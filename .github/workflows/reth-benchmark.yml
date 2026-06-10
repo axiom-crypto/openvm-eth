@@ -207,7 +207,7 @@ jobs:
   run-reth:
     name: Run Reth benchmark
     runs-on:
-      - runs-on=${{ github.run_id }}/family=${{ inputs.instance_family || github.event.inputs.instance_family }}/disk=large/tag=bench-reth-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}/extras=s3-cache/spot=false/image=${{ startsWith(github.event.inputs.instance_family || inputs.instance_family, 'g') && 'ubuntu24-gpu-x64' || contains(github.event.inputs.instance_family || inputs.instance_family, 'g.') && 'ubuntu24-full-arm64' || 'ubuntu24-full-x64' }}
+      - runs-on=${{ github.run_id }}/family=${{ inputs.instance_family || github.event.inputs.instance_family }}/volume=80gb/tag=bench-reth-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}/extras=s3-cache/spot=false/image=${{ startsWith(github.event.inputs.instance_family || inputs.instance_family, 'g') && 'ubuntu24-gpu-x64' || contains(github.event.inputs.instance_family || inputs.instance_family, 'g.') && 'ubuntu24-full-arm64' || 'ubuntu24-full-x64' }}
     outputs:
       metric_name: ${{ steps.set-metric-name.outputs.name }}
       gpu_memory_svg_url: ${{ steps.set-metric-name.outputs.memory_svg_url }}
