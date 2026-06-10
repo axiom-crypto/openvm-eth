@@ -340,14 +340,19 @@ jobs:
 
           USE_TCO="${{ inputs.use_tco || github.event.inputs.use_tco }}"
 
+          # Resolve "native" to the host CPU name (e.g. znver3) so sccache keys and
+          # cargo fingerprints differ across instance families (else SIGILL from reuse)
+          TARGET_CPU=$(rustc +nightly-2026-01-18 --print target-cpus | sed -n 's/^ *native.*(currently \([^)]*\)).*/\1/p')
+          TARGET_CPU="${TARGET_CPU:-native}"
+          echo "Resolved target CPU: ${TARGET_CPU}"
+          RUSTFLAGS="-Ctarget-cpu=${TARGET_CPU}"
+
           arch=$(uname -m)
           case $arch in
             arm64|aarch64)
-              RUSTFLAGS="-Ctarget-cpu=native"
               USE_TCO="true"
               ;;
             x86_64|amd64)
-              RUSTFLAGS="-Ctarget-cpu=native"
               if [[ "$USE_TCO" != "true" ]]; then
                 # aot enables halo2curves-axiom/asm which is x86_64-only
                 FEATURES="${FEATURES},aot"
