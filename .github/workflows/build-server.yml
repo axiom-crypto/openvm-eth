@@ -33,10 +33,9 @@ jobs:
   build:
     name: Build server Docker image
     runs-on:
-      - runs-on
-      - run-id=${{ github.run_id }}
+      - runs-on=${{ github.run_id }}
       - family=${{ inputs.instance_family }}
-      - disk=large
+      - volume=80gb
       - tag=build-server-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}
       - image=${{ startsWith(inputs.instance_family, 'g') && 'ubuntu24-gpu-x64' || contains(inputs.instance_family, 'g.') && 'ubuntu24-full-arm64' || 'ubuntu24-full-x64' }}
     steps:
