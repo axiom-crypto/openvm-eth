@@ -41,7 +41,9 @@ WORKDIR /app
 ENV JEMALLOC_SYS_WITH_MALLOC_CONF="retain:true,background_thread:true,metadata_thp:always,dirty_decay_ms:10000,muzzy_decay_ms:10000,abort_conf:true"
 ARG FEATURES="metrics,jemalloc,tco,unprotected,cuda"
 ARG PROFILE="release"
-ENV CUDA_ARCH="89"
+# CUDA SASS targets: 89 = Ada, 120 = Blackwell
+ARG CUDA_ARCH="89,120"
+ENV CUDA_ARCH=${CUDA_ARCH}
 RUN cargo +nightly-2026-01-18 build --bin openvm-reth-benchmark --profile=${PROFILE} --no-default-features --features=${FEATURES}
 
 # Runtime image
