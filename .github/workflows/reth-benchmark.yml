@@ -8,7 +8,7 @@ on:
         type: string
         required: false
         description: The family of the instance, can be multiple ones concat with "+" e.g. g6+g5
-        default: g6e.2xlarge
+        default: g7e.2xlarge
       memory_allocator:
         type: choice
         required: false
@@ -104,7 +104,7 @@ on:
         type: string
         required: false
         description: The family of the instance, can be multiple ones concat with "+" e.g. g6+g5
-        default: g6e.2xlarge
+        default: g7e.2xlarge
       memory_allocator:
         type: string
         required: false

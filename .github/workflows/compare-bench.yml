@@ -44,7 +44,7 @@ on:
         description: "Instance family to use for benchmark"
         type: string
         required: false
-        default: g6e.2xlarge
+        default: g7e.2xlarge
 
 jobs:
   run-base-benchmark:
