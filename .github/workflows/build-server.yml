@@ -7,7 +7,7 @@ on:
         type: string
         required: false
         description: Runner instance family (GPU recommended)
-        default: g6e.2xlarge
+        default: g7e.2xlarge
       push:
         type: boolean
         required: false
