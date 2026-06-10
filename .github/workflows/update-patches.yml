@@ -107,7 +107,7 @@ jobs:
   patch:
     name: "Update .cargo/config.toml and open a pull request"
     runs-on:
-      ["runs-on", "runner=2cpu-linux-arm64", "run-id=${{ github.run_id }}"]
+      ["runs-on=${{ github.run_id }}", "runner=2cpu-linux-arm64"]
     outputs:
       branch_name: ${{ steps.create-branch.outputs.branch_name }}
       pr_number: ${{ steps.create-pr.outputs.pr_number }}
