@@ -42,12 +42,13 @@ set -e
 
 REPO_ROOT=$(git rev-parse --show-toplevel)
 WORKDIR=$REPO_ROOT
+RUST_TOOLCHAIN=$(sed -n 's/^channel = "\(.*\)"/\1/p' "$REPO_ROOT/rust-toolchain.toml")
 
 DEST="$REPO_ROOT/bin/reth-benchmark/elf/openvm-stateless-guest"
 
 if [ ! -f "$DEST" ]; then
     cd "$REPO_ROOT/bin/stateless-guest"
-    OPENVM_RUST_TOOLCHAIN=nightly-2026-01-18 cargo openvm build
+    OPENVM_RUST_TOOLCHAIN=$RUST_TOOLCHAIN cargo openvm build
     mkdir -p ../reth-benchmark/elf
     SRC="target/riscv32im-risc0-zkvm-elf/release/openvm-stateless-guest"
     cp "$SRC" "$DEST"
@@ -243,8 +244,7 @@ case "${PROFILE_OVERRIDE:-release}" in
 esac
 FEATURES="parallel,metrics,jemalloc,unprotected"
 BLOCK_NUMBER="${BLOCK_NUMBER_OVERRIDE:-23992138}"
-# switch to +nightly-2026-01-18 if using tco
-TOOLCHAIN="+nightly-2026-01-18" # "+stable"
+TOOLCHAIN="+$RUST_TOOLCHAIN"
 BIN_NAME="openvm-reth-benchmark"
 export VPMM_PAGE_SIZE=$((4 << 20))
 if [[ -z "${VPMM_PAGES:-}" ]] && [[ "$MODE" == "prove-stark" || "$MODE" == "prove-app" || "$MODE" == "prove-evm" ]]; then
