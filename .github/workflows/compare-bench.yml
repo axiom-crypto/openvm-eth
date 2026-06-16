@@ -12,10 +12,15 @@ on:
         description: "Target OpenVM revision to compare"
         required: true
         type: string
+      block_number:
+        type: number
+        required: false
+        description: Ethereum block number
+        default: 23992138
       benchmark_mode:
         type: choice
         required: false
-        description: Running mode
+        description: Benchmark mode
         options:
           - execute-host
           - execute
@@ -25,26 +30,21 @@ on:
           - prove-root
           - prove-evm
         default: prove-stark
-      block_number:
-        type: number
+      instance_family:
+        description: Runner instance family, or multiple families joined with "+" (e.g. g6+g5)
+        type: string
         required: false
-        description: Block number to run the benchmark on
-        default: 23992138
+        default: g7e.2xlarge
       host_flamegraph:
-        description: "Run target profiling benchmark for host flamegraph"
+        description: Generate target host flamegraph
         type: boolean
         required: false
         default: false
       guest_flamegraph:
-        description: "Run target profiling benchmark for circuit flamegraphs"
+        description: Generate target circuit flamegraphs
         type: boolean
         required: false
         default: false
-      instance_family:
-        description: "Instance family to use for benchmark"
-        type: string
-        required: false
-        default: g7e.2xlarge
 
 jobs:
   run-base-benchmark:
