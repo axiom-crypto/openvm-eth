@@ -87,9 +87,6 @@ fi
 if [[ -n "${NUM_CHILDREN_INTERNAL:-}" ]]; then
   args+=(--num-children-internal "$NUM_CHILDREN_INTERNAL")
 fi
-if [[ -n "${MAX_SEGMENT_LENGTH:-}" ]]; then
-  args+=(--max-segment-length "$MAX_SEGMENT_LENGTH")
-fi
 if [[ -n "${SEGMENT_MAX_MEMORY:-}" ]]; then
   args+=(--segment-max-memory "$SEGMENT_MAX_MEMORY")
 fi
