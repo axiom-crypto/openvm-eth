@@ -8,8 +8,7 @@ use alloy_transport::layers::RetryBackoffLayer;
 use clap::Parser;
 use eyre::Result;
 use openvm_circuit::arch::{
-    execution_mode::metered::segment_ctx::{DEFAULT_MAX_MEMORY, DEFAULT_MAX_TRACE_HEIGHT},
-    instructions::exe::VmExe,
+    execution_mode::metered::segment_ctx::DEFAULT_MAX_MEMORY, instructions::exe::VmExe,
     verify_segments, VmCircuitConfig,
 };
 use openvm_rpc_proxy::{RpcExecutor, DEFAULT_PREIMAGE_CACHE_NIBBLES};
@@ -200,11 +199,7 @@ pub struct BenchmarkCli {
     #[command(flatten)]
     pub agg_tree_config: AggregationTreeConfig,
 
-    /// Max trace height per chip in segment for continuations
-    #[arg(long, alias = "max_segment_length", default_value_t = DEFAULT_MAX_TRACE_HEIGHT)]
-    pub max_segment_length: u32,
-
-    /// Total cells used in all chips in segment for continuations
+    /// Estimated proving-memory cap per VM segment, in bytes
     #[arg(long, default_value_t = DEFAULT_MAX_MEMORY)]
     pub segment_max_memory: usize,
 }
@@ -260,8 +255,7 @@ pub async fn run_reth_benchmark(args: HostArgs, openvm_client_eth_elf: &[u8]) ->
     println!("CUDA Backend Enabled");
 
     let mut vm_config = reth_vm_config();
-    vm_config.as_mut().segmentation_limits.set_max_trace_height(args.benchmark.max_segment_length);
-    vm_config.as_mut().segmentation_limits.set_max_memory(args.benchmark.segment_max_memory);
+    vm_config.as_mut().set_segmentation_max_memory(args.benchmark.segment_max_memory);
 
     for (air_idx, air) in VmCircuitConfig::<SC>::create_airs(&vm_config)?.into_airs().enumerate() {
         tracing::debug!("air_idx={air_idx} | {}", air.name());

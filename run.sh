@@ -16,7 +16,6 @@
 #   --root-log-blowup <N>
 #   --num-children-leaf <N>
 #   --num-children-internal <N>
-#   --max-segment-length <N>
 #   --segment-max-memory <N>
 #   --cuda              Force CUDA acceleration (auto-detected if nvidia-smi available)
 #   --tco               Use TCO instead of AOT (default is AOT on x86_64)
@@ -46,13 +45,14 @@ RUST_TOOLCHAIN=$(sed -n 's/^channel = "\(.*\)"/\1/p' "$REPO_ROOT/rust-toolchain.
 
 DEST="$REPO_ROOT/bin/reth-benchmark/elf/openvm-stateless-guest"
 
-if [ ! -f "$DEST" ]; then
+build_openvm_guest_elf() {
     cd "$REPO_ROOT/bin/stateless-guest"
     OPENVM_RUST_TOOLCHAIN=$RUST_TOOLCHAIN cargo openvm build
     mkdir -p ../reth-benchmark/elf
     SRC="target/riscv32im-risc0-zkvm-elf/release/openvm-stateless-guest"
     cp "$SRC" "$DEST"
-fi
+    cd "$WORKDIR"
+}
 
 cd $WORKDIR
 
@@ -94,10 +94,6 @@ while [[ $# -gt 0 ]]; do
             ;;
         --block)
             BLOCK_NUMBER_OVERRIDE="$2"
-            shift 2
-            ;;
-        --max-segment-length)
-            MAX_SEGMENT_LENGTH="$2"
             shift 2
             ;;
         --segment-max-memory)
@@ -309,6 +305,7 @@ if [ "$USE_NSYS" = "false" ]; then
     export JEMALLOC_SYS_WITH_MALLOC_CONF="retain:true,background_thread:true,metadata_thp:always,dirty_decay_ms:10000,muzzy_decay_ms:10000,abort_conf:true"
 fi
 if [[ "${OPENVM_BENCH_SKIP_BUILD:-0}" != "1" ]]; then
+    build_openvm_guest_elf
     RUSTFLAGS=$RUSTFLAGS cargo $TOOLCHAIN build --bin $BIN_NAME --profile=$PROFILE --no-default-features --features=$FEATURES
 fi
 
@@ -346,10 +343,6 @@ fi
 if [[ -n $PROOF_CACHE ]]
 then
     CONFIG_ARGS="$CONFIG_ARGS --proof-cache ${PROOF_CACHE}"
-fi
-if [[ -n $MAX_SEGMENT_LENGTH ]]
-then
-    CONFIG_ARGS="$CONFIG_ARGS --max-segment-length ${MAX_SEGMENT_LENGTH}"
 fi
 if [[ -n $SEGMENT_MAX_MEMORY ]]
 then

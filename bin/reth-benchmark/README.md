@@ -90,6 +90,8 @@ cp target/riscv32im-risc0-zkvm-elf/release/openvm-stateless-guest ../reth-benchm
 cd ../..
 ```
 
+`run.sh` builds and embeds this guest ELF before compiling the benchmark binary.
+
 If this is your first time using `cargo-openvm`, cargo may prompt you to install the `rust-src` component for a nightly toolchain. This will look like:
 
 ```bash
@@ -168,8 +170,7 @@ The benchmark command accepts additional arguments that can be used to configure
 - `--leaf-log-blowup`: Set the blowup factor for the leaf aggregation proofs (default: 2)
 - `--internal-log-blowup`: Set the blowup factor for the internal non-leaf aggregation proofs (default: 3)
 - `--root-log-blowup`: Set the blowup factor for the root STARK aggregation proof (default: 4)
-- `--max-segment-length`: Set the threshold number of cycles before the execution should segment (default: `2 ** 22`)
-- `--segment-max-memory`: Set the maximum metered memory per segment
+- `--segment-max-memory`: Set the estimated proving-memory cap per VM segment, in bytes
 - `--num-children-leaf`: Set the number of children for leaf aggregation (default: 4)
 - `--num-children-internal`: Set the number of children for internal aggregation (default: 3)
 - `--preimage-cache-nibbles`: Set the preimage cache nibbles (default: 7)
