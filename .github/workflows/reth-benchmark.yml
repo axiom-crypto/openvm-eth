@@ -216,9 +216,30 @@ jobs:
       - uses: dtolnay/rust-toolchain@nightly
         env:
           RUSTUP_PERMIT_COPY_RENAME: "1"
+      - name: Namespace caches by host ISA
+        # We build with `-Ctarget-cpu=native` for best-possible codegen (math/crypto libs use
+        # ISA extensions on both x86_64 and aarch64). But sccache, the host-binary cache, and
+        # rust-cache all key on the literal flag string "-Ctarget-cpu=native", which is constant
+        # across CPUs — so a native artifact built on one microarchitecture can be served to a
+        # weaker one and crash with SIGILL (exit 132). Fingerprint the *resolved* host feature
+        # set and partition every cache by it: we keep native codegen, but never reuse an
+        # artifact across different CPUs.
+        run: |
+          arch=$(uname -m)
+          ISA=$(rustc -Ctarget-cpu=native --print cfg | grep '^target_feature=' | sort | sha256sum | cut -d' ' -f1 | head -c12)
+          PREFIX="isa-${arch}-${ISA}"
+          echo "HOST_ISA_KEY=${arch}-${ISA}" >> "$GITHUB_ENV"
+          echo "SCCACHE_S3_KEY_PREFIX=${PREFIX}" >> "$GITHUB_ENV"
+          # sccache only reads SCCACHE_S3_KEY_PREFIX when its server boots, and the action above
+          # already started one without the prefix. Restart it so the ISA-scoped prefix takes
+          # effect (stop, then start again with the prefix exported into this shell).
+          export SCCACHE_S3_KEY_PREFIX="${PREFIX}"
+          sccache --stop-server || true
+          sccache --start-server
       - uses: Swatinem/rust-cache@v2
         with:
           cache-on-failure: true
+          key: ${{ env.HOST_ISA_KEY }}
 
       - name: Add workflow inputs to summary
         run: |
@@ -378,7 +399,9 @@ jobs:
           JEMALLOC_CONF_HASH=$(echo "${JEMALLOC_SYS_WITH_MALLOC_CONF}" | sha256sum | cut -d' ' -f1 | head -c8)
           FEATURES_HASH=$(echo "${FEATURES}" | sha256sum | cut -d' ' -f1 | head -c8)
           HOST_PROFILE=${{ steps.set-build-profiles.outputs.host_profile }}
-          echo "host_cache_key=host-${TAG}-${arch}-${HOST_PROFILE}-${RUSTFLAGS_HASH}-${JEMALLOC_CONF_HASH}-${FEATURES_HASH}" >> $GITHUB_OUTPUT
+          # ${HOST_ISA_KEY} keeps the prebuilt host binary from being restored onto a CPU with a
+          # different resolved ISA than it was compiled for (see "Namespace caches by host ISA").
+          echo "host_cache_key=host-${TAG}-${arch}-${HOST_PROFILE}-${RUSTFLAGS_HASH}-${JEMALLOC_CONF_HASH}-${FEATURES_HASH}-${HOST_ISA_KEY}" >> $GITHUB_OUTPUT
 
       - name: Restore Guest ELF from cache
         id: cache-guest-elf-restore
