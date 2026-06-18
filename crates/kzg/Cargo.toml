@@ -1,0 +1,43 @@
+[package]
+name = "openvm-kzg"
+edition.workspace = true
+repository.workspace = true
+homepage.workspace = true
+exclude.workspace = true
+version.workspace = true
+
+[dependencies]
+openvm-algebra-guest.workspace = true
+openvm-ecc-guest.workspace = true
+openvm-pairing = { workspace = true, features = ["bls12_381"] }
+
+hex = { workspace = true, features = ["alloc"] }
+hex-literal.workspace = true
+bls12_381.workspace = true
+spin.workspace = true
+serde = { workspace = true, features = ["alloc"] }
+serde-big-array.workspace = true
+
+[dev-dependencies]
+serde_yaml.workspace = true
+
+[target.'cfg(not(target_os = "zkvm"))'.dev-dependencies]
+openvm-stark-sdk.workspace = true
+
+openvm.workspace = true
+openvm-sdk.workspace = true
+openvm-build.workspace = true
+openvm-circuit = { workspace = true, features = ["parallel", "test-utils"] }
+openvm-pairing = { workspace = true, features = ["halo2curves"] }
+openvm-kzg = { workspace = true, features = ["test-utils"] }
+
+toml.workspace = true
+
+[build-dependencies]
+bls12_381.workspace = true
+hex = { workspace = true, features = ["alloc"] }
+
+[features]
+default = ["use-intrinsics"]
+test-utils = []
+use-intrinsics = []          # When enabled, uses OpenVM intrinsic functions
