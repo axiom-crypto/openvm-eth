@@ -4,7 +4,8 @@
 #
 # Options:
 #   --mode <MODE>       Set the proving mode (default: prove-app)
-#                       Valid modes: prove-app, prove-stark, prove-root, prove-evm, keygen, keygen-root, generate-vm-vkey
+#                       Valid modes: execute, execute-metered, prove-app, prove-stark,
+#                       prove-root, prove-evm, keygen, keygen-root, generate-vm-vkey
 #   --generate-vm-vkey  Shortcut for --mode generate-vm-vkey
 #   --profile <PROFILE> Set the Cargo build profile (default: profiling)
 #                       Valid profiles: dev, release, profiling
@@ -16,11 +17,10 @@
 #   --root-log-blowup <N>
 #   --num-children-leaf <N>
 #   --num-children-internal <N>
-#   --max-segment-length <N>
 #   --segment-max-memory <N>
 #   --cuda              Force CUDA acceleration (auto-detected if nvidia-smi available)
 #   --exec-mode <MODE>  Select the OpenVM execution backend: interpreter | tco | aot | rvr.
-#                       Defaults to interpreter. aot is not supported on arm64.
+#                       Defaults to rvr. aot is not supported on arm64.
 #                       rvr requires clang-22 and lld on PATH.
 #   --perf              Run with perf + samply host profiling and upload to Firefox Profiler
 #   --nsys              Run with nsys profiling and output summary stats
@@ -78,7 +78,7 @@ PROFILE_OVERRIDE=""
 BLOCK_NUMBER_OVERRIDE=""
 USE_CUDA=false
 CUDA_REASON=""
-EXEC_MODE=""
+EXEC_MODE="rvr"
 USE_PERF=false
 USE_NSYS=false
 USE_NCU=false
@@ -100,10 +100,6 @@ while [[ $# -gt 0 ]]; do
             ;;
         --block)
             BLOCK_NUMBER_OVERRIDE="$2"
-            shift 2
-            ;;
-        --max-segment-length)
-            MAX_SEGMENT_LENGTH="$2"
             shift 2
             ;;
         --segment-max-memory)
@@ -239,7 +235,7 @@ if [[ -z "${RPC_1:-}" ]]; then
     echo "Missing RPC endpoint: set RPC_1 env var or create reth-bench/.env with RPC_1=..." >&2
     exit 1
 fi
-MODE="${MODE_OVERRIDE:-prove-app}" # can be prove-app, prove-stark, keygen, generate-vm-vkey
+MODE="${MODE_OVERRIDE:-prove-app}"
 
 # Map profile aliases and set target directory
 case "${PROFILE_OVERRIDE:-release}" in
@@ -293,9 +289,7 @@ arch=$(uname -m)
 case $arch in
 arm64|aarch64)
     RUSTFLAGS="-Ctarget-cpu=native"
-    if [ -z "$EXEC_MODE" ]; then
-        EXEC_MODE="interpreter"
-    elif [ "$EXEC_MODE" = "aot" ]; then
+    if [ "$EXEC_MODE" = "aot" ]; then
         # aot enables halo2curves-axiom/asm which is x86_64-only
         echo "Error: --exec-mode aot is not supported on arm64" >&2
         exit 1
@@ -303,9 +297,6 @@ arm64|aarch64)
     ;;
 x86_64|amd64)
     RUSTFLAGS="-Ctarget-cpu=native"
-    if [ -z "$EXEC_MODE" ]; then
-        EXEC_MODE="interpreter"
-    fi
     ;;
 *)
 echo "Unsupported architecture: $arch"
@@ -388,10 +379,6 @@ if [[ -n $PROOF_CACHE ]]
 then
     CONFIG_ARGS="$CONFIG_ARGS --proof-cache ${PROOF_CACHE}"
 fi
-if [[ -n $MAX_SEGMENT_LENGTH ]]
-then
-    CONFIG_ARGS="$CONFIG_ARGS --max-segment-length ${MAX_SEGMENT_LENGTH}"
-fi
 if [[ -n $SEGMENT_MAX_MEMORY ]]
 then
     CONFIG_ARGS="$CONFIG_ARGS --segment-max-memory ${SEGMENT_MAX_MEMORY}"
@@ -420,11 +407,11 @@ if [ "$USE_PERF" = "true" ]; then
 
     echo "Running with perf profiling (freq=${PERF_FREQ})..."
     export OUTPUT_PATH="metrics.json"
-    perf record -F $PERF_FREQ --call-graph=fp -g -o perf.data -- $BIN $BIN_ARGS
+    perf record -F $PERF_FREQ --call-graph=dwarf -g -o perf.data -- $BIN $BIN_ARGS
 
     echo "Converting perf.data with samply..."
     mkdir -p samply_profile
-    samply import perf.data --presymbolicate --save-only --output samply_profile/profile.json.gz
+    samply import perf.data --unstable-presymbolicate --save-only --output samply_profile/profile.json.gz
     echo "Saved profile: samply_profile/profile.json.gz"
 
     FIREFOX_PROFILER_URL=$(python3 "$REPO_ROOT/scripts/upload_firefox_profile.py" samply_profile/profile.json.gz) || true
