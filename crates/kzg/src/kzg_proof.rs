@@ -1,6 +1,4 @@
-use crate::dtypes::*;
-use crate::enums::KzgError;
-use crate::types::KzgSettings;
+use crate::{dtypes::*, enums::KzgError, types::KzgSettings};
 
 use alloc::{string::ToString, vec::Vec};
 #[cfg(not(feature = "use-intrinsics"))]
@@ -8,20 +6,17 @@ use bls12_381::{multi_miller_loop, G2Prepared, Gt};
 use bls12_381::{G1Affine, G2Affine, Scalar};
 #[cfg(target_os = "zkvm")]
 use core::cmp::Ordering;
+use hex_literal::hex;
+use openvm_algebra_guest::{field::FieldExtension, IntMod};
 #[cfg(target_os = "zkvm")]
 use openvm_curve_utils::SubgroupCheck;
-use {
-    hex_literal::hex,
-    openvm_algebra_guest::field::FieldExtension,
-    openvm_algebra_guest::IntMod,
-    openvm_ecc_guest::{
-        weierstrass::{CachedMulTable, IntrinsicCurve, WeierstrassPoint},
-        AffinePoint, CyclicGroup, Group,
-    },
-    openvm_pairing::bls12_381::{
-        Bls12_381 as Bls12_381_G1, Fp, Fp2, G1Affine as Bls12_381G1Affine,
-        G2Affine as Bls12_381G2Affine, Scalar as Bls12_381Scalar,
-    },
+use openvm_ecc_guest::{
+    weierstrass::{CachedMulTable, IntrinsicCurve, WeierstrassPoint},
+    AffinePoint, CyclicGroup, Group,
+};
+use openvm_pairing::bls12_381::{
+    Bls12_381 as Bls12_381_G1, Fp, Fp2, G1Affine as Bls12_381G1Affine,
+    G2Affine as Bls12_381G2Affine, Scalar as Bls12_381Scalar,
 };
 
 const G2_AFFINE_GENERATOR: Bls12_381G2Affine = Bls12_381G2Affine::new(
@@ -40,11 +35,12 @@ pub struct KzgProof {}
 impl KzgProof {
     /// This function asserts that the KZG proof is valid. It will panic if the proof is not valid.
     ///
-    /// **WARNING:** a dishonest host of the VM may cause this function to panic even on valid inputs,
-    /// so this function cannot be used to prove that the KZG proof is definitely invalid.
+    /// **WARNING:** a dishonest host of the VM may cause this function to panic even on valid
+    /// inputs, so this function cannot be used to prove that the KZG proof is definitely
+    /// invalid.
     ///
-    /// Therefore this function should only be used in cases where successful guest program execution requires
-    /// the KZG proof to be valid.
+    /// Therefore this function should only be used in cases where successful guest program
+    /// execution requires the KZG proof to be valid.
     #[cfg(feature = "use-intrinsics")]
     pub fn verify_kzg_proof(
         commitment_bytes: &Bytes48,
@@ -121,8 +117,8 @@ impl KzgProof {
             (&-p_minus_y, &G2Prepared::from(G2Affine::generator())),
             (&proof, &G2Prepared::from(x_minus_z)),
         ])
-        .final_exponentiation()
-            == Gt::identity();
+        .final_exponentiation() ==
+            Gt::identity();
         Ok(success)
     }
 }
@@ -182,14 +178,10 @@ fn to_openvm_g2_affine(g2: G2Affine) -> Bls12_381G2Affine {
     let y_c1: [u8; 48] = g2_bytes[96..144].try_into().unwrap();
     let y_c0: [u8; 48] = g2_bytes[144..192].try_into().unwrap();
 
-    let ox = Fp2::from_coeffs([
-        Fp::from_be_bytes_unchecked(&x_c0),
-        Fp::from_be_bytes_unchecked(&x_c1),
-    ]);
-    let oy = Fp2::from_coeffs([
-        Fp::from_be_bytes_unchecked(&y_c0),
-        Fp::from_be_bytes_unchecked(&y_c1),
-    ]);
+    let ox =
+        Fp2::from_coeffs([Fp::from_be_bytes_unchecked(&x_c0), Fp::from_be_bytes_unchecked(&x_c1)]);
+    let oy =
+        Fp2::from_coeffs([Fp::from_be_bytes_unchecked(&y_c0), Fp::from_be_bytes_unchecked(&y_c1)]);
     unsafe { Bls12_381G2Affine::from_xy_unchecked(ox, oy) }
 }
 
@@ -199,16 +191,11 @@ fn to_openvm_g2_affine(g2: G2Affine) -> Bls12_381G2Affine {
 #[cfg(target_os = "zkvm")]
 fn is_lex_largest(y: &Fp) -> bool {
     let neg_y = -y.clone();
-    // This is a way to force y and -y are both in reduced form simultaneously using `iseqmod` opcode
-    // Guest execution will never terminate if these elements are not reduced
+    // This is a way to force y and -y are both in reduced form simultaneously using `iseqmod`
+    // opcode Guest execution will never terminate if these elements are not reduced
     let _ = core::hint::black_box(y == &neg_y);
     // Compare y big endian bytes lexicographically with -y big endian bytes
-    for (l, r) in y
-        .as_le_bytes()
-        .iter()
-        .rev()
-        .zip(neg_y.as_le_bytes().iter().rev())
-    {
+    for (l, r) in y.as_le_bytes().iter().rev().zip(neg_y.as_le_bytes().iter().rev()) {
         match l.cmp(r) {
             Ordering::Greater => return true,
             Ordering::Less => return false,
@@ -251,9 +238,7 @@ pub fn safe_g1_affine_from_bytes(bytes: &Bytes48) -> Result<Bls12_381G1Affine, K
     // so an on-curve point may lie outside the prime-order subgroup; reject those. (The
     // identity is valid and is already returned by the early check above.)
     if !point.is_in_correct_subgroup() {
-        return Err(KzgError::BadArgs(
-            "G1Affine not in correct subgroup".to_string(),
-        ));
+        return Err(KzgError::BadArgs("G1Affine not in correct subgroup".to_string()));
     }
     Ok(point)
 }
@@ -283,20 +268,12 @@ pub fn safe_g1_affine_from_bytes_native(bytes: &Bytes48) -> Result<G1Affine, Kzg
 }
 
 pub fn safe_scalar_affine_from_bytes(bytes: &Bytes32) -> Result<Scalar, KzgError> {
-    let lendian: [u8; 32] = bytes
-        .as_slice()
-        .iter()
-        .rev()
-        .copied()
-        .collect::<Vec<u8>>()
-        .try_into()
-        .unwrap();
+    let lendian: [u8; 32] =
+        bytes.as_slice().iter().rev().copied().collect::<Vec<u8>>().try_into().unwrap();
 
     let scalar = Scalar::from_bytes(&lendian);
     if scalar.is_none().into() {
-        return Err(KzgError::BadArgs(
-            "Failed to parse Scalar from bytes32".to_string(),
-        ));
+        return Err(KzgError::BadArgs("Failed to parse Scalar from bytes32".to_string()));
     }
     Ok(scalar.unwrap())
 }

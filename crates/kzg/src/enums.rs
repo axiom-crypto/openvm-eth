@@ -20,10 +20,10 @@ pub enum KzgError {
 impl fmt::Display for KzgError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::BadArgs(s)
-            | Self::InvalidBytesLength(s)
-            | Self::InvalidHexFormat(s)
-            | Self::InvalidTrustedSetup(s) => f.write_str(s),
+            Self::BadArgs(s) |
+            Self::InvalidBytesLength(s) |
+            Self::InvalidHexFormat(s) |
+            Self::InvalidTrustedSetup(s) => f.write_str(s),
             Self::InternalError => f.write_str("Internal error"),
         }
     }

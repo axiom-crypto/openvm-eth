@@ -27,10 +27,8 @@ fn main() {
     }
 
     pub fn load_trusted_setup_file_brute() -> Result<KzgSettingsOwned, KzgError> {
-        let trusted_setup_file: Vec<String> = TRUSTED_SETUP_FILE
-            .split('\n')
-            .map(|x| x.to_string())
-            .collect();
+        let trusted_setup_file: Vec<String> =
+            TRUSTED_SETUP_FILE.split('\n').map(|x| x.to_string()).collect();
 
         let num_g1_points = trusted_setup_file[0].parse::<usize>().unwrap();
         let num_g2_points = trusted_setup_file[1].parse::<usize>().unwrap();
@@ -85,11 +83,7 @@ fn main() {
         let bit_reversed_permutation = bit_reversal_permutation(&g1_points)?;
         let g1_points = bit_reversed_permutation;
 
-        Ok(KzgSettingsOwned {
-            roots_of_unity,
-            g1_points,
-            g2_points,
-        })
+        Ok(KzgSettingsOwned { roots_of_unity, g1_points, g2_points })
     }
 
     fn bit_reversal_permutation<T, const N: usize>(array: &[T]) -> Result<[T; N], KzgError>
@@ -113,8 +107,8 @@ fn main() {
     fn host_pairings_verify(a1: G1Affine, a2: G2Affine, b1: G1Affine, b2: G2Affine) -> bool {
         use bls12_381::{multi_miller_loop, G2Prepared, Gt};
         multi_miller_loop(&[(&-a1, &G2Prepared::from(a2)), (&b1, &G2Prepared::from(b2))])
-            .final_exponentiation()
-            == Gt::identity()
+            .final_exponentiation() ==
+            Gt::identity()
     }
 
     fn is_trusted_setup_in_lagrange_form(
@@ -158,9 +152,7 @@ fn main() {
 
     fn expand_root_of_unity(root: Scalar, width: usize) -> Result<Vec<Scalar>, KzgError> {
         if width < 2 {
-            return Err(KzgError::BadArgs(
-                "The width must be greater or equal to 2".to_string(),
-            ));
+            return Err(KzgError::BadArgs("The width must be greater or equal to 2".to_string()));
         }
 
         let mut expanded = vec![Scalar::one(), root];
@@ -197,14 +189,14 @@ fn main() {
     let roots_of_unity_exists = roots_of_unity_path.exists();
 
     if g1_exists && g2_exists && roots_of_unity_exists {
-        println!("cargo:rerun-if-changed=src/trusted_setup.rs"); // Re-run this build script if the `g1.bin`,`g2.bin`, or `roots_of_unity.bin` files are changed
+        println!("cargo:rerun-if-changed=src/trusted_setup.rs"); // Re-run this build script if the
+                                                                 // `g1.bin`,`g2.bin`, or
+                                                                 // `roots_of_unity.bin` files are
+                                                                 // changed
     }
 
-    let KzgSettingsOwned {
-        roots_of_unity,
-        g1_points,
-        g2_points,
-    } = load_trusted_setup_file_brute().unwrap();
+    let KzgSettingsOwned { roots_of_unity, g1_points, g2_points } =
+        load_trusted_setup_file_brute().unwrap();
 
     let mut roots_of_unity_bytes: Vec<u8> = Vec::new();
     let mut g1_bytes: Vec<u8> = Vec::new();
@@ -232,25 +224,15 @@ fn main() {
         .open(&roots_of_unity_path)
         .unwrap();
 
-    roots_of_unity_file
-        .write_all(&roots_of_unity_bytes)
-        .unwrap();
+    roots_of_unity_file.write_all(&roots_of_unity_bytes).unwrap();
 
-    let mut g1_file = fs::OpenOptions::new()
-        .create(true)
-        .truncate(true)
-        .write(true)
-        .open(&g1_path)
-        .unwrap();
+    let mut g1_file =
+        fs::OpenOptions::new().create(true).truncate(true).write(true).open(&g1_path).unwrap();
 
     g1_file.write_all(&g1_bytes).unwrap();
 
-    let mut g2_file = fs::OpenOptions::new()
-        .create(true)
-        .truncate(true)
-        .write(true)
-        .open(&g2_path)
-        .unwrap();
+    let mut g2_file =
+        fs::OpenOptions::new().create(true).truncate(true).write(true).open(&g2_path).unwrap();
 
     g2_file.write_all(&g2_bytes).unwrap();
 }

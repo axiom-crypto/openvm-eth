@@ -2,10 +2,10 @@ use std::path::PathBuf;
 
 use openvm_build::{GuestOptions, TargetFilter};
 use openvm_circuit::openvm_stark_sdk::config::setup_tracing;
-use openvm_kzg::test_files::{
-    ONLY_INVALID_KZG_PROOF_TESTS, ONLY_VALID_KZG_PROOF_TESTS, SINGLE_VALID_KZG_PROOF_TEST,
-};
 use openvm_kzg::{
+    test_files::{
+        ONLY_INVALID_KZG_PROOF_TESTS, ONLY_VALID_KZG_PROOF_TESTS, SINGLE_VALID_KZG_PROOF_TEST,
+    },
     test_utils::{Input, Test},
     KzgInputs,
 };
@@ -57,12 +57,8 @@ pub fn run_test_from_yaml_str(data: &str) {
         panic!("Invalid test inputs");
     };
 
-    let input = KzgInputs {
-        commitment_bytes: commitment,
-        z_bytes: z,
-        y_bytes: y,
-        proof_bytes: proof,
-    };
+    let input =
+        KzgInputs { commitment_bytes: commitment, z_bytes: z, y_bytes: y, proof_bytes: proof };
 
     run_guest_program(input);
 }
@@ -74,18 +70,14 @@ pub fn run_guest_program(input: KzgInputs) {
     let sdk = Sdk::new(app_config).unwrap();
 
     let guest_opts = GuestOptions::default();
-    let target_filter = Some(TargetFilter {
-        name: "verify-kzg-program".to_string(),
-        kind: "bin".to_string(),
-    });
+    let target_filter =
+        Some(TargetFilter { name: "verify-kzg-program".to_string(), kind: "bin".to_string() });
     let mut pkg_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     pkg_dir.push("tests");
     pkg_dir.push("programs");
     pkg_dir.push("verify_kzg");
 
-    let elf = sdk
-        .build(guest_opts, &pkg_dir, &target_filter, None)
-        .unwrap();
+    let elf = sdk.build(guest_opts, &pkg_dir, &target_filter, None).unwrap();
 
     let mut io = StdIn::default();
     io.write(&input);

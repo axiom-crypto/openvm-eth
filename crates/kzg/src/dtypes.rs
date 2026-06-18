@@ -1,6 +1,7 @@
-use crate::enums::KzgError;
-use crate::kzg_proof::safe_scalar_affine_from_bytes;
-use crate::{BYTES_PER_BLOB, BYTES_PER_FIELD_ELEMENT};
+use crate::{
+    enums::KzgError, kzg_proof::safe_scalar_affine_from_bytes, BYTES_PER_BLOB,
+    BYTES_PER_FIELD_ELEMENT,
+};
 
 use alloc::{string::ToString, vec::Vec};
 use bls12_381::Scalar;
@@ -14,9 +15,7 @@ macro_rules! define_bytes_type {
         impl $name {
             pub fn from_slice(slice: &[u8]) -> Result<Self, KzgError> {
                 if slice.len() != $size {
-                    return Err(KzgError::InvalidBytesLength(
-                        "Invalid slice length".to_string(),
-                    ));
+                    return Err(KzgError::InvalidBytesLength("Invalid slice length".to_string()));
                 }
                 let mut bytes = [0u8; $size];
                 bytes.copy_from_slice(slice);

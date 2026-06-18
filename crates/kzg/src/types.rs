@@ -6,8 +6,7 @@ use serde::{Deserialize, Serialize};
 use serde_big_array::BigArray;
 use spin::Once;
 
-use crate::get_kzg_settings;
-use crate::{Bytes32, Bytes48, KzgError};
+use crate::{get_kzg_settings, Bytes32, Bytes48, KzgError};
 
 /// Inputs to pass to the VM for KZG proof verification
 /// Excludes `KzgSettings`, which is read from disk by the VM

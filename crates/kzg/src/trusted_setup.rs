@@ -16,10 +16,8 @@ macro_rules! include_bytes_align_as {
         // const block expression to encapsulate the static
 
         // this assignment is made possible by CoerceUnsized
-        static ALIGNED: &AlignedAs<$align_ty, [u8]> = &AlignedAs {
-            _align: [],
-            bytes: *include_bytes!($path),
-        };
+        static ALIGNED: &AlignedAs<$align_ty, [u8]> =
+            &AlignedAs { _align: [], bytes: *include_bytes!($path) };
 
         &ALIGNED.bytes
     }};
@@ -30,10 +28,7 @@ pub fn get_roots_of_unity() -> &'static [Scalar] {
     ROOTS_OF_UNITY.call_once(|| {
         static ALIGNED_BYTES: &[u8] = include_bytes_align_as!(
             Scalar,
-            concat!(
-                env!("CARGO_MANIFEST_DIR"),
-                "/assets/trusted_setup/roots_of_unity.bin"
-            )
+            concat!(env!("CARGO_MANIFEST_DIR"), "/assets/trusted_setup/roots_of_unity.bin")
         );
         // The minimum alignment required is 4
         assert!((ALIGNED_BYTES.as_ptr() as usize).is_multiple_of(align_of::<Scalar>()));
