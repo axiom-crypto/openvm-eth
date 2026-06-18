@@ -514,7 +514,7 @@ pub async fn run_reth_benchmark(args: HostArgs, openvm_client_eth_elf: &[u8]) ->
                             Decode::decode(&mut stark_proof_reader)
                                 .expect("failed stark proof deserialization");
                         evm_prover
-                            .prove_unwrapped_with_stark_proof(stark_proof, &mut internal_meta)
+                            .prove_root_from_vm_stark_proof(stark_proof, &mut internal_meta)
                             .expect("failed to prove root from cached stark proof")
                     } else {
                         if let Some(p) = &proof_file {
@@ -525,7 +525,7 @@ pub async fn run_reth_benchmark(args: HostArgs, openvm_client_eth_elf: &[u8]) ->
                             .prove(stdin, &[])
                             .expect("failed to prove stark");
                         let root_proof = evm_prover
-                            .prove_unwrapped_with_stark_proof(
+                            .prove_root_from_vm_stark_proof(
                                 stark_proof.clone(),
                                 &mut metadata.clone(),
                             )
@@ -553,7 +553,7 @@ pub async fn run_reth_benchmark(args: HostArgs, openvm_client_eth_elf: &[u8]) ->
                     let block_hash = &proof.user_public_values;
                     println!("block_hash (prove_evm): {}", hex::encode(block_hash));
                     let openvm_verifier = sdk.generate_halo2_verifier_solidity()?;
-                    let gas_cost = Sdk::verify_evm_halo2_proof(&openvm_verifier, proof)?;
+                    let gas_cost = Sdk::verify_evm_halo2_proof(&openvm_verifier, proof, None)?;
                     tracing::info!("EVM verifier gas cost: {gas_cost}");
                 }
                 BenchMode::Keygen => {
