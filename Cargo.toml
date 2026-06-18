@@ -148,3 +148,6 @@ opt-level = 3
 [profile.bench-with-debug]
 inherits = "release"
 debug = 1
+
+[patch."https://github.com/openvm-org/stark-backend.git"]
+openvm-cuda-common = { git  = "https://github.com/Aalanli/stark-backend.git", branch = 'fix_concurrency' }
