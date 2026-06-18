@@ -8,6 +8,8 @@ use bls12_381::{multi_miller_loop, G2Prepared, Gt};
 use bls12_381::{G1Affine, G2Affine, Scalar};
 #[cfg(target_os = "zkvm")]
 use core::cmp::Ordering;
+#[cfg(target_os = "zkvm")]
+use openvm_curve_utils::SubgroupCheck;
 use {
     hex_literal::hex,
     openvm_algebra_guest::field::FieldExtension,
@@ -245,6 +247,14 @@ pub fn safe_g1_affine_from_bytes(bytes: &Bytes48) -> Result<Bls12_381G1Affine, K
     if is_lex_largest(point.y()) ^ sort_flag_set {
         point.y_mut().neg_assign();
     }
+    // `decompress` only guarantees the point is on the curve. BLS12-381 G1 has cofactor > 1,
+    // so an on-curve point may lie outside the prime-order subgroup; reject those. (The
+    // identity is valid and is already returned by the early check above.)
+    if !point.is_in_correct_subgroup() {
+        return Err(KzgError::BadArgs(
+            "G1Affine not in correct subgroup".to_string(),
+        ));
+    }
     Ok(point)
 }
 
@@ -289,32 +299,6 @@ pub fn safe_scalar_affine_from_bytes(bytes: &Bytes32) -> Result<Scalar, KzgError
         ));
     }
     Ok(scalar.unwrap())
-}
-
-#[allow(dead_code)]
-fn convert_g1(g1: &AffinePoint<Fp>) -> G1Affine {
-    let is_identity = g1.is_infinity();
-    let mut bytes = [0u8; 96];
-    bytes[0..48].copy_from_slice(&g1.x.to_be_bytes());
-    bytes[48..96].copy_from_slice(&g1.y.to_be_bytes());
-    if is_identity {
-        bytes[0] |= 1 << 6;
-    }
-    G1Affine::from_uncompressed_unchecked(&bytes).unwrap()
-}
-
-#[allow(dead_code)]
-fn convert_g2(g2: &AffinePoint<Fp2>) -> G2Affine {
-    let is_identity = g2.is_infinity();
-    let mut bytes = [0; 192];
-    bytes[0..48].copy_from_slice(&g2.x.c1.to_be_bytes());
-    bytes[48..96].copy_from_slice(&g2.x.c0.to_be_bytes());
-    bytes[96..144].copy_from_slice(&g2.y.c1.to_be_bytes());
-    bytes[144..192].copy_from_slice(&g2.y.c0.to_be_bytes());
-    if is_identity {
-        bytes[0] |= 1 << 6;
-    }
-    G2Affine::from_uncompressed_unchecked(&bytes).unwrap()
 }
 
 #[cfg(test)]

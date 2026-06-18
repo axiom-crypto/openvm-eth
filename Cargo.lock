@@ -7888,6 +7888,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "openvm-curve-utils"
+version = "0.4.0"
+dependencies = [
+ "ark-bls12-381",
+ "ark-bn254",
+ "ark-ec",
+ "ark-ff 0.5.0",
+ "hex-literal 1.1.0",
+ "openvm-ecc-guest",
+ "openvm-pairing",
+]
+
+[[package]]
 name = "openvm-custom-insn"
 version = "0.1.0"
 source = "git+https://github.com/openvm-org/openvm.git?branch=main#eda5bf031a6bd0960adb1dcf59b9a0a951eacb20"
@@ -8069,6 +8082,7 @@ dependencies = [
  "openvm-algebra-guest",
  "openvm-build",
  "openvm-circuit",
+ "openvm-curve-utils",
  "openvm-ecc-guest",
  "openvm-kzg",
  "openvm-pairing",
@@ -8416,6 +8430,7 @@ dependencies = [
  "ark-ff 0.5.0",
  "aurora-engine-modexp",
  "k256 0.13.4 (git+https://github.com/openvm-org/openvm.git?branch=main)",
+ "openvm-curve-utils",
  "openvm-ecc-guest",
  "openvm-keccak256",
  "openvm-kzg",

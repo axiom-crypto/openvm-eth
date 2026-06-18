@@ -8,6 +8,7 @@ members = [
     "crates/stateless-witness",
     "crates/mpt-tools",
     "crates/rpc-proxy",
+    "crates/curve-utils",
     "crates/kzg",
     "crates/kzg/tests/programs/verify_kzg",
 ]
@@ -57,6 +58,7 @@ tower = "0.5"
 metrics = "0.24"
 
 # workspace
+openvm-curve-utils = { path = "./crates/curve-utils", default-features = false }
 openvm-kzg = { path = "./crates/kzg", default-features = false }
 openvm-mpt = { path = "./crates/mpt" }
 openvm-revm-crypto = { path = "./crates/revm-crypto" }

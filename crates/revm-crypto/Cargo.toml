@@ -18,6 +18,7 @@ alloy-primitives = { workspace = true, features = ["map-foldhash"] }
 alloy-consensus = { workspace = true, features = ["crypto-backend"] }
 
 # OpenVM dependencies for optimized crypto (only needed when running in zkvm)
+openvm-curve-utils = { workspace = true, features = ["bn254", "bls12_381"] }
 openvm-ecc-guest = { workspace = true }
 openvm-sha2 = { workspace = true }
 openvm-pairing = { workspace = true, features = ["bn254", "bls12_381"] }
