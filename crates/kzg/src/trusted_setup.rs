@@ -6,6 +6,7 @@ use spin::Once;
 
 // https://users.rust-lang.org/t/can-i-conveniently-compile-bytes-into-a-rust-program-with-a-specific-alignment/24049/2
 #[repr(C)] // guarantee 'bytes' comes after '_align'
+#[derive(Debug)]
 pub struct AlignedAs<Align, Bytes: ?Sized> {
     pub _align: [Align; 0],
     pub bytes: Bytes,
