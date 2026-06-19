@@ -1,0 +1,29 @@
+[package]
+name = "openvm-curve-utils"
+description = "Shared elliptic curve helpers (subgroup membership checks) for BN254 and BLS12-381"
+version.workspace = true
+edition.workspace = true
+homepage.workspace = true
+repository.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+openvm-ecc-guest = { workspace = true }
+openvm-pairing = { workspace = true }
+hex-literal.workspace = true
+
+[features]
+default = ["bn254", "bls12_381"]
+# Each curve's subgroup-check impls are gated so a consumer can pull in only the
+# curve it needs (e.g. a BLS-only KZG guest avoids compiling BN254 point code).
+bn254 = ["openvm-pairing/bn254"]
+bls12_381 = ["openvm-pairing/bls12_381"]
+
+[dev-dependencies]
+# arkworks-rs (host-only, used to cross-check curve constants and test vectors)
+ark-ff = "0.5"
+ark-bn254 = "0.5"
+ark-bls12-381 = "0.5"
+ark-ec = "0.5"

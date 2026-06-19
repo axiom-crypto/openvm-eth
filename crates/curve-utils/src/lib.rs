@@ -1,3 +1,4 @@
+#![cfg_attr(target_os = "zkvm", no_std)]
 //! Subgroup membership checks for elliptic curve points.
 //!
 //! For pairing-based cryptography to be secure, points must lie in the correct
@@ -58,7 +59,7 @@ fn scalar_mul<P: WeierstrassPoint, const CHECK_SETUP: bool>(
 /// This trait assumes that the point is already known to be on the curve. It
 /// only verifies the additional property of subgroup membership, which is
 /// necessary when the curve has cofactor greater than 1.
-pub(crate) trait SubgroupCheck: WeierstrassPoint {
+pub trait SubgroupCheck: WeierstrassPoint {
     /// Returns `true` if this point lies in the correct prime-order subgroup.
     ///
     /// # Assumption
@@ -69,8 +70,9 @@ pub(crate) trait SubgroupCheck: WeierstrassPoint {
     fn is_in_correct_subgroup(&self) -> bool;
 }
 
+#[cfg(feature = "bn254")]
 mod impl_bn {
-    use alloy_primitives::hex;
+    use hex_literal::hex;
     use openvm_ecc_guest::{algebra::field::FieldExtension, weierstrass::WeierstrassPoint};
     use openvm_pairing::bn254 as bn;
 
@@ -145,7 +147,7 @@ mod impl_bn {
     #[cfg(test)]
     mod tests {
         use super::*;
-        use crate::subgroup_check::SubgroupCheck;
+        use crate::SubgroupCheck;
         use openvm_ecc_guest::{algebra::IntMod, CyclicGroup};
 
         #[test]
@@ -262,10 +264,11 @@ mod impl_bn {
     }
 }
 
+#[cfg(feature = "bls12_381")]
 mod impl_bls {
-    use std::ops::{MulAssign, Neg};
+    use core::ops::{MulAssign, Neg};
 
-    use alloy_primitives::hex;
+    use hex_literal::hex;
     use openvm_ecc_guest::{algebra::field::FieldExtension, weierstrass::WeierstrassPoint, Group};
     use openvm_pairing::bls12_381 as bls;
 
@@ -374,7 +377,7 @@ mod impl_bls {
     #[cfg(test)]
     mod tests {
         use super::*;
-        use crate::subgroup_check::SubgroupCheck;
+        use crate::SubgroupCheck;
         use openvm_ecc_guest::{algebra::IntMod, weierstrass::WeierstrassPoint, CyclicGroup};
 
         #[test]

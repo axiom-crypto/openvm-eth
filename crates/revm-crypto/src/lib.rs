@@ -39,8 +39,7 @@ use revm::{
 };
 use std::{sync::Arc, vec::Vec};
 
-mod subgroup_check;
-use subgroup_check::SubgroupCheck;
+use openvm_curve_utils::SubgroupCheck;
 
 // BN254 constants
 const BN_FQ_LEN: usize = 32;

@@ -7,7 +7,10 @@ members = [
     "crates/chainspec",
     "crates/stateless-witness",
     "crates/mpt-tools",
-    "crates/rpc-proxy"
+    "crates/rpc-proxy",
+    "crates/curve-utils",
+    "crates/kzg",
+    "crates/kzg/tests/programs/verify_kzg",
 ]
 exclude = []
 resolver = "3"
@@ -55,6 +58,8 @@ tower = "0.5"
 metrics = "0.24"
 
 # workspace
+openvm-curve-utils = { path = "./crates/curve-utils", default-features = false }
+openvm-kzg = { path = "./crates/kzg", default-features = false }
 openvm-mpt = { path = "./crates/mpt" }
 openvm-revm-crypto = { path = "./crates/revm-crypto" }
 openvm-stateless-executor = { path = "./crates/stateless-executor" }
@@ -112,8 +117,24 @@ openvm-pairing = { git = "https://github.com/openvm-org/openvm.git", branch = "m
 openvm-sha2 = { git = "https://github.com/openvm-org/openvm.git", branch = "main", default-features = false }
 openvm-k256 = { git = "https://github.com/openvm-org/openvm.git", package = "k256", branch = "main" }
 openvm-p256 = { git = "https://github.com/openvm-org/openvm.git", package = "p256", branch = "main" }
+openvm-algebra-guest = { git = "https://github.com/openvm-org/openvm.git", branch = "main", default-features = false }
 
-openvm-kzg = { git = "https://github.com/axiom-crypto/openvm-kzg.git", branch = "openvm-main", default-features = false }
+# openvm (host only)
+openvm-sdk = { git = "https://github.com/openvm-org/openvm.git", branch = "main", default-features = false }
+openvm-build = { git = "https://github.com/openvm-org/openvm.git", branch = "main", default-features = false }
+openvm-circuit = { git = "https://github.com/openvm-org/openvm.git", branch = "main", default-features = false }
+openvm-stark-sdk = { git = "https://github.com/openvm-org/stark-backend.git", tag = "v1.4.0", default-features = false }
+
+# crates/kzg
+hex = { version = "0.4.3", default-features = false }
+bls12_381 = { version = "0.8.0", default-features = false, features = [
+    "groups",
+    "pairings",
+    "alloc",
+] }
+spin = { version = "0.10.0", default-features = false, features = ["once"] }
+serde-big-array = { version = "0.5.1", default-features = false }
+serde_yaml = { version = "0.9", default-features = false }
 
 [workspace.lints]
 rust.missing_debug_implementations = "warn"
