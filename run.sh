@@ -21,6 +21,8 @@
 #   --tco               Use TCO instead of AOT (default is AOT on x86_64)
 #   --perf              Run with perf + samply host profiling and upload to Firefox Profiler
 #   --nsys              Run with nsys profiling and output summary stats
+#   --nsys-gpu-metrics  Include nsys GPU hardware metrics (`--gpu-metrics-devices=all`).
+#                       Higher overhead; use for hardware-counter analysis, not baseline timing.
 #   --<tool>            Run with compute-sanitizer --tool <tool> where tool is one of memcheck, synccheck, or racecheck
 #   --proof-cache <DIR> Directory to cache the intermediate stark proof for prove-root mode.
 #                       If set, the stark proof is stored at <DIR>/stark.bitcode and reused
@@ -33,6 +35,7 @@
 #   ./run.sh --cuda --mode prove-app      # Force CUDA with prove-app mode
 #   ./run.sh --perf --mode execute         # Run with host profiling (Firefox Profiler link)
 #   ./run.sh --nsys --mode prove-app      # Run with nsys profiling
+#   ./run.sh --nsys --nsys-gpu-metrics --mode prove-app
 #   ./run.sh --block 23992138             # Prove a specific block
 #   ./run.sh --mode generate-vm-vkey      # Generate reth.vm.vk locally
 #   ./run.sh --generate-vm-vkey           # Same as above (shortcut)
@@ -75,6 +78,7 @@ CUDA_REASON=""
 USE_TCO=false
 USE_PERF=false
 USE_NSYS=false
+USE_NSYS_GPU_METRICS=false
 USE_NCU=false
 COMPUTE_SANITIZER_ARGS=""
 
@@ -147,6 +151,10 @@ while [[ $# -gt 0 ]]; do
             CUDA_REASON="requested via --nsys script argument"
             shift
             ;;
+        --nsys-gpu-metrics)
+            USE_NSYS_GPU_METRICS=true
+            shift
+            ;;
         --ncu)
             USE_NCU=true
             if [[ $# -lt 2 ]]; then
@@ -194,6 +202,11 @@ while [[ $# -gt 0 ]]; do
             ;;
     esac
 done
+
+if [ "$USE_NSYS_GPU_METRICS" = "true" ] && [ "$USE_NSYS" = "false" ]; then
+    echo "Error: --nsys-gpu-metrics requires --nsys" >&2
+    exit 1
+fi
 
 if [ "$USE_CUDA" = "false" ] && [ "$NVIDIA_SMI_READY" = "true" ]; then
     USE_CUDA=true
@@ -293,7 +306,7 @@ esac
 if [ "$USE_TCO" = "true" ]; then
     FEATURES="$FEATURES,tco"
 fi
-if [ "$USE_PERF" = "true" ]; then
+if [ "$USE_PERF" = "true" ] || [ "$USE_NSYS" = "true" ]; then
     RUSTFLAGS="$RUSTFLAGS -C force-frame-pointers=yes"
     # Default to profiling profile for host profiling if not overridden
     if [ -z "$PROFILE_OVERRIDE" ]; then
@@ -388,13 +401,16 @@ if [ "$USE_PERF" = "true" ]; then
     fi
 elif [ "$USE_NSYS" = "true" ]; then
     NSYS_OUTPUT="reth.nsys-rep"
-    NSYS_ARGS="--trace=cuda,nvtx --cuda-memory-usage=true --force-overwrite=true -o $NSYS_OUTPUT"
+    NSYS_ARGS="--trace=cuda,nvtx,osrt --sample=cpu --cpuctxsw=true --cuda-memory-usage=true --force-overwrite=true -o $NSYS_OUTPUT"
+    if [ "$USE_NSYS_GPU_METRICS" = "true" ]; then
+        NSYS_ARGS="$NSYS_ARGS --gpu-metrics-devices=all"
+    fi
 
     echo "[sudo] Running with nsys profiling..."
     sudo env PATH="$PATH" HOME="$HOME" RUST_LOG="$RUST_LOG" \
          VPMM_PAGE_SIZE="${VPMM_PAGE_SIZE:-}" VPMM_PAGES="${VPMM_PAGES:-}" \
          LD_LIBRARY_PATH="${LD_LIBRARY_PATH:-}" \
-         nsys profile $NSYS_ARGS --gpu-metrics-devices=all \
+         nsys profile $NSYS_ARGS \
          $BIN $BIN_ARGS
 
     echo "=== CUDA GPU Kernel Summary ==="
