@@ -465,16 +465,16 @@ pub async fn run_reth_benchmark(args: HostArgs, openvm_client_eth_elf: &[u8]) ->
         info_span!("reth-block", block_number = block_number).in_scope(|| -> Result<()> {
             match args.mode {
                 BenchMode::Execute => {
-                    let public_values = info_span!("sdk.execute", group = program_name)
-                        .in_scope(|| sdk.execute(exe, stdin))?;
+                    let public_values = info_span!("sdk.compile_and_execute", group = program_name)
+                        .in_scope(|| sdk.compile_and_execute(exe, stdin))?;
                     let block_hash = hex::encode(&public_values);
                     info!("Execute completed, block hash: {}", block_hash);
                     println!("BENCH_BLOCK_HASH={block_hash}");
                 }
                 BenchMode::ExecuteMetered => {
                     let (public_values, _) =
-                        info_span!("sdk.execute_metered", group = program_name)
-                            .in_scope(|| sdk.execute_metered(exe, stdin))?;
+                        info_span!("sdk.compile_and_execute_metered", group = program_name)
+                            .in_scope(|| sdk.compile_and_execute_metered(exe, stdin))?;
                     let block_hash = hex::encode(&public_values);
                     info!("Execute metered completed, block hash: {}", block_hash);
                     println!("BENCH_BLOCK_HASH={block_hash}");
