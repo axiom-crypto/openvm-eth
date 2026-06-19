@@ -1,8 +1,12 @@
 use std::{fs, path::PathBuf};
 
 use clap::Parser;
-use eyre::{Result, WrapErr};
-use openvm_stark_sdk::openvm_stark_backend::codec::Decode;
+use eyre::{eyre, Result, WrapErr};
+use openvm_circuit::system::memory::merkle::public_values::UserPublicValuesProof;
+use openvm_stark_sdk::{
+    config::baby_bear_poseidon2::{BabyBearPoseidon2Config as SC, DIGEST_SIZE, F},
+    openvm_stark_backend::proof::Proof,
+};
 use openvm_verify_stark_host::{
     verify_vm_stark_proof_decoded,
     vk::{read_vk_from_file, VmStarkVerifyingKey},
@@ -27,6 +31,12 @@ struct Args {
     vm_vk: PathBuf,
 }
 
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
+struct StarkProofWithPublicValue<Field> {
+    proof: Proof<SC>,
+    user_public_values: Option<UserPublicValuesProof<DIGEST_SIZE, Field>>,
+}
+
 fn decode_persisted_final_proof_bytes(path: &PathBuf, proof_bytes: Vec<u8>) -> Result<Vec<u8>> {
     if proof_bytes.starts_with(&ZSTD_FRAME_MAGIC) {
         return zstd::decode_all(&proof_bytes[..]).wrap_err_with(|| {
@@ -41,9 +51,17 @@ fn load_stark_final_proof(path: &PathBuf) -> Result<VmStarkProof> {
     let proof_bytes = fs::read(path)
         .wrap_err_with(|| format!("Failed to read STARK final proof {}", path.display()))?;
     let proof_bytes = decode_persisted_final_proof_bytes(path, proof_bytes)?;
+    let proof: StarkProofWithPublicValue<F> = bincode1::deserialize(&proof_bytes)
+        .wrap_err_with(|| format!("Failed to deserialize STARK final proof {}", path.display()))?;
 
-    VmStarkProof::decode_from_bytes(&proof_bytes)
-        .wrap_err_with(|| format!("Failed to decode STARK final proof {}", path.display()))
+    let user_pvs_proof = proof.user_public_values.ok_or_else(|| {
+        eyre!(
+            "Proof {} does not include user public values; this is not a final STARK proof",
+            path.display()
+        )
+    })?;
+
+    Ok(VmStarkProof { inner: proof.proof, user_pvs_proof, deferral_merkle_proofs: None })
 }
 
 fn main() -> Result<()> {
