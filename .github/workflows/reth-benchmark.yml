@@ -317,7 +317,7 @@ jobs:
         run: |
           GUEST_PROFILE="release"
           HOST_PROFILE="maxperf"
-          if [[ "${{ inputs.profiling || github.event.inputs.profiling }}" == "host" ]]; then
+          if [[ "${{ inputs.profiling || github.event.inputs.profiling }}" == "host" || "${{ inputs.profiling || github.event.inputs.profiling }}" == "nsys" ]]; then
             HOST_PROFILE="profiling"
           fi
           echo "guest_profile=${GUEST_PROFILE}" >> $GITHUB_OUTPUT
@@ -329,6 +329,9 @@ jobs:
           FEATURES="${FEATURES},${{ inputs.memory_allocator || github.event.inputs.memory_allocator || 'jemalloc' }}"
           if [[ "${{ inputs.instance_family || github.event.inputs.instance_family }}" =~ ^g ]]; then
             FEATURES="${FEATURES},cuda"
+          fi
+          if [[ "${{ inputs.profiling || github.event.inputs.profiling }}" == "nsys" ]]; then
+            FEATURES="${FEATURES},nvtx"
           fi
 
           MODE="${{ inputs.mode || github.event.inputs.mode }}"
@@ -365,7 +368,7 @@ jobs:
             FEATURES="${FEATURES},tco"
           fi
 
-          if [[ "${{ inputs.profiling || github.event.inputs.profiling }}" == "host" ]]; then
+          if [[ "${{ inputs.profiling || github.event.inputs.profiling }}" == "host" || "${{ inputs.profiling || github.event.inputs.profiling }}" == "nsys" ]]; then
             RUSTFLAGS="${RUSTFLAGS} -C force-frame-pointers=yes"
           fi
 
@@ -595,6 +598,8 @@ jobs:
             echo "GPU_PEAK_MEMORY_MIB=0" >> $GITHUB_ENV
           elif [[ "${{ inputs.profiling || github.event.inputs.profiling }}" == "nsys" ]]; then
             nsys profile --trace=cuda,osrt,nvtx \
+             --sample=cpu \
+             --cpuctxsw=true \
              --cuda-memory-usage=true \
              --force-overwrite=true \
              -o reth.nsys-rep \
