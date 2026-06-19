@@ -4,11 +4,11 @@ use alloc::{string::ToString, vec::Vec};
 #[cfg(not(feature = "use-intrinsics"))]
 use bls12_381::{multi_miller_loop, G2Prepared, Gt};
 use bls12_381::{G1Affine, G2Affine, Scalar};
-#[cfg(target_os = "zkvm")]
+#[cfg(any(openvm_intrinsics, target_os = "openvm"))]
 use core::cmp::Ordering;
 use hex_literal::hex;
 use openvm_algebra_guest::{field::FieldExtension, IntMod};
-#[cfg(target_os = "zkvm")]
+#[cfg(any(openvm_intrinsics, target_os = "openvm"))]
 use openvm_curve_utils::SubgroupCheck;
 use openvm_ecc_guest::{
     weierstrass::{CachedMulTable, IntrinsicCurve, WeierstrassPoint},
@@ -30,6 +30,7 @@ const G2_AFFINE_GENERATOR: Bls12_381G2Affine = Bls12_381G2Affine::new(
     )
 );
 
+#[derive(Debug)]
 pub struct KzgProof {}
 
 impl KzgProof {
@@ -188,7 +189,7 @@ fn to_openvm_g2_affine(g2: G2Affine) -> Bls12_381G2Affine {
 /// Returns true if the field element is lexicographically larger than its negation.
 ///
 /// The input `y` does not need to be reduced modulo the modulus.
-#[cfg(target_os = "zkvm")]
+#[cfg(any(openvm_intrinsics, target_os = "openvm"))]
 fn is_lex_largest(y: &Fp) -> bool {
     let neg_y = -y.clone();
     // This is a way to force y and -y are both in reduced form simultaneously using `iseqmod`
@@ -207,7 +208,7 @@ fn is_lex_largest(y: &Fp) -> bool {
 }
 
 // hint_decompress is currently not implemented on host because of the need to do a sqrt
-#[cfg(target_os = "zkvm")]
+#[cfg(any(openvm_intrinsics, target_os = "openvm"))]
 pub fn safe_g1_affine_from_bytes(bytes: &Bytes48) -> Result<Bls12_381G1Affine, KzgError> {
     use openvm_ecc_guest::weierstrass::FromCompressed;
 
@@ -244,7 +245,7 @@ pub fn safe_g1_affine_from_bytes(bytes: &Bytes48) -> Result<Bls12_381G1Affine, K
 }
 
 /// Assumes that G1Affine is a point on the curve in the correct subgroup.
-#[cfg(not(target_os = "zkvm"))]
+#[cfg(not(any(openvm_intrinsics, target_os = "openvm")))]
 fn to_openvm_g1_affine(g1: G1Affine) -> Bls12_381G1Affine {
     if g1.is_identity().unwrap_u8() != 0 {
         return <Bls12_381G1Affine as Group>::IDENTITY;
@@ -255,7 +256,7 @@ fn to_openvm_g1_affine(g1: G1Affine) -> Bls12_381G1Affine {
     unsafe { Bls12_381G1Affine::from_xy_unchecked(x, y) }
 }
 
-#[cfg(not(target_os = "zkvm"))]
+#[cfg(not(any(openvm_intrinsics, target_os = "openvm")))]
 pub fn safe_g1_affine_from_bytes(bytes: &Bytes48) -> Result<Bls12_381G1Affine, KzgError> {
     let g1 = safe_g1_affine_from_bytes_native(bytes)?;
     Ok(to_openvm_g1_affine(g1))

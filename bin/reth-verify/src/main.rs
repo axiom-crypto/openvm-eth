@@ -2,9 +2,9 @@ use std::{fs, path::PathBuf};
 
 use clap::Parser;
 use eyre::{eyre, Result, WrapErr};
-use openvm_circuit::system::memory::{merkle::public_values::UserPublicValuesProof, CHUNK};
+use openvm_circuit::system::memory::merkle::public_values::UserPublicValuesProof;
 use openvm_stark_sdk::{
-    config::baby_bear_poseidon2::{BabyBearPoseidon2Config as SC, F},
+    config::baby_bear_poseidon2::{BabyBearPoseidon2Config as SC, DIGEST_SIZE, F},
     openvm_stark_backend::proof::Proof,
 };
 use openvm_verify_stark_host::{
@@ -34,7 +34,7 @@ struct Args {
 #[derive(Clone, serde::Serialize, serde::Deserialize)]
 struct StarkProofWithPublicValue<Field> {
     proof: Proof<SC>,
-    user_public_values: Option<UserPublicValuesProof<CHUNK, Field>>,
+    user_public_values: Option<UserPublicValuesProof<DIGEST_SIZE, Field>>,
 }
 
 fn decode_persisted_final_proof_bytes(path: &PathBuf, proof_bytes: Vec<u8>) -> Result<Vec<u8>> {

@@ -10,7 +10,7 @@ use crate::{get_kzg_settings, Bytes32, Bytes48, KzgError};
 
 /// Inputs to pass to the VM for KZG proof verification
 /// Excludes `KzgSettings`, which is read from disk by the VM
-#[derive(Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct KzgInputs {
     pub commitment_bytes: Bytes48,
     pub z_bytes: Bytes32,
