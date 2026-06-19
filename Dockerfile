@@ -21,7 +21,7 @@ RUN rustup toolchain install nightly-2026-01-18 \
     && rustup component add rust-src --toolchain nightly-2026-01-18
 
 # Install cargo-openvm (builds the guest ELF)
-RUN cargo +1.91.1 install --git https://github.com/openvm-org/openvm.git --locked --force cargo-openvm
+RUN cargo +1.91.1 install --git https://github.com/openvm-org/openvm.git --branch develop-v2.0.0-rc.2 --locked --force cargo-openvm
 
 WORKDIR /app
 # Copy only Rust workspace files to keep build cache stable when server/ changes
