@@ -436,7 +436,7 @@ if [ "$USE_PERF" = "true" ]; then
     fi
 elif [ "$USE_NSYS" = "true" ]; then
     NSYS_OUTPUT="reth.nsys-rep"
-    NSYS_ARGS="--trace=cuda,nvtx,osrt --sample=cpu --cpuctxsw=true --cuda-memory-usage=true --force-overwrite=true -o $NSYS_OUTPUT"
+    NSYS_ARGS="--trace=cuda,nvtx,osrt --sample=cpu --cpuctxsw=process-tree --cuda-memory-usage=true --force-overwrite=true -o $NSYS_OUTPUT"
     if [ "$USE_NSYS_GPU_METRICS" = "true" ]; then
         NSYS_ARGS="$NSYS_ARGS --gpu-metrics-devices=all"
     fi
