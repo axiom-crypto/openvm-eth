@@ -173,6 +173,17 @@ pub struct HostArgs {
     pub preimage_cache_nibbles: u8,
 }
 
+fn get_params_from_env(env_var: &str, default: impl FnOnce() -> SystemParams) -> SystemParams {
+    match std::env::var(env_var) {
+        Ok(s) => {
+            eprintln!("getting params from env {env_var}");
+            serde_json::from_str(&s).unwrap()
+        },
+        Err(_) => default(),
+    }
+}
+
+
 #[derive(Parser, Debug)]
 #[command(allow_external_subcommands = true)]
 pub struct BenchmarkCli {
@@ -282,8 +293,10 @@ pub async fn run_reth_benchmark(args: HostArgs, openvm_client_eth_elf: &[u8]) ->
         )?,
     };
     #[cfg(feature = "evm-verify")]
-    let root_params =
-        override_log_blowup(root_params_with_100_bits_security(), args.benchmark.root_log_blowup)?;
+    let root_params = get_params_from_env("OVERRIDE_ROOT_PARAMS", || {
+        override_log_blowup(root_params_with_100_bits_security(), args.benchmark.root_log_blowup).unwrap()
+    });
+
 
     // Resolve key paths: explicit flag wins; otherwise fall back to <output_dir>/<name>.pk
     // if the file exists. The chain agg->app and root->agg->app is enforced by the builder,

@@ -16,6 +16,7 @@
 #   --root-log-blowup <N>
 #   --num-children-leaf <N>
 #   --num-children-internal <N>
+#   --max-segment-length <N>
 #   --segment-max-memory <N>
 #   --cuda              Force CUDA acceleration (auto-detected if nvidia-smi available)
 #   --tco               Use TCO instead of AOT (default is AOT on x86_64)
@@ -48,14 +49,13 @@ RUST_TOOLCHAIN=$(sed -n 's/^channel = "\(.*\)"/\1/p' "$REPO_ROOT/rust-toolchain.
 
 DEST="$REPO_ROOT/bin/reth-benchmark/elf/openvm-stateless-guest"
 
-build_openvm_guest_elf() {
-    cd "$REPO_ROOT/bin/stateless-guest"
-    OPENVM_RUST_TOOLCHAIN=$RUST_TOOLCHAIN cargo openvm build
-    mkdir -p ../reth-benchmark/elf
-    SRC="target/riscv32im-risc0-zkvm-elf/release/openvm-stateless-guest"
-    cp "$SRC" "$DEST"
-    cd "$WORKDIR"
-}
+if [ ! -f "$DEST" ]; then
+  cd "$REPO_ROOT/bin/stateless-guest"
+  OPENVM_RUST_TOOLCHAIN=$RUST_TOOLCHAIN cargo openvm build
+  mkdir -p ../reth-benchmark/elf
+  SRC="target/riscv32im-risc0-zkvm-elf/release/openvm-stateless-guest"
+  cp "$SRC" "$DEST"
+fi
 
 cd $WORKDIR
 
@@ -66,7 +66,7 @@ trap finalize_gpu_monitor EXIT
 
 NVIDIA_SMI_READY=false
 if command -v nvidia-smi >/dev/null 2>&1 && nvidia-smi >/dev/null 2>&1; then
-    NVIDIA_SMI_READY=true
+  NVIDIA_SMI_READY=true
 fi
 
 # Parse command-line arguments
@@ -81,6 +81,7 @@ USE_NSYS=false
 USE_NSYS_GPU_METRICS=false
 USE_NCU=false
 COMPUTE_SANITIZER_ARGS=""
+ROOT_PARAMS=""
 
 while [[ $# -gt 0 ]]; do
     case $1 in
@@ -209,47 +210,47 @@ if [ "$USE_NSYS_GPU_METRICS" = "true" ] && [ "$USE_NSYS" = "false" ]; then
 fi
 
 if [ "$USE_CUDA" = "false" ] && [ "$NVIDIA_SMI_READY" = "true" ]; then
-    USE_CUDA=true
-    CUDA_REASON="nvidia-smi detected a CUDA-capable GPU"
+  USE_CUDA=true
+  CUDA_REASON="nvidia-smi detected a CUDA-capable GPU"
 fi
 
 if [ "$USE_CUDA" = "true" ]; then
-    echo "Using CUDA acceleration ($CUDA_REASON)."
+  echo "Using CUDA acceleration ($CUDA_REASON)."
 fi
 
 if [ "$NVIDIA_SMI_READY" = "true" ] && [ "$USE_NSYS" = "false" ]; then
-    start_gpu_monitor "$GPU_LOG_FILE" "$GPU_MONITOR_INTERVAL"
+  start_gpu_monitor "$GPU_LOG_FILE" "$GPU_MONITOR_INTERVAL"
 elif [ "$USE_NSYS" = "true" ]; then
-    echo "GPU memory monitoring disabled for nsys profiling."
+  echo "GPU memory monitoring disabled for nsys profiling."
 else
-    echo "nvidia-smi not detected; GPU memory monitoring disabled."
+  echo "nvidia-smi not detected; GPU memory monitoring disabled."
 fi
 
 mkdir -p rpc-cache
 if [[ -f .env ]]; then
-    # Optional convenience file for local runs.
-    source .env
+  # Optional convenience file for local runs.
+  source .env
 fi
 if [[ -z "${RPC_1:-}" ]]; then
-    echo "Missing RPC endpoint: set RPC_1 env var or create reth-bench/.env with RPC_1=..." >&2
-    exit 1
+  echo "Missing RPC endpoint: set RPC_1 env var or create reth-bench/.env with RPC_1=..." >&2
+  exit 1
 fi
 MODE="${MODE_OVERRIDE:-prove-app}" # can be prove-app, prove-stark, keygen, generate-vm-vkey
 
 # Map profile aliases and set target directory
 case "${PROFILE_OVERRIDE:-release}" in
-    dev|debug)
-        PROFILE="dev"
-        TARGET_DIR="debug"
-        ;;
-    release)
-        PROFILE="release"
-        TARGET_DIR="release"
-        ;;
-    *)
-        PROFILE="${PROFILE_OVERRIDE:-profiling}"
-        TARGET_DIR="$PROFILE"
-        ;;
+dev | debug)
+  PROFILE="dev"
+  TARGET_DIR="debug"
+  ;;
+release)
+  PROFILE="release"
+  TARGET_DIR="release"
+  ;;
+*)
+  PROFILE="${PROFILE_OVERRIDE:-profiling}"
+  TARGET_DIR="$PROFILE"
+  ;;
 esac
 FEATURES="parallel,metrics,jemalloc,unprotected"
 BLOCK_NUMBER="${BLOCK_NUMBER_OVERRIDE:-23992138}"
@@ -257,54 +258,54 @@ TOOLCHAIN="+$RUST_TOOLCHAIN"
 BIN_NAME="openvm-reth-benchmark"
 export VPMM_PAGE_SIZE=$((4 << 20))
 if [[ -z "${VPMM_PAGES:-}" ]] && [[ "$MODE" == "prove-stark" || "$MODE" == "prove-app" || "$MODE" == "prove-evm" ]]; then
-    export VPMM_PAGES=$((16 << 8)) # start with 16GB
+  export VPMM_PAGES=$((16 << 8)) # start with 16GB
 fi
 # Settings to turn off VPMM:
 # VPMM_PAGE_SIZE=$((1<<35))
 # VPMM_PAGES=0
 
 if [ "$USE_CUDA" = "true" ]; then
-    FEATURES="$FEATURES,cuda"
+  FEATURES="$FEATURES,cuda"
 fi
 if [ "$USE_NSYS" = "true" ]; then
-    FEATURES="$FEATURES,nvtx"
+  FEATURES="$FEATURES,nvtx"
 fi
 if [ "$MODE" = "prove-evm" ] || [ "$MODE" = "prove-root" ] || [ "$MODE" = "keygen-root" ]; then
-    FEATURES="$FEATURES,evm-verify"
+  FEATURES="$FEATURES,evm-verify"
 fi
 
 # `keygen-root` is a shell-level alias: enable evm-verify (handled above) and pass --mode keygen
 # to the binary. The keygen branch then additionally writes <output_dir>/root.pk when evm-verify
 # is compiled in.
 if [ "$MODE" = "keygen-root" ]; then
-    MODE="keygen"
+  MODE="keygen"
 fi
 
 arch=$(uname -m)
 case $arch in
-arm64|aarch64)
-    RUSTFLAGS="-Ctarget-cpu=native"
-    if [ "$USE_TCO" = "false" ]; then
-        USE_TCO=true
+arm64 | aarch64)
+  RUSTFLAGS="-Ctarget-cpu=native"
+  if [ "$USE_TCO" = "false" ]; then
+    USE_TCO=true
+  fi
+  ;;
+x86_64 | amd64)
+  RUSTFLAGS="-Ctarget-cpu=native"
+  if [ "$USE_TCO" = "false" ]; then
+    # aot enables halo2curves-axiom/asm which is x86_64-only
+    FEATURES="$FEATURES,aot"
+    if [ "$MODE" = "prove-evm" ]; then
+      FEATURES="$FEATURES,halo2-asm"
     fi
-    ;;
-x86_64|amd64)
-    RUSTFLAGS="-Ctarget-cpu=native"
-    if [ "$USE_TCO" = "false" ]; then
-        # aot enables halo2curves-axiom/asm which is x86_64-only
-        FEATURES="$FEATURES,aot"
-        if [ "$MODE" = "prove-evm" ]; then
-            FEATURES="$FEATURES,halo2-asm"
-        fi
-    fi
-    ;;
+  fi
+  ;;
 *)
-echo "Unsupported architecture: $arch"
-exit 1
-;;
+  echo "Unsupported architecture: $arch"
+  exit 1
+  ;;
 esac
 if [ "$USE_TCO" = "true" ]; then
-    FEATURES="$FEATURES,tco"
+  FEATURES="$FEATURES,tco"
 fi
 if [ "$USE_PERF" = "true" ] || [ "$USE_NSYS" = "true" ]; then
     RUSTFLAGS="$RUSTFLAGS -C force-frame-pointers=yes"
@@ -315,58 +316,52 @@ if [ "$USE_PERF" = "true" ] || [ "$USE_NSYS" = "true" ]; then
     fi
 fi
 if [ "$USE_NSYS" = "false" ]; then
-    export JEMALLOC_SYS_WITH_MALLOC_CONF="retain:true,background_thread:true,metadata_thp:always,dirty_decay_ms:10000,muzzy_decay_ms:10000,abort_conf:true"
+  export JEMALLOC_SYS_WITH_MALLOC_CONF="retain:true,background_thread:true,metadata_thp:always,dirty_decay_ms:10000,muzzy_decay_ms:10000,abort_conf:true"
 fi
 if [[ "${OPENVM_BENCH_SKIP_BUILD:-0}" != "1" ]]; then
-    build_openvm_guest_elf
-    RUSTFLAGS=$RUSTFLAGS cargo $TOOLCHAIN build --bin $BIN_NAME --profile=$PROFILE --no-default-features --features=$FEATURES
+  RUSTFLAGS=$RUSTFLAGS cargo $TOOLCHAIN build --bin $BIN_NAME --profile=$PROFILE --no-default-features --features=$FEATURES
 fi
 
 BIN=$REPO_ROOT/target/$TARGET_DIR/$BIN_NAME
 
 CONFIG_ARGS=""
-if [[ -n $APP_LOG_BLOWUP ]]
-then
-    CONFIG_ARGS="$CONFIG_ARGS --app-log-blowup ${APP_LOG_BLOWUP}"
+if [[ -n $APP_LOG_BLOWUP ]]; then
+  CONFIG_ARGS="$CONFIG_ARGS --app-log-blowup ${APP_LOG_BLOWUP}"
 fi
-if [[ -n $LEAF_LOG_BLOWUP ]]
-then
-    CONFIG_ARGS="$CONFIG_ARGS --leaf-log-blowup ${LEAF_LOG_BLOWUP}"
+if [[ -n $LEAF_LOG_BLOWUP ]]; then
+  CONFIG_ARGS="$CONFIG_ARGS --leaf-log-blowup ${LEAF_LOG_BLOWUP}"
 fi
-if [[ -n $INTERNAL_LOG_BLOWUP ]]
-then
-    CONFIG_ARGS="$CONFIG_ARGS --internal-log-blowup ${INTERNAL_LOG_BLOWUP}"
+if [[ -n $INTERNAL_LOG_BLOWUP ]]; then
+  CONFIG_ARGS="$CONFIG_ARGS --internal-log-blowup ${INTERNAL_LOG_BLOWUP}"
 fi
-if [[ -n $APP_L_SKIP ]]
-then
-    CONFIG_ARGS="$CONFIG_ARGS --app-l-skip ${APP_L_SKIP}"
+if [[ -n $APP_L_SKIP ]]; then
+  CONFIG_ARGS="$CONFIG_ARGS --app-l-skip ${APP_L_SKIP}"
 fi
-if [[ -n $ROOT_LOG_BLOWUP ]]
-then
-    CONFIG_ARGS="$CONFIG_ARGS --root-log-blowup ${ROOT_LOG_BLOWUP}"
+if [[ -n $ROOT_LOG_BLOWUP ]]; then
+  CONFIG_ARGS="$CONFIG_ARGS --root-log-blowup ${ROOT_LOG_BLOWUP}"
 fi
-if [[ -n $NUM_CHILDREN_LEAF ]]
-then
-    CONFIG_ARGS="$CONFIG_ARGS --num-children-leaf ${NUM_CHILDREN_LEAF}"
+if [[ -n $NUM_CHILDREN_LEAF ]]; then
+  CONFIG_ARGS="$CONFIG_ARGS --num-children-leaf ${NUM_CHILDREN_LEAF}"
 fi
-if [[ -n $NUM_CHILDREN_INTERNAL ]]
-then
-    CONFIG_ARGS="$CONFIG_ARGS --num-children-internal ${NUM_CHILDREN_INTERNAL}"
+if [[ -n $NUM_CHILDREN_INTERNAL ]]; then
+  CONFIG_ARGS="$CONFIG_ARGS --num-children-internal ${NUM_CHILDREN_INTERNAL}"
 fi
-if [[ -n $PROOF_CACHE ]]
-then
-    CONFIG_ARGS="$CONFIG_ARGS --proof-cache ${PROOF_CACHE}"
+if [[ -n $PROOF_CACHE ]]; then
+  CONFIG_ARGS="$CONFIG_ARGS --proof-cache ${PROOF_CACHE}"
 fi
-if [[ -n $SEGMENT_MAX_MEMORY ]]
-then
-    CONFIG_ARGS="$CONFIG_ARGS --segment-max-memory ${SEGMENT_MAX_MEMORY}"
+if [[ -n $MAX_SEGMENT_LENGTH ]]; then
+  CONFIG_ARGS="$CONFIG_ARGS --max-segment-length ${MAX_SEGMENT_LENGTH}"
+fi
+if [[ -n $SEGMENT_MAX_MEMORY ]]; then
+  CONFIG_ARGS="$CONFIG_ARGS --segment-max-memory ${SEGMENT_MAX_MEMORY}"
 fi
 
 BIN_ARGS="--mode $MODE \
 $CONFIG_ARGS"
 
 if [ "$MODE" != "generate-vm-vkey" ]; then
-    BIN_ARGS="$BIN_ARGS \
+  BIN_ARGS="$BIN_ARGS \
+
 --block-number $BLOCK_NUMBER \
 --rpc-url $RPC_1 \
 --cache-dir rpc-cache"
@@ -376,29 +371,29 @@ export RUST_LOG="info,p3_=warn"
 echo "Run command:"
 echo "$BIN $BIN_ARGS"
 if [ "$USE_PERF" = "true" ]; then
-    # Set sampling frequency based on mode
-    if [[ "$MODE" == "execute-host" || "$MODE" == "execute" || "$MODE" == "execute-metered" ]]; then
-        PERF_FREQ=4000
-    else
-        PERF_FREQ=100
-    fi
-
-    echo "Running with perf profiling (freq=${PERF_FREQ})..."
-    export OUTPUT_PATH="metrics.json"
-    perf record -F $PERF_FREQ --call-graph=dwarf -g -o perf.data -- $BIN $BIN_ARGS
-
-    echo "Converting perf.data with samply..."
-    mkdir -p samply_profile
-    samply import perf.data --unstable-presymbolicate --save-only --output samply_profile/profile.json.gz
-    echo "Saved profile: samply_profile/profile.json.gz"
-
-    FIREFOX_PROFILER_URL=$(python3 "$REPO_ROOT/scripts/upload_firefox_profile.py" samply_profile/profile.json.gz) || true
-
-    if [ -n "$FIREFOX_PROFILER_URL" ]; then
-        echo "Firefox Profiler URL: $FIREFOX_PROFILER_URL"
-    else
-        echo "Warning: failed to upload profile to Firefox Profiler"
-    fi
+  # Set sampling frequency based on mode
+  if [[ "$MODE" == "execute-host" || "$MODE" == "execute" || "$MODE" == "execute-metered" ]]; then
+    PERF_FREQ=4000
+  else
+    PERF_FREQ=100
+  fi
+  $BIN $BIN_ARGS
+  # echo "Running with perf profiling (freq=${PERF_FREQ})..."
+  # export OUTPUT_PATH="metrics.json"
+  # perf record -F $PERF_FREQ --call-graph=dwarf -g -o perf.data -- $BIN $BIN_ARGS
+  #
+  # echo "Converting perf.data with samply..."
+  # mkdir -p samply_profile
+  # samply import perf.data --unstable-presymbolicate --save-only --output samply_profile/profile.json.gz
+  # echo "Saved profile: samply_profile/profile.json.gz"
+  #
+  # FIREFOX_PROFILER_URL=$(python3 "$REPO_ROOT/scripts/upload_firefox_profile.py" samply_profile/profile.json.gz) || true
+  #
+  # if [ -n "$FIREFOX_PROFILER_URL" ]; then
+  #   echo "Firefox Profiler URL: $FIREFOX_PROFILER_URL"
+  # else
+  #   echo "Warning: failed to upload profile to Firefox Profiler"
+  # fi
 elif [ "$USE_NSYS" = "true" ]; then
     NSYS_OUTPUT="reth.nsys-rep"
     NSYS_ARGS="--trace=cuda,nvtx,osrt --sample=cpu --cpuctxsw=true --cuda-memory-usage=true --force-overwrite=true -o $NSYS_OUTPUT"
@@ -413,21 +408,21 @@ elif [ "$USE_NSYS" = "true" ]; then
          nsys profile $NSYS_ARGS \
          $BIN $BIN_ARGS
 
-    echo "=== CUDA GPU Kernel Summary ==="
-    nsys stats --force-export=true --report cuda_gpu_kern_sum "$NSYS_OUTPUT"
-    echo "=== CUDA Memory Time Summary ==="
-    nsys stats --force-export=true --report cuda_gpu_mem_time_sum "$NSYS_OUTPUT"
-    echo "=== CUDA Memory Size Summary ==="
-    nsys stats --force-export=true --report cuda_gpu_mem_size_sum "$NSYS_OUTPUT"
-    echo "=== NCU Top Kernel Analysis ==="
-    TOP_KERNEL=$(nsys stats --report cuda_gpu_kern_sum "$NSYS_OUTPUT" 2>/dev/null | \
-        awk '/--------/{getline; print; exit}' | \
-        sed -E 's/.*::([a-zA-Z_][a-zA-Z0-9_]*)[<(].*/\1/; t; s/.*[[:space:]]([a-zA-Z_][a-zA-Z0-9_]*)[<(].*/\1/')
-    echo "Top kernel: $TOP_KERNEL"
+  echo "=== CUDA GPU Kernel Summary ==="
+  nsys stats --force-export=true --report cuda_gpu_kern_sum "$NSYS_OUTPUT"
+  echo "=== CUDA Memory Time Summary ==="
+  nsys stats --force-export=true --report cuda_gpu_mem_time_sum "$NSYS_OUTPUT"
+  echo "=== CUDA Memory Size Summary ==="
+  nsys stats --force-export=true --report cuda_gpu_mem_size_sum "$NSYS_OUTPUT"
+  echo "=== NCU Top Kernel Analysis ==="
+  TOP_KERNEL=$(nsys stats --report cuda_gpu_kern_sum "$NSYS_OUTPUT" 2>/dev/null |
+    awk '/--------/{getline; print; exit}' |
+    sed -E 's/.*::([a-zA-Z_][a-zA-Z0-9_]*)[<(].*/\1/; t; s/.*[[:space:]]([a-zA-Z_][a-zA-Z0-9_]*)[<(].*/\1/')
+  echo "Top kernel: $TOP_KERNEL"
 elif [[ "$USE_NCU" == true ]]; then
-    echo "[sudo] Running with Ncu..."
-    NCU_OUTPUT="reth-${ncu_kernel}.ncu-rep"
-    sudo env PATH=$PATH ncu \
+  echo "[sudo] Running with Ncu..."
+  NCU_OUTPUT="reth-${ncu_kernel}.ncu-rep"
+  sudo env PATH=$PATH ncu \
     --target-processes all \
     --kernel-name "$ncu_kernel" \
     -f -o "${NCU_OUTPUT}" \
@@ -436,8 +431,8 @@ elif [[ "$USE_NCU" == true ]]; then
     --set full \
     $BIN $BIN_ARGS
 
-    ncu -i "$NCU_OUTPUT" > "reth-${ncu_kernel}.txt"
+  ncu -i "$NCU_OUTPUT" >"reth-${ncu_kernel}.txt"
 else
-    export OUTPUT_PATH="metrics.json"
-    $COMPUTE_SANITIZER_ARGS $BIN $BIN_ARGS
+  export OUTPUT_PATH="metrics.json"
+  $COMPUTE_SANITIZER_ARGS $BIN $BIN_ARGS
 fi
