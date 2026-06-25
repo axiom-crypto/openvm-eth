@@ -1,0 +1,34 @@
+{
+  "l_skip": 2,
+  "n_stack": 18,
+  "w_stack": 18,
+  "log_blowup": 4,
+  "whir": {
+    "k": 4,
+    "rounds": [
+      {
+        "num_queries": 61
+      },
+      {
+        "num_queries": 30
+      },
+      {
+        "num_queries": 20
+      }
+    ],
+    "mu_pow_bits": 15,
+    "query_phase_pow_bits": 15,
+    "folding_pow_bits": 15,
+    "proximity": {
+      "ListDecoding": {
+        "m": 1
+      }
+    }
+  },
+  "logup": {
+    "max_interaction_count": 2013265921,
+    "log_max_message_length": 7,
+    "pow_bits": 18
+  },
+  "max_constraint_degree": 4
+}
