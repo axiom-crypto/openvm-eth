@@ -261,7 +261,7 @@ pub async fn run_reth_benchmark(args: HostArgs, openvm_client_eth_elf: &[u8]) ->
     dotenv::dotenv().ok();
 
     #[cfg(feature = "cuda")]
-    println!("CUDA Backend Enabled");
+    eprintln!("CUDA Backend Enabled");
 
     let mut vm_config = reth_vm_config();
     vm_config.as_mut().set_segmentation_max_memory(args.benchmark.segment_max_memory);
