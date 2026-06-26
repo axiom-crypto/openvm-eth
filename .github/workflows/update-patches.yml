@@ -42,6 +42,11 @@ on:
         type: number
         required: false
         default: 23992138
+      host_binary_cache:
+        description: "Host binary cache mode: use (restore if available) or rebuild (skip restore, always build)"
+        type: string
+        required: false
+        default: use
   #schedule:
   #  - cron: "0 */12 * * *" # Run every 12 hours
   workflow_call:
@@ -84,6 +89,11 @@ on:
         required: false
         description: "Block number to run the benchmark on"
         default: 23992138
+      host_binary_cache:
+        type: string
+        required: false
+        description: "Host binary cache mode: use (restore if available) or rebuild (skip restore, always build)"
+        default: use
       # https://github.com/actions/runner/discussions/1884
       manual_call:
         description: "To distinguish workflow_call from workflow_dispatch"
@@ -236,6 +246,7 @@ jobs:
       tag: ${{ needs.patch.outputs.tag }}
       block_number: ${{ fromJSON(inputs.benchmark_block_number || github.event.inputs.benchmark_block_number || '23992138') }}
       profiling: none
+      host_binary_cache: ${{ inputs.host_binary_cache || github.event.inputs.host_binary_cache || 'use' }}
     secrets: inherit
 
   host-flamegraph:
@@ -249,6 +260,7 @@ jobs:
       tag: ${{ needs.patch.outputs.tag }}
       block_number: ${{ fromJSON(inputs.benchmark_block_number || github.event.inputs.benchmark_block_number || '23992138') }}
       profiling: host
+      host_binary_cache: ${{ inputs.host_binary_cache || github.event.inputs.host_binary_cache || 'use' }}
     secrets: inherit
 
   guest-flamegraph:
@@ -262,6 +274,7 @@ jobs:
       tag: ${{ needs.patch.outputs.tag }}
       block_number: ${{ fromJSON(inputs.benchmark_block_number || github.event.inputs.benchmark_block_number || '23992138') }}
       profiling: guest
+      host_binary_cache: ${{ inputs.host_binary_cache || github.event.inputs.host_binary_cache || 'use' }}
     secrets: inherit
 
   close-pr:
