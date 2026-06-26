@@ -56,6 +56,14 @@ mod cli;
 use cli::ProviderArgs;
 mod soundness;
 
+use std::os::raw::c_int;
+
+#[link(name = "cudart")]
+unsafe extern "C" {
+    pub fn cudaProfilerStart() -> c_int;
+    pub fn cudaProfilerStop() -> c_int;
+}
+
 /// Enum representing the execution mode of the host executable.
 #[derive(Debug, Clone, clap::ValueEnum)]
 pub enum BenchMode {
@@ -173,6 +181,13 @@ pub struct HostArgs {
     #[arg(long)]
     pub agg_pk_path: Option<PathBuf>,
 
+
+    #[arg(long, default_value = "1")]
+    pub runs: u32,
+
+    #[arg(long, default_value = "0")]
+    pub warmups: u32,
+
     /// The number of nibbles to precompute for the preimage lookup table.
     /// Higher values increase startup time but reduce RPC calls for missing storage keys.
     ///
@@ -181,6 +196,19 @@ pub struct HostArgs {
     #[clap(long, default_value_t = DEFAULT_PREIMAGE_CACHE_NIBBLES, value_parser = clap::value_parser!(u8).range(..=8))]
     pub preimage_cache_nibbles: u8,
 }
+
+fn get_params_from_env(env_var: &str, default: impl FnOnce() -> SystemParams) -> SystemParams {
+    match std::env::var(env_var) {
+        Ok(s) => {
+            eprintln!("getting params from env {env_var}");
+            let p = serde_json::from_str(&s).unwrap();
+            println!("params: {:?}", p);
+            p
+        },
+        Err(_) => default(),
+    }
+}
+
 
 #[derive(Parser, Debug)]
 #[command(allow_external_subcommands = true)]
@@ -290,9 +318,14 @@ pub async fn run_reth_benchmark(args: HostArgs, openvm_client_eth_elf: &[u8]) ->
             args.benchmark.internal_log_blowup,
         )?,
     };
-    #[cfg(feature = "evm-verify")]
-    let root_params =
-        override_log_blowup(root_params_with_100_bits_security(), args.benchmark.root_log_blowup)?;
+    // #[cfg(feature = "evm-verify")]
+    // let root_params = get_params_from_env("OVERRIDE_ROOT_PARAMS", || {
+    //     override_log_blowup(root_params_with_100_bits_security(), args.benchmark.root_log_blowup).unwrap()
+    // });
+
+    let root_bytes = include_bytes!("root_param_final.json");
+    let root_params = serde_json::from_slice(root_bytes).unwrap();
+
 
     // Resolve key paths: explicit flag wins; otherwise fall back to <output_dir>/<name>.pk
     // if the file exists. The chain agg->app and root->agg->app is enforced by the builder,
@@ -335,6 +368,7 @@ pub async fn run_reth_benchmark(args: HostArgs, openvm_client_eth_elf: &[u8]) ->
             let root_pk = read_object_from_file(&root_pk_path)?;
             sdk_builder = sdk_builder.root_pk(root_pk);
         } else {
+            println!("using root params from default or env var");
             sdk_builder = sdk_builder.root_params(root_params);
         }
     }
@@ -577,12 +611,25 @@ pub async fn run_reth_benchmark(args: HostArgs, openvm_client_eth_elf: &[u8]) ->
                             .stark_prover
                             .prove(stdin, &[])
                             .expect("failed to prove stark");
-                        let root_proof = evm_prover
+                        let mut root_proof = None;
+                        for _ in 0..args.warmups {
+                            root_proof = Some(evm_prover
                             .prove_root_from_vm_stark_proof(
                                 stark_proof.clone(),
                                 &mut metadata.clone(),
                             )
-                            .expect("failed to prove root");
+                            .expect("failed to prove root"));
+                        }
+                        unsafe { assert!( cudaProfilerStart() == 0 ); }
+                        for _ in 0..args.runs {
+                            root_proof = Some( evm_prover
+                                .prove_root_from_vm_stark_proof(
+                                    stark_proof.clone(),
+                                    &mut metadata.clone(),
+                                )
+                                .expect("failed to prove root") );
+                        }
+                        unsafe { assert!( cudaProfilerStop() == 0 ); }
                         if let Some(proof_file) = &proof_file {
                             if let Some(parent) = proof_file.parent() {
                                 fs::create_dir_all(parent)?;
@@ -595,14 +642,26 @@ pub async fn run_reth_benchmark(args: HostArgs, openvm_client_eth_elf: &[u8]) ->
                                 .encode(&mut stark_proof_writer)
                                 .expect("failed to write stark proof");
                         }
-                        root_proof
+                        root_proof.unwrap()
                     };
                 }
                 #[cfg(feature = "evm-verify")]
                 BenchMode::ProveEvm => {
                     let mut evm_prover = sdk.evm_prover(exe)?;
                     evm_prover.stark_prover.app_prover.set_program_name(&program_name);
-                    let proof = evm_prover.prove_evm(stdin, &[])?;
+                    let mut proof = None; 
+                    for i in 0..args.warmups {
+                        eprintln!("warmup {i}");
+                        proof = Some(evm_prover.prove_evm(stdin.clone(), &[])?);
+                    }
+                    unsafe { assert!( cudaProfilerStart() == 0 ); }
+                    for i in 0..args.runs {
+                        eprintln!("run {i}");
+                        proof = Some(info_span!("prove_evm.run", run = format!("run_{i}")).in_scope(|| 
+                        evm_prover.prove_evm(stdin.clone(), &[]))?);
+                    }
+                    unsafe { assert!( cudaProfilerStop() == 0 ); }
+                    let proof = proof.unwrap();
                     let block_hash = &proof.user_public_values;
                     println!("block_hash (prove_evm): {}", hex::encode(block_hash));
                     let openvm_verifier = sdk.generate_halo2_verifier_solidity()?;
