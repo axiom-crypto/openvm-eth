@@ -54,6 +54,7 @@ use tracing::{info, info_span};
 
 mod cli;
 use cli::ProviderArgs;
+mod soundness;
 
 /// Enum representing the execution mode of the host executable.
 #[derive(Debug, Clone, clap::ValueEnum)]
@@ -81,6 +82,12 @@ pub enum BenchMode {
     GenerateVmVkey,
     /// Dump per-AIR statistics and exit.
     DumpAirStats,
+    /// Print the computed per-component security bits of the app and aggregation layers to stdout
+    /// and exit.
+    Soundness,
+    /// Print the `soundcalc`-compatible config (TOML) for the app and aggregation layers to stdout
+    /// and exit. Feed this to github.com/ethereum/soundcalc to compute the authoritative bits.
+    Soundcalc,
 }
 
 impl std::fmt::Display for BenchMode {
@@ -99,6 +106,8 @@ impl std::fmt::Display for BenchMode {
             Self::Keygen => write!(f, "keygen"),
             Self::GenerateVmVkey => write!(f, "generate_vm_vkey"),
             Self::DumpAirStats => write!(f, "dump_air_stats"),
+            Self::Soundness => write!(f, "soundness"),
+            Self::Soundcalc => write!(f, "soundcalc"),
         }
     }
 }
@@ -252,7 +261,7 @@ pub async fn run_reth_benchmark(args: HostArgs, openvm_client_eth_elf: &[u8]) ->
     dotenv::dotenv().ok();
 
     #[cfg(feature = "cuda")]
-    println!("CUDA Backend Enabled");
+    eprintln!("CUDA Backend Enabled");
 
     let mut vm_config = reth_vm_config();
     vm_config.as_mut().set_segmentation_max_memory(args.benchmark.segment_max_memory);
@@ -296,6 +305,9 @@ pub async fn run_reth_benchmark(args: HostArgs, openvm_client_eth_elf: &[u8]) ->
         let p = args.output_dir.join("agg.pk");
         p.exists().then_some(p)
     });
+    // Whether we're running off persistent on-disk keys (vs. generating them on the fly). The
+    // soundness modes prefer persisted keys but fall back to in-memory keygen, noting it on stderr.
+    let (app_pk_loaded, agg_pk_loaded) = (app_pk_path.is_some(), agg_pk_path.is_some());
 
     let mut sdk_builder = Sdk::builder().agg_tree_config(args.benchmark.agg_tree_config);
 
@@ -331,6 +343,47 @@ pub async fn run_reth_benchmark(args: HostArgs, openvm_client_eth_elf: &[u8]) ->
 
     if matches!(args.mode, BenchMode::DumpAirStats) {
         dump_air_stats(&sdk, &args.air_stats_path)?;
+        return Ok(());
+    }
+
+    if matches!(args.mode, BenchMode::Soundness | BenchMode::Soundcalc) {
+        use soundness::{security_bits_report, Layer, SoundcalcConfig};
+
+        // Prefer persisted keys; fall back to in-memory keygen when they're absent. Note it on
+        // stderr since keygen is slow and the report then reflects the current params rather than
+        // a saved key set (stdout stays clean for the report itself).
+        let missing: Vec<&str> =
+            [(!app_pk_loaded).then_some("app.pk"), (!agg_pk_loaded).then_some("agg.pk")]
+                .into_iter()
+                .flatten()
+                .collect();
+        if !missing.is_empty() {
+            eprintln!(
+                "{} not found; generating proving keys in memory (run `--mode keygen` to persist)",
+                missing.join(" and "),
+            );
+        }
+
+        // The full proof stack: app, then the leaf / internal-for-leaf / internal-recursive
+        // aggregation layers. Each layer's parameters come from the loaded (or freshly generated)
+        // proving keys, so the output reflects this prover's exact production parameters.
+        let agg_pk = sdk.agg_pk();
+        let layers: Vec<Layer> = vec![
+            ("app".to_string(), sdk.app_vk().vk),
+            ("leaf".to_string(), agg_pk.prefix.leaf.get_vk()),
+            ("internal_for_leaf".to_string(), agg_pk.prefix.internal_for_leaf.get_vk()),
+            ("internal_recursive".to_string(), agg_pk.internal_recursive.get_vk()),
+        ];
+
+        match args.mode {
+            BenchMode::Soundness => println!("{}", security_bits_report(&layers)),
+            BenchMode::Soundcalc => {
+                let config =
+                    SoundcalcConfig::from_layers(openvm_sdk::OPENVM_VERSION.to_string(), &layers);
+                println!("{}", toml::to_string(&config)?);
+            }
+            _ => unreachable!(),
+        }
         return Ok(());
     }
 
