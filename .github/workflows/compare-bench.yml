@@ -46,7 +46,7 @@ on:
         required: false
         default: false
       rebuild_host_binary:
-        description: Rebuild the host binary (base and target) instead of restoring it from cache
+        description: Rebuild the host binary for base and target
         type: boolean
         required: false
         default: false
