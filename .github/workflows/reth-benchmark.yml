@@ -120,6 +120,11 @@ on:
         required: false
         description: RPC input cache mode (use, refresh, disabled)
         default: use
+      host_binary_cache:
+        type: string
+        required: false
+        description: "Host binary cache mode: use (restore if available) or rebuild (skip restore, always build)"
+        default: use
       instance_family:
         type: string
         required: false
@@ -457,6 +462,7 @@ jobs:
           key: ${{ steps.cache-guest-elf-restore.outputs.cache-primary-key }}
 
       - name: Restore Host Binary from cache
+        if: ${{ (inputs.host_binary_cache || 'use') != 'rebuild' }}
         id: cache-host-binary-restore
         uses: runs-on/cache/restore@v4
         with:
@@ -477,7 +483,7 @@ jobs:
         uses: runs-on/cache/save@v4
         with:
           path: target/${{ steps.set-build-profiles.outputs.host_profile }}/${{ env.BIN_NAME }}
-          key: ${{ steps.cache-host-binary-restore.outputs.cache-primary-key }}
+          key: ${{ steps.set-cache-keys.outputs.host_cache_key }}
 
       - name: Restore RPC input cache from S3
         id: restore-rpc-input-cache

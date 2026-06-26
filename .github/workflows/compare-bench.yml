@@ -45,6 +45,11 @@ on:
         type: boolean
         required: false
         default: false
+      rebuild_host_binary:
+        description: Rebuild the host binary (base and target) instead of restoring it from cache
+        type: boolean
+        required: false
+        default: false
 
 jobs:
   run-base-benchmark:
@@ -56,6 +61,7 @@ jobs:
       benchmark_mode: ${{ github.event.inputs.benchmark_mode }}
       benchmark_block_number: ${{ fromJSON(inputs.block_number || github.event.inputs.block_number || '23992138') }}
       instance_family: ${{ github.event.inputs.instance_family }}
+      host_binary_cache: ${{ github.event.inputs.rebuild_host_binary == 'true' && 'rebuild' || 'use' }}
     secrets: inherit
 
   # Only create branch because github workflow_call must run all jobs for "needs"
@@ -78,6 +84,7 @@ jobs:
       ref: ${{ needs.patch-target.outputs.branch_name }}
       tag: ${{ needs.patch-target.outputs.tag }}
       profiling: none
+      host_binary_cache: ${{ github.event.inputs.rebuild_host_binary == 'true' && 'rebuild' || 'use' }}
     secrets: inherit
 
   target-host-flamegraph:
@@ -92,6 +99,7 @@ jobs:
       ref: ${{ needs.patch-target.outputs.branch_name }}
       tag: ${{ needs.patch-target.outputs.tag }}
       profiling: host
+      host_binary_cache: ${{ github.event.inputs.rebuild_host_binary == 'true' && 'rebuild' || 'use' }}
     secrets: inherit
 
   target-guest-flamegraph:
@@ -106,6 +114,7 @@ jobs:
       ref: ${{ needs.patch-target.outputs.branch_name }}
       tag: ${{ needs.patch-target.outputs.tag }}
       profiling: guest
+      host_binary_cache: ${{ github.event.inputs.rebuild_host_binary == 'true' && 'rebuild' || 'use' }}
     secrets: inherit
 
   compare-results:
