@@ -447,6 +447,42 @@ jobs:
           path: target/${{ steps.set-build-profiles.outputs.host_profile }}/${{ env.BIN_NAME }}
           key: ${{ steps.cache-host-binary-restore.outputs.cache-primary-key }}
 
+      - name: Soundness report
+        run: |
+          set -euxo pipefail  # -x: trace each command (to stderr) so it shows in the logs
+          HOST_PROFILE=${{ steps.set-build-profiles.outputs.host_profile }}
+          BIN="./target/${HOST_PROFILE}/${{ env.BIN_NAME }}"
+          # soundness/soundcalc keygen the app + aggregation keys in memory and need no guest ELF,
+          # block input, or proving, so they run off the already-built host binary. The report is
+          # the only thing on stdout (status messages go to stderr), so capture it directly.
+          "$BIN" --mode soundness > soundness.json
+          "$BIN" --mode soundcalc > openvm2.toml
+          jq -e . soundness.json > /dev/null  # sanity-check the captured JSON
+
+          # Render per-layer security bits to the run summary.
+          {
+            echo "### Soundness"
+            echo ""
+            echo "| layer | security bits |"
+            echo "|---|---|"
+            jq -r '.circuits[] | "| \(.name) | \((.security_bits.total * 100 | round) / 100) |"' soundness.json
+            echo ""
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          # Publish the raw report + soundcalc config to the public bucket (the workflow metrics
+          # bucket isn't web-accessible) and link them in the summary so they're viewable.
+          S3_BASE="${{ env.S3_PUBLIC_PATH_BASE }}/soundness/${METRIC_NAME}"
+          URL_BASE="${{ env.S3_PUBLIC_URL_BASE }}/soundness/${METRIC_NAME}"
+          s5cmd cp soundness.json "${S3_BASE}.soundness.json"
+          s5cmd cp openvm2.toml "${S3_BASE}.openvm2.toml"
+          {
+            echo "Artifacts: [soundness.json](${URL_BASE}.soundness.json) · [openvm2.toml](${URL_BASE}.openvm2.toml)"
+            echo ""
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Path to soundness result
+        run: echo "${{ env.S3_PUBLIC_URL_BASE }}/soundness/${METRIC_NAME}.soundness.json"
+
       - name: Restore RPC input cache from S3
         id: restore-rpc-input-cache
         run: |
