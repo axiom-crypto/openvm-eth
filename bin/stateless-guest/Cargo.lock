@@ -2005,7 +2005,7 @@ dependencies = [
 [[package]]
 name = "k256"
 version = "0.13.4"
-source = "git+https://github.com/openvm-org/openvm.git?branch=develop-v2.1.0-rv64#46277f7a30633b801f9007194284e5cc16763c8a"
+source = "git+https://github.com/openvm-org/openvm.git?branch=develop-v2.1.0-rv64#a88a7edcca6937a60cb75586e65ea2269b3216f3"
 dependencies = [
  "ecdsa",
  "elliptic-curve",
@@ -2307,7 +2307,7 @@ dependencies = [
 [[package]]
 name = "openvm"
 version = "2.0.0-beta.2"
-source = "git+https://github.com/openvm-org/openvm.git?branch=develop-v2.1.0-rv64#46277f7a30633b801f9007194284e5cc16763c8a"
+source = "git+https://github.com/openvm-org/openvm.git?branch=develop-v2.1.0-rv64#a88a7edcca6937a60cb75586e65ea2269b3216f3"
 dependencies = [
  "bytemuck",
  "getrandom 0.2.17",
@@ -2322,7 +2322,7 @@ dependencies = [
 [[package]]
 name = "openvm-algebra-complex-macros"
 version = "2.0.0-beta.2"
-source = "git+https://github.com/openvm-org/openvm.git?branch=develop-v2.1.0-rv64#46277f7a30633b801f9007194284e5cc16763c8a"
+source = "git+https://github.com/openvm-org/openvm.git?branch=develop-v2.1.0-rv64#a88a7edcca6937a60cb75586e65ea2269b3216f3"
 dependencies = [
  "openvm-macros-common",
  "quote",
@@ -2332,7 +2332,7 @@ dependencies = [
 [[package]]
 name = "openvm-algebra-guest"
 version = "2.0.0-beta.2"
-source = "git+https://github.com/openvm-org/openvm.git?branch=develop-v2.1.0-rv64#46277f7a30633b801f9007194284e5cc16763c8a"
+source = "git+https://github.com/openvm-org/openvm.git?branch=develop-v2.1.0-rv64#a88a7edcca6937a60cb75586e65ea2269b3216f3"
 dependencies = [
  "halo2curves-axiom",
  "num-bigint",
@@ -2348,7 +2348,7 @@ dependencies = [
 [[package]]
 name = "openvm-algebra-moduli-macros"
 version = "2.0.0-beta.2"
-source = "git+https://github.com/openvm-org/openvm.git?branch=develop-v2.1.0-rv64#46277f7a30633b801f9007194284e5cc16763c8a"
+source = "git+https://github.com/openvm-org/openvm.git?branch=develop-v2.1.0-rv64#a88a7edcca6937a60cb75586e65ea2269b3216f3"
 dependencies = [
  "num-bigint",
  "num-prime",
@@ -2379,7 +2379,7 @@ dependencies = [
 [[package]]
 name = "openvm-custom-insn"
 version = "0.1.0"
-source = "git+https://github.com/openvm-org/openvm.git?branch=develop-v2.1.0-rv64#46277f7a30633b801f9007194284e5cc16763c8a"
+source = "git+https://github.com/openvm-org/openvm.git?branch=develop-v2.1.0-rv64#a88a7edcca6937a60cb75586e65ea2269b3216f3"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -2389,7 +2389,7 @@ dependencies = [
 [[package]]
 name = "openvm-ecc-guest"
 version = "2.0.0-beta.2"
-source = "git+https://github.com/openvm-org/openvm.git?branch=develop-v2.1.0-rv64#46277f7a30633b801f9007194284e5cc16763c8a"
+source = "git+https://github.com/openvm-org/openvm.git?branch=develop-v2.1.0-rv64#a88a7edcca6937a60cb75586e65ea2269b3216f3"
 dependencies = [
  "ecdsa",
  "elliptic-curve",
@@ -2408,7 +2408,7 @@ dependencies = [
 [[package]]
 name = "openvm-ecc-sw-macros"
 version = "2.0.0-beta.2"
-source = "git+https://github.com/openvm-org/openvm.git?branch=develop-v2.1.0-rv64#46277f7a30633b801f9007194284e5cc16763c8a"
+source = "git+https://github.com/openvm-org/openvm.git?branch=develop-v2.1.0-rv64#a88a7edcca6937a60cb75586e65ea2269b3216f3"
 dependencies = [
  "openvm-macros-common",
  "quote",
@@ -2418,7 +2418,7 @@ dependencies = [
 [[package]]
 name = "openvm-keccak256"
 version = "2.0.0-beta.2"
-source = "git+https://github.com/openvm-org/openvm.git?branch=develop-v2.1.0-rv64#46277f7a30633b801f9007194284e5cc16763c8a"
+source = "git+https://github.com/openvm-org/openvm.git?branch=develop-v2.1.0-rv64#a88a7edcca6937a60cb75586e65ea2269b3216f3"
 dependencies = [
  "openvm-keccak256-guest",
  "spin 0.10.0",
@@ -2428,7 +2428,7 @@ dependencies = [
 [[package]]
 name = "openvm-keccak256-guest"
 version = "2.0.0-beta.2"
-source = "git+https://github.com/openvm-org/openvm.git?branch=develop-v2.1.0-rv64#46277f7a30633b801f9007194284e5cc16763c8a"
+source = "git+https://github.com/openvm-org/openvm.git?branch=develop-v2.1.0-rv64#a88a7edcca6937a60cb75586e65ea2269b3216f3"
 dependencies = [
  "openvm-platform",
 ]
@@ -2452,7 +2452,7 @@ dependencies = [
 [[package]]
 name = "openvm-macros-common"
 version = "2.0.0-beta.2"
-source = "git+https://github.com/openvm-org/openvm.git?branch=develop-v2.1.0-rv64#46277f7a30633b801f9007194284e5cc16763c8a"
+source = "git+https://github.com/openvm-org/openvm.git?branch=develop-v2.1.0-rv64#a88a7edcca6937a60cb75586e65ea2269b3216f3"
 dependencies = [
  "syn 2.0.114",
 ]
@@ -2475,7 +2475,7 @@ dependencies = [
 [[package]]
 name = "openvm-pairing"
 version = "2.0.0-beta.2"
-source = "git+https://github.com/openvm-org/openvm.git?branch=develop-v2.1.0-rv64#46277f7a30633b801f9007194284e5cc16763c8a"
+source = "git+https://github.com/openvm-org/openvm.git?branch=develop-v2.1.0-rv64#a88a7edcca6937a60cb75586e65ea2269b3216f3"
 dependencies = [
  "group",
  "hex-literal",
@@ -2498,7 +2498,7 @@ dependencies = [
 [[package]]
 name = "openvm-pairing-guest"
 version = "2.0.0-beta.2"
-source = "git+https://github.com/openvm-org/openvm.git?branch=develop-v2.1.0-rv64#46277f7a30633b801f9007194284e5cc16763c8a"
+source = "git+https://github.com/openvm-org/openvm.git?branch=develop-v2.1.0-rv64#a88a7edcca6937a60cb75586e65ea2269b3216f3"
 dependencies = [
  "hex-literal",
  "itertools 0.14.0",
@@ -2517,7 +2517,7 @@ dependencies = [
 [[package]]
 name = "openvm-platform"
 version = "2.0.0-beta.2"
-source = "git+https://github.com/openvm-org/openvm.git?branch=develop-v2.1.0-rv64#46277f7a30633b801f9007194284e5cc16763c8a"
+source = "git+https://github.com/openvm-org/openvm.git?branch=develop-v2.1.0-rv64#a88a7edcca6937a60cb75586e65ea2269b3216f3"
 dependencies = [
  "critical-section",
  "embedded-alloc",
@@ -2548,7 +2548,7 @@ dependencies = [
 [[package]]
 name = "openvm-riscv-guest"
 version = "2.0.0-beta.2"
-source = "git+https://github.com/openvm-org/openvm.git?branch=develop-v2.1.0-rv64#46277f7a30633b801f9007194284e5cc16763c8a"
+source = "git+https://github.com/openvm-org/openvm.git?branch=develop-v2.1.0-rv64#a88a7edcca6937a60cb75586e65ea2269b3216f3"
 dependencies = [
  "openvm-custom-insn",
  "strum_macros 0.26.4",
@@ -2557,7 +2557,7 @@ dependencies = [
 [[package]]
 name = "openvm-sha2"
 version = "2.0.0-beta.2"
-source = "git+https://github.com/openvm-org/openvm.git?branch=develop-v2.1.0-rv64#46277f7a30633b801f9007194284e5cc16763c8a"
+source = "git+https://github.com/openvm-org/openvm.git?branch=develop-v2.1.0-rv64#a88a7edcca6937a60cb75586e65ea2269b3216f3"
 dependencies = [
  "openvm-sha2-guest",
  "sha2",
@@ -2566,7 +2566,7 @@ dependencies = [
 [[package]]
 name = "openvm-sha2-guest"
 version = "2.0.0-beta.2"
-source = "git+https://github.com/openvm-org/openvm.git?branch=develop-v2.1.0-rv64#46277f7a30633b801f9007194284e5cc16763c8a"
+source = "git+https://github.com/openvm-org/openvm.git?branch=develop-v2.1.0-rv64#a88a7edcca6937a60cb75586e65ea2269b3216f3"
 dependencies = [
  "openvm-platform",
 ]
@@ -2624,7 +2624,7 @@ dependencies = [
 [[package]]
 name = "p256"
 version = "0.13.2"
-source = "git+https://github.com/openvm-org/openvm.git?branch=develop-v2.1.0-rv64#46277f7a30633b801f9007194284e5cc16763c8a"
+source = "git+https://github.com/openvm-org/openvm.git?branch=develop-v2.1.0-rv64#a88a7edcca6937a60cb75586e65ea2269b3216f3"
 dependencies = [
  "ecdsa",
  "elliptic-curve",
