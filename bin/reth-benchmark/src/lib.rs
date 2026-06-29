@@ -248,6 +248,8 @@ fn override_system_params(
         SECURITY_BITS_TARGET,
         params.logup,
         params.max_constraint_degree,
+        whir.query_phase_pow_bits,
+        whir.k,
     ))
 }
 
