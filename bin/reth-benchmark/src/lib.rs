@@ -19,6 +19,7 @@ use openvm_sdk::{
         DEFAULT_ROOT_LOG_BLOWUP,
     },
     fs::{read_object_from_file, write_object_to_file},
+    prover::DeferralHookCommits,
     Sdk, SC,
 };
 use openvm_sdk_config::{SdkVmConfig, TranspilerConfig};
@@ -30,8 +31,8 @@ use openvm_stark_sdk::{
     bench::run_with_metric_collection,
     config::{
         app_params_with_100_bits_security, baby_bear_poseidon2::F,
-        internal_params_with_100_bits_security, leaf_params_with_100_bits_security,
-        MAX_APP_LOG_STACKED_HEIGHT, SECURITY_BITS_TARGET,
+        hook_params_with_100_bits_security, internal_params_with_100_bits_security,
+        leaf_params_with_100_bits_security, MAX_APP_LOG_STACKED_HEIGHT, SECURITY_BITS_TARGET,
     },
     openvm_stark_backend::{
         air_builders::symbolic::{SymbolicExpressionDag, SymbolicExpressionNode},
@@ -326,8 +327,13 @@ pub async fn run_reth_benchmark(args: HostArgs, openvm_client_eth_elf: &[u8]) ->
         let agg_pk = read_object_from_file(&p)?;
         sdk_builder = sdk_builder.agg_pk(agg_pk);
     } else {
-        sdk_builder = sdk_builder.agg_params(agg_params);
+        sdk_builder = sdk_builder.agg_params(agg_params.clone());
     }
+
+    let sdk_builder = sdk_builder.deferral_hook_commits(DeferralHookCommits::from_system_params(
+        &agg_params,
+        hook_params_with_100_bits_security(),
+    ));
 
     #[cfg(feature = "evm-verify")]
     {
