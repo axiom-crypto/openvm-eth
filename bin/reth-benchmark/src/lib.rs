@@ -330,7 +330,7 @@ pub async fn run_reth_benchmark(args: HostArgs, openvm_client_eth_elf: &[u8]) ->
         sdk_builder = sdk_builder.agg_params(agg_params.clone());
     }
 
-    let sdk_builder = sdk_builder.deferral_hook_commits(DeferralHookCommits::from_system_params(
+    sdk_builder = sdk_builder.deferral_hook_commits(DeferralHookCommits::from_system_params(
         &agg_params,
         hook_params_with_100_bits_security(),
     ));
