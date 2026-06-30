@@ -7242,6 +7242,7 @@ dependencies = [
  "openvm-kzg",
  "openvm-pairing",
  "openvm-sdk",
+ "openvm-sdk-config",
  "openvm-stark-sdk",
  "serde",
  "serde-big-array",
