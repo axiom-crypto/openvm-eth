@@ -10,15 +10,17 @@ edition = "2021"
 openvm-stateless-executor = { path = "../../crates/stateless-executor", default-features = false }
 
 # openvm
-openvm = { git = "https://github.com/openvm-org/openvm.git", branch = "develop-v2.0.0-rc.3", features = [
+openvm = { git = "https://github.com/openvm-org/openvm.git", branch = "feat/deferral-aware-sdk", features = [
     "std",
 ] }
-openvm-algebra-guest = { git = "https://github.com/openvm-org/openvm.git", branch = "develop-v2.0.0-rc.3", optional = true }
-openvm-ecc-guest = { git = "https://github.com/openvm-org/openvm.git", branch = "develop-v2.0.0-rc.3", optional = true }
+openvm-algebra-guest = { git = "https://github.com/openvm-org/openvm.git", branch = "feat/deferral-aware-sdk", optional = true }
+openvm-ecc-guest = { git = "https://github.com/openvm-org/openvm.git", branch = "feat/deferral-aware-sdk", optional = true }
 
 # Enable std feature for host builds (provides critical-section implementation)
 [target.'cfg(not(target_os = "zkvm"))'.dependencies]
-openvm-stateless-executor = { path = "../../crates/stateless-executor", default-features = false, features = ["std"] }
+openvm-stateless-executor = { path = "../../crates/stateless-executor", default-features = false, features = [
+    "std",
+] }
 
 [package.metadata.cargo-machete]
 ignored = ["openvm-algebra-guest", "openvm-ecc-guest"]
