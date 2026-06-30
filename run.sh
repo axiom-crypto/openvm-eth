@@ -264,7 +264,7 @@ fi
 # VPMM_PAGES=0
 
 if [ "$USE_CUDA" = "true" ]; then
-    FEATURES="$FEATURES,cuda"
+    FEATURES="$FEATURES,cuda,halo2-gpu"
 fi
 if [ "$USE_NSYS" = "true" ]; then
     FEATURES="$FEATURES,nvtx"

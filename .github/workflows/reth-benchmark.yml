@@ -328,7 +328,7 @@ jobs:
           FEATURES="parallel,metrics,unprotected"
           FEATURES="${FEATURES},${{ inputs.memory_allocator || github.event.inputs.memory_allocator || 'jemalloc' }}"
           if [[ "${{ inputs.instance_family || github.event.inputs.instance_family }}" =~ ^g ]]; then
-            FEATURES="${FEATURES},cuda"
+            FEATURES="${FEATURES},cuda,halo2-gpu"
           fi
           if [[ "${{ inputs.profiling || github.event.inputs.profiling }}" == "nsys" ]]; then
             FEATURES="${FEATURES},nvtx"
