@@ -20,7 +20,7 @@ alloy-consensus = { workspace = true, features = ["crypto-backend"] }
 # OpenVM dependencies for optimized crypto (only needed when running in zkvm)
 openvm-curve-utils = { workspace = true, features = ["bn254", "bls12_381"] }
 openvm-ecc-guest = { workspace = true }
-openvm-sha2 = { workspace = true }
+openvm-sha2 = { workspace = true, features = ["import_sha2"] }
 openvm-pairing = { workspace = true, features = ["bn254", "bls12_381"] }
 openvm-k256 = { workspace = true }
 openvm-p256 = { workspace = true }
@@ -40,5 +40,4 @@ revm-primitives = { workspace = true, features = ["hashbrown"] }
 alloy-primitives = { workspace = true, features = ["native-keccak"] }
 
 [target.'cfg(not(target_os = "zkvm"))'.dependencies]
-openvm-sha2 = { workspace = true, features = ["import_sha2"] }
 openvm-keccak256 = { workspace = true, features = ["tiny_keccak"] }
