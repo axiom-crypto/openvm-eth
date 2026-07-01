@@ -96,6 +96,7 @@ impl StatelessExecutor {
             &spec,
             &executor_output,
             Some((receipts_root, logs_bloom)),
+            None,
         )
         .map_err(StatelessExecutorError::InvalidBlockPostExecution)?;
 
