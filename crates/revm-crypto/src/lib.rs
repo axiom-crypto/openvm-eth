@@ -16,7 +16,6 @@ use openvm_ecc_guest::{
 use openvm_k256::ecdsa::{signature::hazmat::PrehashVerifier, RecoveryId, Signature, VerifyingKey};
 use openvm_keccak256::keccak256;
 use openvm_kzg::{Bytes32, Bytes48, KzgProof};
-use openvm_sha2::Digest;
 #[allow(unused_imports, clippy::single_component_path_imports)]
 use openvm_p256; // ensure this is linked in for the standard OpenVM config
 use openvm_pairing::{
@@ -24,6 +23,7 @@ use openvm_pairing::{
     bn254::{self as bn, Bn254},
     PairingCheck,
 };
+use openvm_sha2::Digest;
 use revm::{
     install_crypto,
     precompile::{
@@ -84,7 +84,7 @@ impl CryptoProvider for OpenVmK256Provider {
         let encoded_pubkey = &public_key.as_bytes()[1..65];
 
         // Hash to get Ethereum address
-        let pubkey_hash = keccak256(&encoded_pubkey);
+        let pubkey_hash = keccak256(encoded_pubkey);
         let address_bytes = &pubkey_hash[12..32]; // Last 20 bytes
 
         Ok(Address::from_slice(address_bytes))
@@ -288,7 +288,7 @@ impl Crypto for OpenVmCrypto {
         let public_key = recovered_key.to_encoded_point(false);
         let encoded_pubkey = &public_key.as_bytes()[1..65];
 
-        let pubkey_hash = keccak256(&encoded_pubkey);
+        let pubkey_hash = keccak256(encoded_pubkey);
         let mut address = [0u8; 32];
         address[12..].copy_from_slice(&pubkey_hash[12..]);
 
