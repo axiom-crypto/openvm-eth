@@ -74,6 +74,6 @@ mimalloc = ["openvm-sdk/mimalloc"]
 jemalloc = ["openvm-sdk/jemalloc"]
 # x86 only:
 halo2-asm = ["halo2-axiom?/asm"]
-cuda = ["dep:openvm-cuda-backend", "openvm-sdk/cuda"]
+cuda = ["dep:openvm-cuda-backend", "openvm-sdk/cuda", "openvm-sdk/halo2-gpu"]
 unprotected = ["openvm-sdk/unprotected"]
 nvtx = ["openvm-stark-sdk/nvtx"]

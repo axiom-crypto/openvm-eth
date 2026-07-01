@@ -1,17 +1,17 @@
 [workspace]
 members = [
-    "bin/reth-benchmark",
-    "bin/reth-verify",
-    "crates/mpt",
-    "crates/revm-crypto",
-    "crates/stateless-executor",
-    "crates/chainspec",
-    "crates/stateless-witness",
-    "crates/mpt-tools",
-    "crates/rpc-proxy",
-    "crates/curve-utils",
-    "crates/kzg",
-    "crates/kzg/tests/programs/verify_kzg",
+  "bin/reth-benchmark",
+  "bin/reth-verify",
+  "crates/mpt",
+  "crates/revm-crypto",
+  "crates/stateless-executor",
+  "crates/chainspec",
+  "crates/stateless-witness",
+  "crates/mpt-tools",
+  "crates/rpc-proxy",
+  "crates/curve-utils",
+  "crates/kzg",
+  "crates/kzg/tests/programs/verify_kzg",
 ]
 exclude = []
 resolver = "3"
@@ -30,8 +30,8 @@ eyre = "0.6"
 tracing = { version = "0.1", default-features = false }
 tracing-subscriber = "0.3"
 tokio = { version = "1.44.2", default-features = false, features = [
-    "rt",
-    "rt-multi-thread",
+  "rt",
+  "rt-multi-thread",
 ] }
 serde_json = "1.0.110"
 serde = { version = "1.0", default-features = false, features = ["derive"] }
@@ -41,9 +41,9 @@ thiserror = "2.0.12"
 hex-literal = "1.0.0"
 rayon = "1.10.0"
 bincode = { version = "2.0.1", default-features = false, features = [
-    "derive",
-    "alloc",
-    "serde",
+  "derive",
+  "alloc",
+  "serde",
 ] }
 toml = "0.9.2"
 smallvec = "1.13"
@@ -95,7 +95,9 @@ revm-primitives = { version = "=23.0.0", default-features = false }
 alloy-chains = { version = "=0.2.33", default-features = false }
 alloy-json-rpc = { version = "=2.0.0", default-features = false }
 alloy-primitives = { version = "=1.5.6", default-features = false }
-alloy-rlp = { version = "=0.3.13", default-features = false, features = ["core-net"] }
+alloy-rlp = { version = "=0.3.13", default-features = false, features = [
+  "core-net",
+] }
 alloy-trie = { version = "=0.9.4", default-features = false }
 
 alloy-hardforks = { version = "=0.4.7", default-features = false }
@@ -108,7 +110,9 @@ alloy-rpc-client = { version = "=2.0.0", default-features = false }
 alloy-rpc-types = { version = "=2.0.0", default-features = false }
 alloy-rpc-types-debug = { version = "=2.0.0", default-features = false }
 alloy-transport = { version = "=2.0.0", default-features = false }
-alloy-transport-http = { version = "=2.0.0", default-features = false, features = ["reqwest-rustls-tls"] }
+alloy-transport-http = { version = "=2.0.0", default-features = false, features = [
+  "reqwest-rustls-tls",
+] }
 
 openvm = { git = "https://github.com/openvm-org/openvm.git", branch = "develop-v2.0.0-rc.3", default-features = false }
 openvm-circuit = { git = "https://github.com/openvm-org/openvm.git", branch = "develop-v2.0.0-rc.3", default-features = false }
@@ -116,8 +120,8 @@ openvm-verify-stark-host = { git = "https://github.com/openvm-org/openvm.git", b
 openvm-ecc-guest = { git = "https://github.com/openvm-org/openvm.git", branch = "develop-v2.0.0-rc.3", default-features = false }
 openvm-keccak256 = { git = "https://github.com/openvm-org/openvm.git", branch = "develop-v2.0.0-rc.3", default-features = false }
 openvm-pairing = { git = "https://github.com/openvm-org/openvm.git", branch = "develop-v2.0.0-rc.3", default-features = false, features = [
-    "bn254",
-    "bls12_381",
+  "bn254",
+  "bls12_381",
 ] }
 openvm-sha2 = { git = "https://github.com/openvm-org/openvm.git", branch = "develop-v2.0.0-rc.3", default-features = false }
 openvm-k256 = { git = "https://github.com/openvm-org/openvm.git", package = "k256", branch = "develop-v2.0.0-rc.3" }
@@ -132,9 +136,9 @@ openvm-stark-sdk = { git = "https://github.com/openvm-org/stark-backend.git", br
 # crates/kzg
 hex = { version = "0.4.3", default-features = false }
 bls12_381 = { version = "0.8.0", default-features = false, features = [
-    "groups",
-    "pairings",
-    "alloc",
+  "groups",
+  "pairings",
+  "alloc",
 ] }
 spin = { version = "0.10.0", default-features = false, features = ["once"] }
 serde-big-array = { version = "0.5.1", default-features = false }
@@ -167,3 +171,83 @@ opt-level = 3
 [profile.bench-with-debug]
 inherits = "release"
 debug = 1
+
+[patch."https://github.com/axiom-crypto/halo2-gpu.git"]
+halo2-axiom-gpu = { path = "../halo2-gpu/halo2_proofs" }
+
+[patch."https://github.com/axiom-crypto/halo2.git"]
+halo2-axiom = { path = "../halo2/halo2_proofs" }
+
+[patch."https://github.com/axiom-crypto/halo2-lib.git"]
+halo2-base = { path = "../halo2-base" }
+halo2-ecc = { path = "../halo2-ecc" }
+
+[patch.crates-io]
+halo2-base = { path = "../halo2-base" }
+halo2-ecc = { path = "../halo2-ecc" }
+halo2-axiom = { path = "../halo2/halo2_proofs" }
+
+[patch."https://github.com/openvm-org/openvm.git"]
+# crates/toolchain
+openvm = { path = "../openvm/crates/toolchain/openvm" }
+openvm-build = { path = "../openvm/crates/toolchain/build" }
+openvm-custom-insn = { path = "../openvm/crates/toolchain/custom_insn" }
+openvm-instructions = { path = "../openvm/crates/toolchain/instructions" }
+openvm-instructions-derive = { path = "../openvm/crates/toolchain/instructions/derive" }
+openvm-macros-common = { path = "../openvm/crates/toolchain/macros" }
+openvm-platform = { path = "../openvm/crates/toolchain/platform" }
+openvm-transpiler = { path = "../openvm/crates/toolchain/transpiler" }
+# crates
+openvm-circuit = { path = "../openvm/crates/vm" }
+openvm-circuit-derive = { path = "../openvm/crates/vm/derive" }
+openvm-circuit-primitives = { path = "../openvm/crates/circuits/primitives" }
+openvm-circuit-primitives-derive = { path = "../openvm/crates/circuits/primitives/derive" }
+openvm-mod-circuit-builder = { path = "../openvm/crates/circuits/mod-builder" }
+openvm-poseidon2-air = { path = "../openvm/crates/circuits/poseidon2-air" }
+openvm-sha2-air = { path = "../openvm/crates/circuits/sha2-air" }
+openvm-continuations = { path = "../openvm/crates/continuations" }
+openvm-prof = { path = "../openvm/crates/prof" }
+openvm-recursion-circuit = { path = "../openvm/crates/recursion" }
+openvm-recursion-circuit-derive = { path = "../openvm/crates/recursion/derive" }
+openvm-sdk = { path = "../openvm/crates/sdk" }
+openvm-sdk-config = { path = "../openvm/crates/sdk-config" }
+openvm-static-verifier = { path = "../openvm/crates/static-verifier" }
+openvm-verify-stark-host = { path = "../openvm/crates/verify" }
+# extensions
+openvm-algebra-circuit = { path = "../openvm/extensions/algebra/circuit" }
+openvm-algebra-complex-macros = { path = "../openvm/extensions/algebra/complex-macros" }
+openvm-algebra-guest = { path = "../openvm/extensions/algebra/guest" }
+openvm-algebra-moduli-macros = { path = "../openvm/extensions/algebra/moduli-macros" }
+openvm-algebra-transpiler = { path = "../openvm/extensions/algebra/transpiler" }
+openvm-bigint-circuit = { path = "../openvm/extensions/bigint/circuit" }
+openvm-bigint-guest = { path = "../openvm/extensions/bigint/guest" }
+openvm-bigint-transpiler = { path = "../openvm/extensions/bigint/transpiler" }
+openvm-deferral-circuit = { path = "../openvm/extensions/deferral/circuit" }
+openvm-deferral-guest = { path = "../openvm/extensions/deferral/guest" }
+openvm-deferral-transpiler = { path = "../openvm/extensions/deferral/transpiler" }
+openvm-ecc-circuit = { path = "../openvm/extensions/ecc/circuit" }
+openvm-ecc-guest = { path = "../openvm/extensions/ecc/guest" }
+openvm-ecc-sw-macros = { path = "../openvm/extensions/ecc/sw-macros" }
+openvm-ecc-transpiler = { path = "../openvm/extensions/ecc/transpiler" }
+openvm-keccak256-circuit = { path = "../openvm/extensions/keccak256/circuit" }
+openvm-keccak256-guest = { path = "../openvm/extensions/keccak256/guest" }
+openvm-keccak256-transpiler = { path = "../openvm/extensions/keccak256/transpiler" }
+openvm-pairing-circuit = { path = "../openvm/extensions/pairing/circuit" }
+openvm-pairing-guest = { path = "../openvm/extensions/pairing/guest" }
+openvm-pairing-transpiler = { path = "../openvm/extensions/pairing/transpiler" }
+openvm-rv32-adapters = { path = "../openvm/extensions/rv32-adapters" }
+openvm-rv32im-circuit = { path = "../openvm/extensions/rv32im/circuit" }
+openvm-rv32im-guest = { path = "../openvm/extensions/rv32im/guest" }
+openvm-rv32im-transpiler = { path = "../openvm/extensions/rv32im/transpiler" }
+openvm-sha2-circuit = { path = "../openvm/extensions/sha2/circuit" }
+openvm-sha2-guest = { path = "../openvm/extensions/sha2/guest" }
+openvm-sha2-transpiler = { path = "../openvm/extensions/sha2/transpiler" }
+# guest-libs
+openvm-ff-derive = { path = "../openvm/guest-libs/ff_derive" }
+openvm-keccak256 = { path = "../openvm/guest-libs/keccak256" }
+openvm-pairing = { path = "../openvm/guest-libs/pairing" }
+openvm-sha2 = { path = "../openvm/guest-libs/sha2" }
+openvm-verify-stark-circuit = { path = "../openvm/guest-libs/verify-stark/circuit" }
+openvm-verify-stark-guest = { path = "../openvm/guest-libs/verify-stark/guest" }
+k256 = { path = "../openvm/guest-libs/k256" }
+p256 = { path = "../openvm/guest-libs/p256" }

@@ -49,12 +49,14 @@ RUST_TOOLCHAIN=$(sed -n 's/^channel = "\(.*\)"/\1/p' "$REPO_ROOT/rust-toolchain.
 DEST="$REPO_ROOT/bin/reth-benchmark/elf/openvm-stateless-guest"
 
 build_openvm_guest_elf() {
+  if [[ ! -f $DEST ]]; then 
     cd "$REPO_ROOT/bin/stateless-guest"
     OPENVM_RUST_TOOLCHAIN=$RUST_TOOLCHAIN cargo openvm build
     mkdir -p ../reth-benchmark/elf
     SRC="target/riscv32im-risc0-zkvm-elf/release/openvm-stateless-guest"
     cp "$SRC" "$DEST"
     cd "$WORKDIR"
+  fi
 }
 
 cd $WORKDIR
@@ -314,9 +316,8 @@ if [ "$USE_PERF" = "true" ] || [ "$USE_NSYS" = "true" ]; then
         TARGET_DIR="profiling"
     fi
 fi
-if [ "$USE_NSYS" = "false" ]; then
-    export JEMALLOC_SYS_WITH_MALLOC_CONF="retain:true,background_thread:true,metadata_thp:always,dirty_decay_ms:10000,muzzy_decay_ms:10000,abort_conf:true"
-fi
+
+export JEMALLOC_SYS_WITH_MALLOC_CONF="retain:true,background_thread:true,metadata_thp:always,dirty_decay_ms:10000,muzzy_decay_ms:10000,abort_conf:true"
 if [[ "${OPENVM_BENCH_SKIP_BUILD:-0}" != "1" ]]; then
     build_openvm_guest_elf
     RUSTFLAGS=$RUSTFLAGS cargo $TOOLCHAIN build --bin $BIN_NAME --profile=$PROFILE --no-default-features --features=$FEATURES
@@ -401,7 +402,7 @@ if [ "$USE_PERF" = "true" ]; then
     fi
 elif [ "$USE_NSYS" = "true" ]; then
     NSYS_OUTPUT="reth.nsys-rep"
-    NSYS_ARGS="--trace=cuda,nvtx,osrt --sample=cpu --cpuctxsw=true --cuda-memory-usage=true --force-overwrite=true -o $NSYS_OUTPUT"
+    NSYS_ARGS="--trace=cuda,nvtx,osrt --cuda-memory-usage=true --force-overwrite=true -o $NSYS_OUTPUT"
     if [ "$USE_NSYS_GPU_METRICS" = "true" ]; then
         NSYS_ARGS="$NSYS_ARGS --gpu-metrics-devices=all"
     fi
