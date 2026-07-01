@@ -16,6 +16,7 @@ use openvm_ecc_guest::{
 use openvm_k256::ecdsa::{signature::hazmat::PrehashVerifier, RecoveryId, Signature, VerifyingKey};
 use openvm_keccak256::keccak256;
 use openvm_kzg::{Bytes32, Bytes48, KzgProof};
+use openvm_sha2::Digest;
 #[allow(unused_imports, clippy::single_component_path_imports)]
 use openvm_p256; // ensure this is linked in for the standard OpenVM config
 use openvm_pairing::{
@@ -117,8 +118,6 @@ struct OpenVmCrypto;
 impl Crypto for OpenVmCrypto {
     /// Custom SHA-256 implementation with openvm optimization
     fn sha256(&self, input: &[u8]) -> [u8; 32] {
-        #[cfg(not(target_os = "zkvm"))]
-        use openvm_sha2::Digest;
         openvm_sha2::Sha256::digest(input).into()
     }
 
@@ -351,16 +350,11 @@ fn is_bn254_fr(modulus: &[u8]) -> bool {
 fn accelerated_modexp_bn254_fr(base: &[u8], exp: &[u8]) -> Vec<u8> {
     use openvm_ecc_guest::algebra::{ExpBytes, Reduce};
 
-    let base_fr = if base.len() <= BN_SCALAR_LEN {
-        // Use checked conversion; reduce if base >= modulus.
-        bn::Scalar::from_be_bytes(base).unwrap_or_else(|| bn::Scalar::reduce_be_bytes(base))
-    } else {
-        // Pad to a multiple of BN_SCALAR_LEN so reduce_be_bytes chunk processing works correctly.
-        let padded_len = base.len().next_multiple_of(BN_SCALAR_LEN);
-        let mut padded = vec![0u8; padded_len];
-        padded[padded_len - base.len()..].copy_from_slice(base);
-        bn::Scalar::reduce_be_bytes(&padded)
-    };
+    // OpenVM's field reduction requires inputs to be aligned to the field byte size.
+    let padded_len = base.len().next_multiple_of(BN_SCALAR_LEN).max(BN_SCALAR_LEN);
+    let mut padded = vec![0u8; padded_len];
+    padded[padded_len - base.len()..].copy_from_slice(base);
+    let base_fr = bn::Scalar::reduce_be_bytes(&padded);
 
     base_fr.exp_bytes(true, exp).to_be_bytes().as_ref().to_vec()
 }
