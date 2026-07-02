@@ -172,3 +172,6 @@ opt-level = 3
 [profile.bench-with-debug]
 inherits = "release"
 debug = 1
+
+[patch."https://github.com/axiom-crypto/halo2-gpu.git"]
+halo2-axiom-gpu = { git = "ssh://git@github.com/axiom-crypto/halo2-gpu.git", branch = "grigorii/int-8020-the-fiat-shamir-device-residency-chain" }
