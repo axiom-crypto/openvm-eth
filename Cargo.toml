@@ -125,12 +125,12 @@ openvm-stark-sdk = { git = "https://github.com/openvm-org/stark-backend.git", br
 # powdr APC toolchain — tracks powdr main. Transitive openvm-org deps pulled
 # in by these crates are redirected via the `[patch]` sections at the bottom
 # of this file to the powdr-labs forks at `v2-powdr-beta.2`.
-powdr-autoprecompiles = { git = "https://github.com/powdr-labs/powdr.git", branch = "main", default-features = false }
-powdr-number = { git = "https://github.com/powdr-labs/powdr.git", branch = "main", default-features = false }
-powdr-openvm = { git = "https://github.com/powdr-labs/powdr.git", branch = "main", default-features = false }
-powdr-openvm-riscv = { git = "https://github.com/powdr-labs/powdr.git", branch = "main", default-features = false }
-powdr-openvm-riscv-hints-circuit = { git = "https://github.com/powdr-labs/powdr.git", branch = "main", default-features = false }
-powdr-riscv-elf = { git = "https://github.com/powdr-labs/powdr.git", branch = "main", default-features = false }
+powdr-autoprecompiles = { git = "https://github.com/powdr-labs/powdr.git", branch = "first-class-fp", default-features = false }
+powdr-number = { git = "https://github.com/powdr-labs/powdr.git", branch = "first-class-fp", default-features = false }
+powdr-openvm = { git = "https://github.com/powdr-labs/powdr.git", branch = "first-class-fp", default-features = false }
+powdr-openvm-riscv = { git = "https://github.com/powdr-labs/powdr.git", branch = "first-class-fp", default-features = false }
+powdr-openvm-riscv-hints-circuit = { git = "https://github.com/powdr-labs/powdr.git", branch = "first-class-fp", default-features = false }
+powdr-riscv-elf = { git = "https://github.com/powdr-labs/powdr.git", branch = "first-class-fp", default-features = false }
 
 [workspace.lints]
 rust.missing_debug_implementations = "warn"
@@ -162,50 +162,50 @@ debug = 1
 
 # Redirect every openvm-org git dep (including transitive ones pulled in through
 # powdr, reth-benchmark and the guest) onto the powdr-labs forks at
-# `v2-powdr-beta.2`. These are the same revs pinned by the powdr workspace.
+# the `first-class-fp` branch. These are the same revs pinned by the powdr workspace (fp-in-ExecutionState fork).
 [patch."https://github.com/openvm-org/openvm.git"]
-openvm = { git = "https://github.com/powdr-labs/openvm.git", tag = "v2.0.0-beta.2-powdr.1" }
-openvm-algebra-circuit = { git = "https://github.com/powdr-labs/openvm.git", tag = "v2.0.0-beta.2-powdr.1" }
-openvm-algebra-guest = { git = "https://github.com/powdr-labs/openvm.git", tag = "v2.0.0-beta.2-powdr.1" }
-openvm-algebra-transpiler = { git = "https://github.com/powdr-labs/openvm.git", tag = "v2.0.0-beta.2-powdr.1" }
-openvm-benchmarks-prove = { git = "https://github.com/powdr-labs/openvm.git", tag = "v2.0.0-beta.2-powdr.1" }
-openvm-bigint-circuit = { git = "https://github.com/powdr-labs/openvm.git", tag = "v2.0.0-beta.2-powdr.1" }
-openvm-bigint-transpiler = { git = "https://github.com/powdr-labs/openvm.git", tag = "v2.0.0-beta.2-powdr.1" }
-openvm-build = { git = "https://github.com/powdr-labs/openvm.git", tag = "v2.0.0-beta.2-powdr.1" }
-openvm-circuit = { git = "https://github.com/powdr-labs/openvm.git", tag = "v2.0.0-beta.2-powdr.1" }
-openvm-circuit-derive = { git = "https://github.com/powdr-labs/openvm.git", tag = "v2.0.0-beta.2-powdr.1" }
-openvm-circuit-primitives = { git = "https://github.com/powdr-labs/openvm.git", tag = "v2.0.0-beta.2-powdr.1" }
-openvm-circuit-primitives-derive = { git = "https://github.com/powdr-labs/openvm.git", tag = "v2.0.0-beta.2-powdr.1" }
-openvm-continuations = { git = "https://github.com/powdr-labs/openvm.git", tag = "v2.0.0-beta.2-powdr.1" }
-openvm-ecc-circuit = { git = "https://github.com/powdr-labs/openvm.git", tag = "v2.0.0-beta.2-powdr.1" }
-openvm-ecc-guest = { git = "https://github.com/powdr-labs/openvm.git", tag = "v2.0.0-beta.2-powdr.1" }
-openvm-ecc-transpiler = { git = "https://github.com/powdr-labs/openvm.git", tag = "v2.0.0-beta.2-powdr.1" }
-openvm-instructions = { git = "https://github.com/powdr-labs/openvm.git", tag = "v2.0.0-beta.2-powdr.1" }
-openvm-instructions-derive = { git = "https://github.com/powdr-labs/openvm.git", tag = "v2.0.0-beta.2-powdr.1" }
-openvm-keccak256 = { git = "https://github.com/powdr-labs/openvm.git", tag = "v2.0.0-beta.2-powdr.1" }
-openvm-keccak256-circuit = { git = "https://github.com/powdr-labs/openvm.git", tag = "v2.0.0-beta.2-powdr.1" }
-openvm-keccak256-transpiler = { git = "https://github.com/powdr-labs/openvm.git", tag = "v2.0.0-beta.2-powdr.1" }
-openvm-macros-common = { git = "https://github.com/powdr-labs/openvm.git", tag = "v2.0.0-beta.2-powdr.1" }
-openvm-mod-circuit-builder = { git = "https://github.com/powdr-labs/openvm.git", tag = "v2.0.0-beta.2-powdr.1" }
-openvm-pairing = { git = "https://github.com/powdr-labs/openvm.git", tag = "v2.0.0-beta.2-powdr.1" }
-openvm-pairing-circuit = { git = "https://github.com/powdr-labs/openvm.git", tag = "v2.0.0-beta.2-powdr.1" }
-openvm-pairing-guest = { git = "https://github.com/powdr-labs/openvm.git", tag = "v2.0.0-beta.2-powdr.1" }
-openvm-pairing-transpiler = { git = "https://github.com/powdr-labs/openvm.git", tag = "v2.0.0-beta.2-powdr.1" }
-openvm-platform = { git = "https://github.com/powdr-labs/openvm.git", tag = "v2.0.0-beta.2-powdr.1" }
-openvm-poseidon2-air = { git = "https://github.com/powdr-labs/openvm.git", tag = "v2.0.0-beta.2-powdr.1" }
-openvm-rv32-adapters = { git = "https://github.com/powdr-labs/openvm.git", tag = "v2.0.0-beta.2-powdr.1" }
-openvm-rv32im-circuit = { git = "https://github.com/powdr-labs/openvm.git", tag = "v2.0.0-beta.2-powdr.1" }
-openvm-rv32im-guest = { git = "https://github.com/powdr-labs/openvm.git", tag = "v2.0.0-beta.2-powdr.1" }
-openvm-rv32im-transpiler = { git = "https://github.com/powdr-labs/openvm.git", tag = "v2.0.0-beta.2-powdr.1" }
-openvm-sdk = { git = "https://github.com/powdr-labs/openvm.git", tag = "v2.0.0-beta.2-powdr.1" }
-openvm-sdk-config = { git = "https://github.com/powdr-labs/openvm.git", tag = "v2.0.0-beta.2-powdr.1" }
-openvm-sha2 = { git = "https://github.com/powdr-labs/openvm.git", tag = "v2.0.0-beta.2-powdr.1" }
-openvm-sha2-circuit = { git = "https://github.com/powdr-labs/openvm.git", tag = "v2.0.0-beta.2-powdr.1" }
-openvm-sha2-transpiler = { git = "https://github.com/powdr-labs/openvm.git", tag = "v2.0.0-beta.2-powdr.1" }
-openvm-transpiler = { git = "https://github.com/powdr-labs/openvm.git", tag = "v2.0.0-beta.2-powdr.1" }
-openvm-verify-stark-host = { git = "https://github.com/powdr-labs/openvm.git", tag = "v2.0.0-beta.2-powdr.1" }
-k256 = { git = "https://github.com/powdr-labs/openvm.git", package = "k256", tag = "v2.0.0-beta.2-powdr.1" }
-p256 = { git = "https://github.com/powdr-labs/openvm.git", package = "p256", tag = "v2.0.0-beta.2-powdr.1" }
+openvm = { git = "https://github.com/powdr-labs/openvm.git", branch = "first-class-fp" }
+openvm-algebra-circuit = { git = "https://github.com/powdr-labs/openvm.git", branch = "first-class-fp" }
+openvm-algebra-guest = { git = "https://github.com/powdr-labs/openvm.git", branch = "first-class-fp" }
+openvm-algebra-transpiler = { git = "https://github.com/powdr-labs/openvm.git", branch = "first-class-fp" }
+openvm-benchmarks-prove = { git = "https://github.com/powdr-labs/openvm.git", branch = "first-class-fp" }
+openvm-bigint-circuit = { git = "https://github.com/powdr-labs/openvm.git", branch = "first-class-fp" }
+openvm-bigint-transpiler = { git = "https://github.com/powdr-labs/openvm.git", branch = "first-class-fp" }
+openvm-build = { git = "https://github.com/powdr-labs/openvm.git", branch = "first-class-fp" }
+openvm-circuit = { git = "https://github.com/powdr-labs/openvm.git", branch = "first-class-fp" }
+openvm-circuit-derive = { git = "https://github.com/powdr-labs/openvm.git", branch = "first-class-fp" }
+openvm-circuit-primitives = { git = "https://github.com/powdr-labs/openvm.git", branch = "first-class-fp" }
+openvm-circuit-primitives-derive = { git = "https://github.com/powdr-labs/openvm.git", branch = "first-class-fp" }
+openvm-continuations = { git = "https://github.com/powdr-labs/openvm.git", branch = "first-class-fp" }
+openvm-ecc-circuit = { git = "https://github.com/powdr-labs/openvm.git", branch = "first-class-fp" }
+openvm-ecc-guest = { git = "https://github.com/powdr-labs/openvm.git", branch = "first-class-fp" }
+openvm-ecc-transpiler = { git = "https://github.com/powdr-labs/openvm.git", branch = "first-class-fp" }
+openvm-instructions = { git = "https://github.com/powdr-labs/openvm.git", branch = "first-class-fp" }
+openvm-instructions-derive = { git = "https://github.com/powdr-labs/openvm.git", branch = "first-class-fp" }
+openvm-keccak256 = { git = "https://github.com/powdr-labs/openvm.git", branch = "first-class-fp" }
+openvm-keccak256-circuit = { git = "https://github.com/powdr-labs/openvm.git", branch = "first-class-fp" }
+openvm-keccak256-transpiler = { git = "https://github.com/powdr-labs/openvm.git", branch = "first-class-fp" }
+openvm-macros-common = { git = "https://github.com/powdr-labs/openvm.git", branch = "first-class-fp" }
+openvm-mod-circuit-builder = { git = "https://github.com/powdr-labs/openvm.git", branch = "first-class-fp" }
+openvm-pairing = { git = "https://github.com/powdr-labs/openvm.git", branch = "first-class-fp" }
+openvm-pairing-circuit = { git = "https://github.com/powdr-labs/openvm.git", branch = "first-class-fp" }
+openvm-pairing-guest = { git = "https://github.com/powdr-labs/openvm.git", branch = "first-class-fp" }
+openvm-pairing-transpiler = { git = "https://github.com/powdr-labs/openvm.git", branch = "first-class-fp" }
+openvm-platform = { git = "https://github.com/powdr-labs/openvm.git", branch = "first-class-fp" }
+openvm-poseidon2-air = { git = "https://github.com/powdr-labs/openvm.git", branch = "first-class-fp" }
+openvm-rv32-adapters = { git = "https://github.com/powdr-labs/openvm.git", branch = "first-class-fp" }
+openvm-rv32im-circuit = { git = "https://github.com/powdr-labs/openvm.git", branch = "first-class-fp" }
+openvm-rv32im-guest = { git = "https://github.com/powdr-labs/openvm.git", branch = "first-class-fp" }
+openvm-rv32im-transpiler = { git = "https://github.com/powdr-labs/openvm.git", branch = "first-class-fp" }
+openvm-sdk = { git = "https://github.com/powdr-labs/openvm.git", branch = "first-class-fp" }
+openvm-sdk-config = { git = "https://github.com/powdr-labs/openvm.git", branch = "first-class-fp" }
+openvm-sha2 = { git = "https://github.com/powdr-labs/openvm.git", branch = "first-class-fp" }
+openvm-sha2-circuit = { git = "https://github.com/powdr-labs/openvm.git", branch = "first-class-fp" }
+openvm-sha2-transpiler = { git = "https://github.com/powdr-labs/openvm.git", branch = "first-class-fp" }
+openvm-transpiler = { git = "https://github.com/powdr-labs/openvm.git", branch = "first-class-fp" }
+openvm-verify-stark-host = { git = "https://github.com/powdr-labs/openvm.git", branch = "first-class-fp" }
+k256 = { git = "https://github.com/powdr-labs/openvm.git", package = "k256", branch = "first-class-fp" }
+p256 = { git = "https://github.com/powdr-labs/openvm.git", package = "p256", branch = "first-class-fp" }
 
 [patch."https://github.com/openvm-org/stark-backend.git"]
 openvm-cpu-backend = { git = "https://github.com/powdr-labs/stark-backend.git", tag = "v2.0.0-beta.2-powdr" }
