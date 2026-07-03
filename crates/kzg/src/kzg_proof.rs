@@ -226,6 +226,9 @@ pub fn safe_g1_affine_from_bytes(bytes: &Bytes48) -> Result<Bls12_381G1Affine, K
     if infinity_flag_set && compression_flag_set && !sort_flag_set && x == Fp::ZERO {
         return Ok(<Bls12_381G1Affine as Group>::IDENTITY);
     }
+    if infinity_flag_set || !compression_flag_set {
+        return Err(KzgError::BadArgs("invalid G1 point encoding".to_string()));
+    }
 
     // Note that we need to determine the y-coord using lexicographic ordering instead of parity, so
     // the value for rec_id does not matter and we can pass in either 0 or 1.
