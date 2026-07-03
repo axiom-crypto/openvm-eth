@@ -16,8 +16,6 @@ use openvm_ecc_guest::{
 use openvm_k256::ecdsa::{signature::hazmat::PrehashVerifier, RecoveryId, Signature, VerifyingKey};
 use openvm_keccak256::keccak256;
 use openvm_kzg::{Bytes32, Bytes48, KzgProof};
-#[allow(unused_imports, clippy::single_component_path_imports)]
-use openvm_p256; // ensure this is linked in for the standard OpenVM config
 use openvm_pairing::{
     bls12_381::{self as bls, Bls12_381},
     bn254::{self as bn, Bn254},
@@ -295,6 +293,27 @@ impl Crypto for OpenVmCrypto {
         address[12..].copy_from_slice(&pubkey_hash[12..]);
 
         Ok(address)
+    }
+
+    /// Custom secp256r1 signature verification with openvm optimization
+    fn secp256r1_verify_signature(&self, msg: &[u8; 32], sig: &[u8; 64], pk: &[u8; 64]) -> bool {
+        use openvm_p256::{
+            ecdsa::{signature::hazmat::PrehashVerifier, Signature, VerifyingKey},
+            EncodedPoint,
+        };
+
+        // Can fail only if the input is not exact length.
+        let Ok(signature) = Signature::from_slice(sig) else {
+            return false;
+        };
+        // Decode the public key bytes (x,y coordinates) using EncodedPoint
+        let encoded_point = EncodedPoint::from_untagged_bytes(&(*pk).into());
+        // Create VerifyingKey from the encoded point
+        let Ok(public_key) = VerifyingKey::from_encoded_point(&encoded_point) else {
+            return false;
+        };
+
+        public_key.verify_prehash(msg, &signature).is_ok()
     }
 
     /// Custom KZG point evaluation with configurable backends
