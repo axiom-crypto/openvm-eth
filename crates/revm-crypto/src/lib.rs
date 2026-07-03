@@ -173,8 +173,9 @@ impl Crypto for OpenVmCrypto {
         a: BlsG1Point,
         b: BlsG1Point,
     ) -> Result<[u8; BLS_G1_LEN], PrecompileHalt> {
-        let p1 = read_bls_g1_point(&a)?;
-        let p2 = read_bls_g1_point(&b)?;
+        // EIP-2537 G1ADD validates on-curve only, not subgroup membership.
+        let p1 = read_bls_g1_point_no_subgroup_check(&a)?;
+        let p2 = read_bls_g1_point_no_subgroup_check(&b)?;
         let sum = p1 + p2;
         Ok(encode_bls_g1_point(&sum))
     }
@@ -207,8 +208,9 @@ impl Crypto for OpenVmCrypto {
         a: BlsG2Point,
         b: BlsG2Point,
     ) -> Result<[u8; BLS_G2_LEN], PrecompileHalt> {
-        let p1 = read_bls_g2_point(&a)?;
-        let p2 = read_bls_g2_point(&b)?;
+        // EIP-2537 G2ADD validates on-curve only, not subgroup membership.
+        let p1 = read_bls_g2_point_no_subgroup_check(&a)?;
+        let p2 = read_bls_g2_point_no_subgroup_check(&b)?;
         let sum = p1 + p2;
         Ok(encode_bls_g2_point(&sum))
     }
@@ -315,7 +317,7 @@ impl Crypto for OpenVmCrypto {
         let proof_bytes =
             Bytes48::from_slice(proof).map_err(|_| PrecompileHalt::other("invalid proof bytes"))?;
 
-        KzgProof::verify_kzg_proof(
+        let valid = KzgProof::verify_kzg_proof(
             &commitment_bytes,
             &z_bytes,
             &y_bytes,
@@ -323,7 +325,11 @@ impl Crypto for OpenVmCrypto {
             kzg_settings,
         )
         .map_err(|_| PrecompileHalt::other("openvm kzg proof verification failed"))?;
-        Ok(())
+        if valid {
+            Ok(())
+        } else {
+            Err(PrecompileHalt::BlobVerifyKzgProofFailed)
+        }
     }
 
     /// Custom modular exponentiation with BN254 Fr acceleration
@@ -474,13 +480,19 @@ fn read_bls_fp2(c0: &[u8], c1: &[u8]) -> Result<bls::Fp2, PrecompileHalt> {
 }
 
 #[inline]
-fn read_bls_g1_point(point: &BlsG1Point) -> Result<bls::G1Affine, PrecompileHalt> {
+fn read_bls_g1_point_no_subgroup_check(
+    point: &BlsG1Point,
+) -> Result<bls::G1Affine, PrecompileHalt> {
     let px = read_bls_fp(&point.0)?;
     let py = read_bls_fp(&point.1)?;
     // SAFETY: `read_bls_fp` produces canonical Fp elements; `from_xy` itself checks the curve
     // equation and returns `None` if `(px, py)` is not on the curve.
-    let point =
-        unsafe { bls::G1Affine::from_xy(px, py) }.ok_or(PrecompileHalt::Bls12381G1NotOnCurve)?;
+    unsafe { bls::G1Affine::from_xy(px, py) }.ok_or(PrecompileHalt::Bls12381G1NotOnCurve)
+}
+
+#[inline]
+fn read_bls_g1_point(point: &BlsG1Point) -> Result<bls::G1Affine, PrecompileHalt> {
+    let point = read_bls_g1_point_no_subgroup_check(point)?;
     if point.is_in_correct_subgroup() {
         Ok(point)
     } else {
@@ -489,13 +501,19 @@ fn read_bls_g1_point(point: &BlsG1Point) -> Result<bls::G1Affine, PrecompileHalt
 }
 
 #[inline]
-fn read_bls_g2_point(point: &BlsG2Point) -> Result<bls::G2Affine, PrecompileHalt> {
+fn read_bls_g2_point_no_subgroup_check(
+    point: &BlsG2Point,
+) -> Result<bls::G2Affine, PrecompileHalt> {
     let x = read_bls_fp2(&point.0, &point.1)?;
     let y = read_bls_fp2(&point.2, &point.3)?;
     // SAFETY: `read_bls_fp2` produces canonical Fp2 elements; `from_xy` itself checks the curve
     // equation and returns `None` if `(x, y)` is not on the twist.
-    let point =
-        unsafe { bls::G2Affine::from_xy(x, y) }.ok_or(PrecompileHalt::Bls12381G2NotOnCurve)?;
+    unsafe { bls::G2Affine::from_xy(x, y) }.ok_or(PrecompileHalt::Bls12381G2NotOnCurve)
+}
+
+#[inline]
+fn read_bls_g2_point(point: &BlsG2Point) -> Result<bls::G2Affine, PrecompileHalt> {
+    let point = read_bls_g2_point_no_subgroup_check(point)?;
     if point.is_in_correct_subgroup() {
         Ok(point)
     } else {
