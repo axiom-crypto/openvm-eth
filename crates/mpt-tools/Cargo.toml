@@ -16,6 +16,7 @@ tokio.workspace = true
 tracing-subscriber = { workspace = true, features = ["env-filter"] }
 dotenv = "0.15.0"
 bincode = { workspace = true, features = ["serde", "std"] }
+bumpalo.workspace = true
 
 # Memory profiling
 dhat = "0.3"

@@ -2,10 +2,14 @@
 static ALLOC: dhat::Alloc = dhat::Alloc;
 
 use bincode::config::standard;
+use bumpalo::Bump;
 use dhat::Profiler;
 use openvm_chainspec::mainnet;
 use openvm_mpt::EthereumState;
-use openvm_stateless_executor::io::{StatelessExecutorInput, StatelessExecutorInputWithState};
+use openvm_stateless_executor::{
+    io::{StatelessExecutorInput, StatelessExecutorInputWithState},
+    BUMP_AREA_SIZE,
+};
 use reth_evm::execute::{BasicBlockExecutor, Executor};
 use reth_evm_ethereum::EthEvmConfig;
 use reth_execution_types::ExecutionOutcome;
@@ -50,7 +54,8 @@ fn main() {
     // Pre-compute the post-state once
     let (pre_input, _): (StatelessExecutorInput, _) =
         bincode::serde::decode_from_slice(&buffer, bincode_config).unwrap();
-    let stateless_input = StatelessExecutorInputWithState::build(pre_input.clone()).unwrap();
+    let bump = Bump::with_capacity(BUMP_AREA_SIZE);
+    let stateless_input = StatelessExecutorInputWithState::build(&pre_input, &bump).unwrap();
     let witness_db = stateless_input.witness_db().unwrap();
     let cache_db = CacheDB::new(&witness_db);
     let spec = Arc::new(mainnet());
@@ -77,7 +82,7 @@ fn main() {
         }
         "witness" => {
             println!("Profiling: Witness DB creation only");
-            profile_witness_db(pre_input);
+            profile_witness_db(pre_input.clone());
         }
         "update" => {
             println!("Profiling: MPT update only");
@@ -105,7 +110,8 @@ fn profile_end_to_end(buffer: &[u8], executor_outcome: &ExecutionOutcome) {
     let (pre_input, _): (StatelessExecutorInput, _) =
         bincode::serde::decode_from_slice(buffer, bincode_config).unwrap();
 
-    let mut stateless_input = StatelessExecutorInputWithState::build(pre_input).unwrap();
+    let bump = Bump::with_capacity(BUMP_AREA_SIZE);
+    let mut stateless_input = StatelessExecutorInputWithState::build(&pre_input, &bump).unwrap();
 
     // Create witness DB
     let _witness_db = stateless_input.witness_db().unwrap();
@@ -126,18 +132,19 @@ fn profile_deserialize(buffer: &[u8]) {
 fn profile_witness_db(stateless_input: StatelessExecutorInput) {
     let _profiler = Profiler::new_heap();
 
-    let input = StatelessExecutorInputWithState::build(stateless_input).unwrap();
+    let bump = Bump::with_capacity(BUMP_AREA_SIZE);
+    let input = StatelessExecutorInputWithState::build(&stateless_input, &bump).unwrap();
 
     let _witness_db = input.witness_db().unwrap();
 }
 
-fn profile_update(mut parent_state: EthereumState, executor_outcome: &ExecutionOutcome) {
+fn profile_update(mut parent_state: EthereumState<'_>, executor_outcome: &ExecutionOutcome) {
     let _profiler = Profiler::new_heap();
 
     parent_state.update_from_bundle_state(&executor_outcome.bundle).unwrap();
 }
 
-fn profile_state_root(mut parent_state: EthereumState, executor_outcome: &ExecutionOutcome) {
+fn profile_state_root(mut parent_state: EthereumState<'_>, executor_outcome: &ExecutionOutcome) {
     let _profiler = Profiler::new_heap();
 
     parent_state.update_from_bundle_state(&executor_outcome.bundle).unwrap();
