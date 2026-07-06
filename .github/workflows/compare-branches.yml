@@ -132,9 +132,11 @@ jobs:
         run: |
           ls
           BASE_NAME=${{ needs.run-base-benchmark.outputs.metric_name }}
-          BASE_JSON=$BASE_NAME/metrics.json
           TARGET_NAME=${{ needs.run-target-benchmark.outputs.metric_name }}
-          TARGET_JSON=$TARGET_NAME/metrics.json
+          # The metrics file inside the artifact directory is named <metric_name>.json,
+          # so locate it by extension rather than assuming a fixed metrics.json name.
+          BASE_JSON=$(find $BASE_NAME -name "*.json" | head -1)
+          TARGET_JSON=$(find $TARGET_NAME -name "*.json" | head -1)
 
           openvm-prof --json-paths $TARGET_JSON --prev-json-paths $BASE_JSON
           MD_PATH=${TARGET_JSON%.json}.md
