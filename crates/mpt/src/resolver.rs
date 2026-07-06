@@ -1,9 +1,10 @@
 use crate::{
     node::{NodeData, NodeId},
-    trie::{owned::MptOwned, NULL_NODE_ID, NULL_NODE_REF_SLICE},
+    trie::{NULL_NODE_ID, NULL_NODE_REF_SLICE},
     Error, Mpt,
 };
 use alloy_rlp::PayloadView;
+use bumpalo::Bump;
 use bytes::{BufMut, BytesMut};
 use revm_primitives::{Bytes, HashMap, B256};
 
@@ -25,9 +26,10 @@ impl MptResolver {
         MptResolver { node_store }
     }
 
-    /// Resolves an MPT from the mapping stored in [`MptResolver`] given its `root` hash.
-    pub fn resolve(&self, root: &B256) -> Result<Mpt<'static>, Error> {
-        let mut mpt = MptOwned::default();
+    /// Resolves an MPT from the mapping stored in [`MptResolver`] given its `root` hash. All node
+    /// data is copied into `bump`.
+    pub fn resolve<'a>(&self, bump: &'a Bump, root: &B256) -> Result<Mpt<'a>, Error> {
+        let mut mpt = Mpt::new(bump);
 
         let rlp_root = {
             let mut out = BytesMut::with_capacity(33);
@@ -39,14 +41,10 @@ impl MptResolver {
         let root_id = self.resolve_internal(&mut rlp_root.as_slice(), &mut mpt)?;
         mpt.set_root_id(root_id);
 
-        Ok(mpt.into_inner())
+        Ok(mpt)
     }
 
-    fn resolve_internal(
-        &self,
-        node_bytes: &mut &[u8],
-        mpt: &mut MptOwned,
-    ) -> Result<NodeId, Error> {
+    fn resolve_internal(&self, node_bytes: &mut &[u8], mpt: &mut Mpt<'_>) -> Result<NodeId, Error> {
         let node_id = match alloy_rlp::Header::decode_raw(node_bytes)? {
             PayloadView::String(item) => match item.len() {
                 0 => NULL_NODE_ID,
@@ -54,7 +52,7 @@ impl MptResolver {
                     Some(resolved_node_bytes) => {
                         self.resolve_internal(&mut resolved_node_bytes.as_ref(), mpt)?
                     }
-                    None => mpt.add_node(&NodeData::Digest(item)),
+                    None => mpt.add_node_copied(&NodeData::Digest(item)),
                 },
                 _ => {
                     return Err(Error::RlpError(alloy_rlp::Error::UnexpectedLength));
@@ -67,11 +65,11 @@ impl MptResolver {
                     if (prefix & (2 << 4)) == 0 {
                         let ext_node_id = self.resolve_internal(&mut items[1], mpt)?;
                         let node_data = NodeData::Extension(path, ext_node_id);
-                        mpt.add_node(&node_data)
+                        mpt.add_node_copied(&node_data)
                     } else {
                         let value = alloy_rlp::Header::decode_bytes(&mut items[1], false)?;
                         let node_data = NodeData::Leaf(path, value);
-                        mpt.add_node(&node_data)
+                        mpt.add_node_copied(&node_data)
                     }
                 }
                 17 => {
@@ -85,7 +83,7 @@ impl MptResolver {
                         childs[i] = if child_id == NULL_NODE_ID { None } else { Some(child_id) };
                     }
                     let node_data = NodeData::Branch(childs);
-                    mpt.add_node(&node_data)
+                    mpt.add_node_copied(&node_data)
                 }
                 _ => {
                     return Err(Error::RlpError(alloy_rlp::Error::UnexpectedLength));
@@ -121,7 +119,8 @@ mod tests {
         }
 
         let mpt_resolver = MptResolver::from_iter(node_store);
-        let resolved_trie = mpt_resolver.resolve(&trie.hash())?;
+        let resolve_bump = bumpalo::Bump::new();
+        let resolved_trie = mpt_resolver.resolve(&resolve_bump, &trie.hash())?;
 
         assert_eq!(resolved_trie.hash(), trie.hash());
 

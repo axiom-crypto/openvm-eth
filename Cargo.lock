@@ -7479,6 +7479,7 @@ version = "0.4.0"
 dependencies = [
  "alloy-provider",
  "bincode 2.0.1",
+ "bumpalo",
  "criterion",
  "dhat",
  "dotenv",
@@ -8087,6 +8088,7 @@ dependencies = [
  "alloy-consensus",
  "alloy-rlp",
  "alloy-rpc-types-debug",
+ "bumpalo",
  "itertools 0.14.0",
  "metrics 0.24.6",
  "openvm-mpt",

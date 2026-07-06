@@ -13,15 +13,15 @@ pub struct EthereumStateBytes {
 }
 
 #[derive(Debug, Clone)]
-pub struct EthereumState {
-    pub state_trie: Mpt<'static>,
-    pub storage_tries: HashMap<B256, Mpt<'static>>,
-    pub bump: &'static Bump,
+pub struct EthereumState<'a> {
+    pub state_trie: Mpt<'a>,
+    pub storage_tries: HashMap<B256, Mpt<'a>>,
+    pub bump: &'a Bump,
 }
 
-impl EthereumState {
-    pub fn new() -> Self {
-        let bump = Box::leak(Box::new(Bump::new()));
+impl<'a> EthereumState<'a> {
+    /// Creates an empty state whose tries allocate from `bump`.
+    pub fn new_in(bump: &'a Bump) -> Self {
         Self {
             state_trie: Mpt::new(bump),
             storage_tries: HashMap::with_capacity_and_hasher(1, DefaultHashBuilder::default()),
@@ -29,15 +29,14 @@ impl EthereumState {
         }
     }
 
+    /// Creates a state from existing tries. `bump` is used for allocations made by future
+    /// updates; the tries must allocate from a bump that lives at least as long as it.
     pub fn from_tries(
-        state_trie: Mpt<'static>,
-        storage_tries: impl IntoIterator<Item = (B256, Mpt<'static>)>,
+        state_trie: Mpt<'a>,
+        storage_tries: impl IntoIterator<Item = (B256, Mpt<'a>)>,
+        bump: &'a Bump,
     ) -> Self {
-        Self {
-            state_trie,
-            storage_tries: storage_tries.into_iter().collect(),
-            bump: Box::leak(Box::new(Bump::new())),
-        }
+        Self { state_trie, storage_tries: storage_tries.into_iter().collect(), bump }
     }
 
     pub fn update_from_bundle_state(&mut self, bundle_state: &BundleState) -> Result<(), Error> {
@@ -107,11 +106,5 @@ impl EthereumState {
             state_trie: (state_num_nodes, state_bytes),
             storage_tries: storage_bytes,
         }
-    }
-}
-
-impl Default for EthereumState {
-    fn default() -> Self {
-        Self::new()
     }
 }
