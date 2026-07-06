@@ -1,7 +1,11 @@
 use bincode::config::standard;
+use bumpalo::Bump;
 use criterion::{criterion_group, criterion_main, Criterion};
 use openvm_chainspec::mainnet;
-use openvm_stateless_executor::io::{StatelessExecutorInput, StatelessExecutorInputWithState};
+use openvm_stateless_executor::{
+    io::{StatelessExecutorInput, StatelessExecutorInputWithState},
+    BUMP_AREA_SIZE,
+};
 use reth_evm::execute::{BasicBlockExecutor, Executor};
 use reth_evm_ethereum::EthEvmConfig;
 use reth_execution_types::ExecutionOutcome;
@@ -26,7 +30,8 @@ fn benchmark_mpt_operations(c: &mut Criterion) {
     // Pre-compute the post-state once for the MPT benchmarks (not timed)
     let (pre_input, _): (StatelessExecutorInput, _) =
         bincode::serde::decode_from_slice(&buffer, bincode_config).unwrap();
-    let stateless_input = StatelessExecutorInputWithState::build(pre_input.clone()).unwrap();
+    let bump = Bump::with_capacity(BUMP_AREA_SIZE);
+    let stateless_input = StatelessExecutorInputWithState::build(&pre_input, &bump).unwrap();
     let witness_db = stateless_input.witness_db().unwrap();
     let cache_db = CacheDB::new(&witness_db);
     let spec = Arc::new(mainnet());
@@ -48,8 +53,9 @@ fn benchmark_mpt_operations(c: &mut Criterion) {
             let (pre_input, _): (StatelessExecutorInput, _) =
                 bincode::serde::decode_from_slice(black_box(&buffer), bincode_config).unwrap();
 
+            let bump = Bump::with_capacity(BUMP_AREA_SIZE);
             let mut stateless_input =
-                StatelessExecutorInputWithState::build(pre_input.clone()).unwrap();
+                StatelessExecutorInputWithState::build(&pre_input, &bump).unwrap();
 
             // Create witness DB (this happens in production)
             let _witness_db = stateless_input.witness_db().unwrap();
@@ -73,8 +79,9 @@ fn benchmark_mpt_operations(c: &mut Criterion) {
 
     c.bench_function("resolve only", |b| {
         b.iter(|| {
-            let stateless_input = StatelessExecutorInputWithState::build(pre_input.clone());
-            black_box(stateless_input)
+            let bump = Bump::with_capacity(BUMP_AREA_SIZE);
+            let stateless_input = StatelessExecutorInputWithState::build(&pre_input, &bump);
+            black_box(&stateless_input);
         })
     });
 

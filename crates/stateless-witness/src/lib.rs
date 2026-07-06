@@ -4,6 +4,7 @@
 use alloy_consensus::{BlockHeader as _, Header};
 use alloy_rlp::Encodable;
 use alloy_rpc_types_debug::ExecutionWitness;
+use bumpalo::Bump;
 use itertools::Itertools;
 use openvm_mpt::{resolver::MptResolver, EthereumState};
 use openvm_stateless_executor::io::StatelessExecutorInput;
@@ -70,9 +71,10 @@ pub fn generate_stateless_input_from_witness_and_ancestor_headers(
 ) -> WitnessResult<StatelessExecutorInput> {
     let ExecutionWitness { state: reth_state, codes, keys, headers: _ } = witness.execution_witness;
 
+    let bump = Bump::new();
     let ethereum_state = time!(
         "ethereum_state_resolve",
-        resolve_ethereum_state(witness.parent_state_root, reth_state, keys)
+        resolve_ethereum_state(&bump, witness.parent_state_root, reth_state, keys)
     )?;
 
     let bytecodes = {
@@ -186,12 +188,14 @@ where
     ))
 }
 
-#[instrument(skip(reth_state, keys))]
-pub fn resolve_ethereum_state(
+/// Resolves an [`EthereumState`] from an execution witness. All trie data is allocated in `bump`.
+#[instrument(skip(bump, reth_state, keys))]
+pub fn resolve_ethereum_state<'a>(
+    bump: &'a Bump,
     state_root: B256,
     reth_state: Vec<Bytes>,
     keys: Vec<Bytes>,
-) -> WitnessResult<EthereumState> {
+) -> WitnessResult<EthereumState<'a>> {
     let mut node_store = Vec::with_capacity(reth_state.len());
     let mut has_state_root_node = state_root == EMPTY_ROOT_HASH;
     for node in reth_state {
@@ -207,7 +211,7 @@ pub fn resolve_ethereum_state(
 
     let mpt_resolver = MptResolver::from_iter(node_store);
 
-    let state_trie = mpt_resolver.resolve(&state_root)?;
+    let state_trie = mpt_resolver.resolve(bump, &state_root)?;
     assert_eq!(state_trie.hash(), state_root);
     tracing::debug!(state_root=%state_root, num_nodes=state_trie.num_nodes(), "resolved state trie");
 
@@ -220,7 +224,7 @@ pub fn resolve_ethereum_state(
             .get_rlp::<TrieAccount>(hashed_address.as_slice())?
             .map_or(EMPTY_ROOT_HASH, |a| a.storage_root);
 
-        let storage_trie = mpt_resolver.resolve(&storage_root)?;
+        let storage_trie = mpt_resolver.resolve(bump, &storage_root)?;
         assert_eq!(storage_trie.hash(), storage_root);
         tracing::debug!(
             account=%key,
@@ -231,5 +235,5 @@ pub fn resolve_ethereum_state(
 
         storage_tries.insert(hashed_address, storage_trie);
     }
-    Ok(EthereumState::from_tries(state_trie, storage_tries))
+    Ok(EthereumState::from_tries(state_trie, storage_tries, bump))
 }

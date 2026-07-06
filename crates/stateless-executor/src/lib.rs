@@ -15,6 +15,8 @@ use reth_execution_types::ExecutionOutcome;
 use reth_primitives_traits::block::Block as _;
 use reth_revm::db::CacheDB;
 
+use bumpalo::Bump;
+
 use crate::{
     error::StatelessExecutorError,
     io::{StatelessExecutorInput, StatelessExecutorInputWithState},
@@ -22,6 +24,9 @@ use crate::{
 
 /// Chain ID for Ethereum Mainnet.
 pub const CHAIN_ID_ETH_MAINNET: u64 = 0x1;
+
+/// Initial capacity in bytes for the bump arena backing [`EthereumState`].
+pub const BUMP_AREA_SIZE: usize = 1000 * 1000;
 
 /// An executor that executes a block inside a zkVM.
 #[derive(Debug, Clone, Default)]
@@ -40,7 +45,8 @@ impl StatelessExecutor {
         chain_variant: ChainVariant,
         pre_input: StatelessExecutorInput,
     ) -> Result<Header, StatelessExecutorError> {
-        let mut input = StatelessExecutorInputWithState::build(pre_input)?;
+        let bump = Bump::with_capacity(BUMP_AREA_SIZE);
+        let mut input = StatelessExecutorInputWithState::build(&pre_input, &bump)?;
 
         // Install OpenVM crypto optimizations
         #[cfg(feature = "openvm")]

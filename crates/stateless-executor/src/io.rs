@@ -17,9 +17,6 @@ use revm_primitives::{keccak256, map::DefaultHashBuilder, Address, HashMap, B256
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 
-/// Bump area size in bytes.
-const BUMP_AREA_SIZE: usize = 1000 * 1000;
-
 /// The input for the client to execute a block and fully verify the STF (state transition
 /// function).
 #[serde_as]
@@ -126,17 +123,19 @@ mod tests {
 }
 
 #[derive(Debug, Clone)]
-pub struct StatelessExecutorInputWithState {
-    pub input: &'static StatelessExecutorInput,
-    pub state: EthereumState,
+pub struct StatelessExecutorInputWithState<'a> {
+    pub input: &'a StatelessExecutorInput,
+    pub state: EthereumState<'a>,
 }
 
-impl StatelessExecutorInputWithState {
-    /// Parses `input.parent_state_bytes` into `EthereumState` and verifies state and storage roots.
-    pub fn build(input: StatelessExecutorInput) -> Result<Self, StatelessExecutorError> {
-        let input = Box::leak(Box::new(input));
-        let bump = Box::leak(Box::new(Bump::with_capacity(BUMP_AREA_SIZE)));
-
+impl<'a> StatelessExecutorInputWithState<'a> {
+    /// Parses `input.parent_state_bytes` into `EthereumState` and verifies state and storage
+    /// roots. All trie data is allocated in `bump`; [`BUMP_AREA_SIZE`] is a reasonable initial
+    /// capacity for it.
+    pub fn build(
+        input: &'a StatelessExecutorInput,
+        bump: &'a Bump,
+    ) -> Result<Self, StatelessExecutorError> {
         let state = {
             let (state_num_nodes, state_bytes) = &input.parent_state_bytes.state_trie;
             let state_trie = Mpt::decode_trie(bump, &mut state_bytes.as_ref(), *state_num_nodes)?;
@@ -179,7 +178,7 @@ impl StatelessExecutorInputWithState {
     }
 }
 
-impl StatelessExecutorInputWithState {
+impl<'a> StatelessExecutorInputWithState<'a> {
     /// Gets the immediate parent block's header.
     #[inline(always)]
     pub fn parent_header(&self) -> &Header {
@@ -187,14 +186,14 @@ impl StatelessExecutorInputWithState {
     }
 
     /// Creates a [`WitnessDb`].
-    pub fn witness_db(&self) -> Result<WitnessDb<'_>, StatelessExecutorError> {
+    pub fn witness_db(&self) -> Result<WitnessDb<'a, '_>, StatelessExecutorError> {
         <Self as WitnessInput>::witness_db(self)
     }
 }
 
-impl WitnessInput for StatelessExecutorInputWithState {
+impl<'a> WitnessInput<'a> for StatelessExecutorInputWithState<'a> {
     #[inline(always)]
-    fn state(&self) -> &EthereumState {
+    fn state(&self) -> &EthereumState<'a> {
         &self.state
     }
 
@@ -219,10 +218,11 @@ impl WitnessInput for StatelessExecutorInputWithState {
     }
 }
 
-/// A trait for constructing [`WitnessDb`].
-pub trait WitnessInput {
+/// A trait for constructing [`WitnessDb`]. The lifetime parameter `'a` is the lifetime of the
+/// bump arena backing the state's tries.
+pub trait WitnessInput<'a> {
     /// Gets a reference to the state from which account info and storage slots are loaded.
-    fn state(&self) -> &EthereumState;
+    fn state(&self) -> &EthereumState<'a>;
 
     /// Gets the state trie root hash that the state referenced by
     /// [state()](trait.WitnessInput#tymethod.state) must conform to.
@@ -246,7 +246,7 @@ pub trait WitnessInput {
     /// implementing this trait causes a zkVM run to cost over 5M cycles more. To avoid this, define
     /// a method inside the type that calls this trait method instead.
     #[inline(always)]
-    fn witness_db(&self) -> Result<WitnessDb<'_>, StatelessExecutorError> {
+    fn witness_db(&self) -> Result<WitnessDb<'a, '_>, StatelessExecutorError> {
         let state = self.state();
 
         let bytecode_by_hash =
@@ -278,18 +278,21 @@ pub trait WitnessInput {
     }
 }
 
+/// A database that loads account info and storage slots from a borrowed [`EthereumState`]. The
+/// lifetime parameter `'a` is the lifetime of the bump arena backing the state's tries, and `'b`
+/// is the lifetime of the borrows of the state and bytecodes.
 #[derive(Debug)]
-pub struct WitnessDb<'a> {
-    inner: &'a EthereumState,
+pub struct WitnessDb<'a, 'b> {
+    inner: &'b EthereumState<'a>,
     block_hashes: HashMap<u64, B256>,
-    bytecode_by_hash: HashMap<B256, &'a Bytecode>,
+    bytecode_by_hash: HashMap<B256, &'b Bytecode>,
 }
 
-impl<'a> WitnessDb<'a> {
+impl<'a, 'b> WitnessDb<'a, 'b> {
     pub fn new(
-        inner: &'a EthereumState,
+        inner: &'b EthereumState<'a>,
         block_hashes: HashMap<u64, B256>,
-        bytecode_by_hash: HashMap<B256, &'a Bytecode>,
+        bytecode_by_hash: HashMap<B256, &'b Bytecode>,
     ) -> Self {
         Self { inner, block_hashes, bytecode_by_hash }
     }
@@ -302,7 +305,7 @@ fn trie_error_to_provider_error(trie_error: openvm_mpt::Error) -> ProviderError 
     }
 }
 
-impl DatabaseRef for WitnessDb<'_> {
+impl DatabaseRef for WitnessDb<'_, '_> {
     /// The database error type.
     type Error = ProviderError;
 
