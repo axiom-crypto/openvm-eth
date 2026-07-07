@@ -55,15 +55,12 @@ pub struct Mpt<'a> {
     root_id: NodeId,
 
     /// List of MPT nodes.
-    nodes: Vec<NodeData<'a>>,
+    nodes: Vec<NodeEntry<'a>>,
 
     /// Children arrays of branch nodes, indexed by [`BranchId`]. Kept out of [`NodeData`] so the
     /// node list stays compact. Arrays orphaned by structural updates are never reclaimed, just
     /// like the nodes themselves.
     branches: Vec<[Option<NodeId>; 16]>,
-
-    /// Cache. Hashing/encoding often needs "what would this node look like in its parent"
-    cached_references: Vec<Cell<Option<NodeRef<'a>>>>,
 
     /// Scratch buffer used only for RLP encoding when a node's full RLP exceeds 32 bytes and we
     /// need to compute its keccak hash. Keeping it here avoids repeated allocations.
@@ -71,6 +68,20 @@ pub struct Mpt<'a> {
 
     /// Bump allocation area.
     bump: &'a Bump,
+}
+
+/// A node's data paired with the cached reference it would have in its parent, kept in one entry
+/// so the node list grows with a single allocation and paired accesses index one slot.
+#[derive(Debug, Clone)]
+struct NodeEntry<'a> {
+    data: NodeData<'a>,
+    cached_ref: Cell<Option<NodeRef<'a>>>,
+}
+
+impl<'a> NodeEntry<'a> {
+    fn new(data: NodeData<'a>, node_ref: Option<NodeRef<'a>>) -> Self {
+        Self { data, cached_ref: Cell::new(node_ref) }
+    }
 }
 
 impl<'a> Mpt<'a> {
@@ -84,9 +95,7 @@ impl<'a> Mpt<'a> {
 
     pub fn with_capacity(bump: &'a Bump, capacity: usize) -> Self {
         let mut nodes = Vec::with_capacity(capacity);
-        let mut cached_references = Vec::with_capacity(capacity);
-        nodes.push(NodeData::Null);
-        cached_references.push(Cell::new(None));
+        nodes.push(NodeEntry::new(NodeData::Null, None));
 
         Self {
             nodes,
@@ -94,7 +103,6 @@ impl<'a> Mpt<'a> {
             // its own node, unresolved ones are digest nodes), so 1/8 leaves ample headroom.
             branches: Vec::with_capacity(capacity / 8),
             rlp_scratch: RefCell::new(Vec::with_capacity(RLP_SCRATCH_INIT_CAPACITY)),
-            cached_references,
             bump,
             root_id: 0,
         }
@@ -180,7 +188,7 @@ impl<'a> Mpt<'a> {
             out.put_u8(0);
         }
 
-        match self.nodes[node_id as usize] {
+        match self.nodes[node_id as usize].data {
             NodeData::Branch(branch_id) => {
                 for child_id in self.branches[branch_id as usize].into_iter().flatten() {
                     self.encode_trie_internal(child_id, out);
@@ -401,7 +409,7 @@ pub(crate) const NULL_NODE_REF_SLICE: &[u8] = &[alloy_rlp::EMPTY_STRING_CODE];
 impl<'a> Mpt<'a> {
     #[inline]
     fn calc_reference(&self, node_id: NodeId) -> NodeRef<'a> {
-        match &self.nodes[node_id as usize] {
+        match &self.nodes[node_id as usize].data {
             NodeData::Null => NodeRef::Bytes(NULL_NODE_REF_SLICE),
             NodeData::Digest(digest) => NodeRef::Digest(digest),
             _ => {
@@ -440,7 +448,7 @@ impl<'a> Mpt<'a> {
         payload_length: usize,
         out: &mut B,
     ) {
-        match &self.nodes[node_id as usize] {
+        match &self.nodes[node_id as usize].data {
             NodeData::Null => {
                 out.put_u8(alloy_rlp::EMPTY_STRING_CODE);
             }
@@ -471,18 +479,23 @@ impl<'a> Mpt<'a> {
         }
     }
 
+    /// Returns the node's reference, computing and caching it if absent.
     #[inline]
-    fn reference_encode<B: alloy_rlp::BufMut>(&self, node_id: NodeId, out: &mut B) {
-        let cached = self.cached_references[node_id as usize].get();
-        let node_ref = match cached {
+    fn node_ref(&self, node_id: NodeId) -> NodeRef<'a> {
+        let entry = &self.nodes[node_id as usize];
+        match entry.cached_ref.get() {
             Some(node_ref) => node_ref,
             None => {
                 let node_ref = self.calc_reference(node_id);
-                self.cached_references[node_id as usize].set(Some(node_ref));
+                entry.cached_ref.set(Some(node_ref));
                 node_ref
             }
-        };
-        match node_ref {
+        }
+    }
+
+    #[inline]
+    fn reference_encode<B: alloy_rlp::BufMut>(&self, node_id: NodeId, out: &mut B) {
+        match self.node_ref(node_id) {
             // if the reference is an RLP-encoded byte slice, copy it directly
             NodeRef::Bytes(bytes) => out.put_slice(bytes),
             // if the reference is a digest, RLP-encode it with its fixed known length
@@ -496,7 +509,7 @@ impl<'a> Mpt<'a> {
     /// Returns the length of the RLP payload of the node.
     #[inline]
     fn payload_length(&self, node_id: NodeId) -> usize {
-        match &self.nodes[node_id as usize] {
+        match &self.nodes[node_id as usize].data {
             NodeData::Null => 0,
             NodeData::Branch(branch_id) => {
                 1 + self.branches[*branch_id as usize]
@@ -515,16 +528,7 @@ impl<'a> Mpt<'a> {
     /// Returns the length of the encoded [NodeRef] of this node.
     #[inline]
     fn reference_length(&self, node_id: NodeId) -> usize {
-        let cached = self.cached_references[node_id as usize].get();
-        let node_ref = match cached {
-            Some(node_ref) => node_ref,
-            None => {
-                let node_ref = self.calc_reference(node_id);
-                self.cached_references[node_id as usize].set(Some(node_ref));
-                node_ref
-            }
-        };
-        match node_ref {
+        match self.node_ref(node_id) {
             NodeRef::Bytes(bytes) => bytes.len(),
             NodeRef::Digest(_) => 1 + 32,
         }
@@ -536,23 +540,12 @@ impl<'a> Mpt<'a> {
     /// Root hash of the MPT.
     #[inline]
     pub fn hash(&self) -> B256 {
-        match self.nodes[self.root_id as usize] {
+        match self.nodes[self.root_id as usize].data {
             NodeData::Null => alloy_trie::EMPTY_ROOT_HASH,
-            _ => {
-                let cached = self.cached_references[self.root_id as usize].get();
-                let node_ref = match cached {
-                    Some(node_ref) => node_ref,
-                    None => {
-                        let node_ref = self.calc_reference(self.root_id);
-                        self.cached_references[self.root_id as usize].set(Some(node_ref));
-                        node_ref
-                    }
-                };
-                match node_ref {
-                    NodeRef::Digest(digest) => B256::from_slice(digest),
-                    NodeRef::Bytes(bytes) => keccak256(bytes),
-                }
-            }
+            _ => match self.node_ref(self.root_id) {
+                NodeRef::Digest(digest) => B256::from_slice(digest),
+                NodeRef::Bytes(bytes) => keccak256(bytes),
+            },
         }
     }
 
@@ -603,14 +596,13 @@ impl<'a> Mpt<'a> {
 
     #[inline]
     pub fn is_empty(&self) -> bool {
-        matches!(&self.nodes[self.root_id as usize], NodeData::Null)
+        matches!(&self.nodes[self.root_id as usize].data, NodeData::Null)
     }
 
     /// Reserves additional capacity for the trie.
     #[inline]
     pub fn reserve(&mut self, additional: usize) {
         self.nodes.reserve(additional);
-        self.cached_references.reserve(additional);
         self.branches.reserve(additional / 8);
     }
 }
@@ -620,8 +612,7 @@ impl<'a> Mpt<'a> {
     #[inline]
     pub(crate) fn add_node(&mut self, data: NodeData<'a>, node_ref: Option<NodeRef<'a>>) -> NodeId {
         let id = self.nodes.len() as NodeId;
-        self.nodes.push(data);
-        self.cached_references.push(Cell::new(node_ref));
+        self.nodes.push(NodeEntry::new(data, node_ref));
         id
     }
 
@@ -663,7 +654,7 @@ impl<'a> Mpt<'a> {
 
     #[inline]
     fn invalidate_ref_cache(&mut self, node_id: NodeId) {
-        self.cached_references[node_id as usize].set(None);
+        self.nodes[node_id as usize].cached_ref.set(None);
     }
 
     #[inline]
@@ -672,7 +663,7 @@ impl<'a> Mpt<'a> {
         node_id: NodeId,
         key: KeyNibbles<'_>,
     ) -> Result<Option<&'a [u8]>, Error> {
-        match &self.nodes[node_id as usize] {
+        match &self.nodes[node_id as usize].data {
             NodeData::Null => Ok(None),
             NodeData::Branch(branch_id) => {
                 if let Some((i, tail)) = key.split_first() {
@@ -711,10 +702,10 @@ impl<'a> Mpt<'a> {
         key: KeyNibbles<'_>,
         value: &'a [u8],
     ) -> Result<bool, Error> {
-        let updated = match self.nodes[node_id as usize] {
+        let updated = match self.nodes[node_id as usize].data {
             NodeData::Null => {
                 let path = encoded_path_from_key(self.bump, key, true);
-                self.nodes[node_id as usize] = NodeData::Leaf(path, value);
+                self.nodes[node_id as usize].data = NodeData::Leaf(path, value);
                 true
             }
             NodeData::Branch(branch_id) => {
@@ -738,7 +729,7 @@ impl<'a> Mpt<'a> {
                     if old_value == value {
                         return Ok(false);
                     }
-                    self.nodes[node_id as usize] = NodeData::Leaf(prefix, value);
+                    self.nodes[node_id as usize].data = NodeData::Leaf(prefix, value);
                     true
                 } else {
                     let self_nibs = prefix_to_nibs(prefix);
@@ -774,7 +765,7 @@ impl<'a> Mpt<'a> {
                         } else {
                             NodeData::Branch(branch_id)
                         };
-                        self.nodes[node_id as usize] = new_node_data;
+                        self.nodes[node_id as usize].data = new_node_data;
                         true
                     }
                 }
@@ -815,7 +806,7 @@ impl<'a> Mpt<'a> {
                     } else {
                         NodeData::Branch(branch_id)
                     };
-                    self.nodes[node_id as usize] = new_node_data;
+                    self.nodes[node_id as usize].data = new_node_data;
                     true
                 }
             }
@@ -833,7 +824,7 @@ impl<'a> Mpt<'a> {
 
     #[inline]
     fn delete_internal(&mut self, node_id: NodeId, key: KeyNibbles<'_>) -> Result<bool, Error> {
-        let updated = match self.nodes[node_id as usize] {
+        let updated = match self.nodes[node_id as usize].data {
             NodeData::Null => false,
             NodeData::Branch(branch_id) => {
                 if let Some((i, tail)) = key.split_first() {
@@ -845,7 +836,7 @@ impl<'a> Mpt<'a> {
                             }
 
                             // if the node is now empty, remove it
-                            if matches!(self.nodes[id as usize], NodeData::Null) {
+                            if matches!(self.nodes[id as usize].data, NodeData::Null) {
                                 self.branches[branch_id as usize][usize::from(i)] = None;
                             }
                         }
@@ -866,7 +857,7 @@ impl<'a> Mpt<'a> {
 
                 // if there is only exactly one node left, we need to convert the branch
                 if remaining_iter.next().is_none() {
-                    let child_node_data = self.nodes[child_id as usize].clone();
+                    let child_node_data = self.nodes[child_id as usize].data.clone();
 
                     let new_node_data = match child_node_data {
                         NodeData::Leaf(prefix, value) => {
@@ -897,7 +888,7 @@ impl<'a> Mpt<'a> {
                         }
                         NodeData::Null => unreachable!(),
                     };
-                    self.nodes[node_id as usize] = new_node_data;
+                    self.nodes[node_id as usize].data = new_node_data;
                 }
                 // otherwise the children were already updated in place in the branch arena
 
@@ -907,7 +898,7 @@ impl<'a> Mpt<'a> {
                 if !encoded_path_eq_key(prefix, key) {
                     return Ok(false);
                 }
-                self.nodes[node_id as usize] = NodeData::Null;
+                self.nodes[node_id as usize].data = NodeData::Null;
                 true
             }
             NodeData::Extension(prefix, child_id) => {
@@ -922,7 +913,7 @@ impl<'a> Mpt<'a> {
                 // an extension can only point to a branch or a digest; since it's sub trie was
                 // modified, we need to make sure that this property still holds
                 let self_nibs = prefix_to_nibs(prefix);
-                let child_node_data = &self.nodes[child_id as usize];
+                let child_node_data = &self.nodes[child_id as usize].data;
                 let new_node_data = match child_node_data {
                     // if the child is empty, remove the extension
                     NodeData::Null => NodeData::Null,
@@ -953,7 +944,7 @@ impl<'a> Mpt<'a> {
                         return Err(Error::NodeNotResolved(B256::from_slice(digest)));
                     }
                 };
-                self.nodes[node_id as usize] = new_node_data;
+                self.nodes[node_id as usize].data = new_node_data;
                 true
             }
             NodeData::Digest(digest) => {
@@ -1040,7 +1031,7 @@ impl<'a> Mpt<'a> {
         let buffer_bytes = revm_primitives::Bytes::copy_from_slice(buffer.as_ref());
         payloads.push(buffer_bytes);
 
-        match &self.nodes[node_id as usize] {
+        match &self.nodes[node_id as usize].data {
             NodeData::Branch(branch_id) => {
                 for child_id in self.branches[*branch_id as usize].into_iter().flatten() {
                     self.payloads_internal(child_id, payloads);
@@ -1061,7 +1052,7 @@ impl Mpt<'_> {
 
     fn print_trie_internal(&self, node_id: NodeId, depth: usize) {
         let indent = "  ".repeat(depth);
-        match &self.nodes[node_id as usize] {
+        match &self.nodes[node_id as usize].data {
             NodeData::Null => {
                 println!("{}Null", indent);
             }
