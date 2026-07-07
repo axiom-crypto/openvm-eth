@@ -24,8 +24,6 @@ const MIN_ALIGN: usize = 4;
 /// Initial capacity of [`MptTrie`]'s `rlp_scratch`.
 const RLP_SCRATCH_INIT_CAPACITY: usize = 600;
 
-const VALUE_RLP_BUFFER_CAPACITY: usize = 200;
-
 /// Sentinel index representing the null node when decoding and in internal references.
 /// In a default MPT, `nodes[0]` starts as `Null`, but the root may later be changed to a
 /// non-null node (e.g. `Digest`) for convenience. `NULL_NODE_ID` is still used by the decoder
@@ -103,6 +101,36 @@ unsafe fn advance_unchecked<'a>(buf: &mut &'a [u8], cnt: usize) -> &'a [u8] {
     bytes
 }
 
+/// Writes an RLP header with the given base code (`EMPTY_LIST_CODE` for lists,
+/// `EMPTY_STRING_CODE` for strings). Emits the same bytes as [`alloy_rlp::Header::encode`], but
+/// is generic over the output buffer: `alloy_rlp` encoding goes through `&mut dyn BufMut`, and
+/// the resulting per-write dynamic dispatch is expensive in the zkVM.
+#[inline]
+fn encode_header<B: alloy_rlp::BufMut>(base_code: u8, payload_length: usize, out: &mut B) {
+    if payload_length < 56 {
+        out.put_u8(base_code + payload_length as u8);
+    } else {
+        let len_be = payload_length.to_be_bytes();
+        let num_len_bytes = alloy_rlp::length_of_length(payload_length) - 1;
+        out.put_u8(base_code + 55 + num_len_bytes as u8);
+        out.put_slice(&len_be[len_be.len() - num_len_bytes..]);
+    }
+}
+
+/// RLP-encodes a byte slice as a string. Emits the same bytes as `Encodable for [u8]`, without
+/// dynamic dispatch (see [`encode_header`]).
+#[inline]
+fn encode_slice<B: alloy_rlp::BufMut>(bytes: &[u8], out: &mut B) {
+    if let [byte] = bytes {
+        if *byte < alloy_rlp::EMPTY_STRING_CODE {
+            out.put_u8(*byte);
+            return;
+        }
+    }
+    encode_header(alloy_rlp::EMPTY_STRING_CODE, bytes.len(), out);
+    out.put_slice(bytes);
+}
+
 impl<'a> Mpt<'a> {
     /// Encodes the MPT into an array of bytes. This is only used in the host, as a result it's not
     /// performance-critical.
@@ -114,7 +142,7 @@ impl<'a> Mpt<'a> {
     }
 
     #[cfg(feature = "host")]
-    fn encode_trie_internal(&self, node_id: NodeId, out: &mut dyn alloy_rlp::BufMut) {
+    fn encode_trie_internal<B: alloy_rlp::BufMut>(&self, node_id: NodeId, out: &mut B) {
         let payload_length = self.payload_length(node_id);
         self.encode_with_payload_len(node_id, payload_length, out);
 
@@ -383,18 +411,18 @@ impl<'a> Mpt<'a> {
     }
 
     #[inline]
-    fn encode_with_payload_len(
+    fn encode_with_payload_len<B: alloy_rlp::BufMut>(
         &self,
         node_id: NodeId,
         payload_length: usize,
-        out: &mut dyn alloy_rlp::BufMut,
+        out: &mut B,
     ) {
         match &self.nodes[node_id as usize] {
             NodeData::Null => {
                 out.put_u8(alloy_rlp::EMPTY_STRING_CODE);
             }
             NodeData::Branch(nodes) => {
-                alloy_rlp::Header { list: true, payload_length }.encode(out);
+                encode_header(alloy_rlp::EMPTY_LIST_CODE, payload_length, out);
                 for child_id in nodes.iter() {
                     match child_id {
                         Some(id) => self.reference_encode(*id, out),
@@ -405,23 +433,23 @@ impl<'a> Mpt<'a> {
                 out.put_u8(alloy_rlp::EMPTY_STRING_CODE);
             }
             NodeData::Leaf(encoded_path, value) => {
-                alloy_rlp::Header { list: true, payload_length }.encode(out);
-                encoded_path.encode(out);
-                value.encode(out);
+                encode_header(alloy_rlp::EMPTY_LIST_CODE, payload_length, out);
+                encode_slice(encoded_path, out);
+                encode_slice(value, out);
             }
             NodeData::Extension(encoded_path, child_id) => {
-                alloy_rlp::Header { list: true, payload_length }.encode(out);
-                encoded_path.encode(out);
+                encode_header(alloy_rlp::EMPTY_LIST_CODE, payload_length, out);
+                encode_slice(encoded_path, out);
                 self.reference_encode(*child_id, out);
             }
             NodeData::Digest(digest) => {
-                digest.encode(out);
+                encode_slice(digest, out);
             }
         }
     }
 
     #[inline]
-    fn reference_encode(&self, node_id: NodeId, out: &mut dyn alloy_rlp::BufMut) {
+    fn reference_encode<B: alloy_rlp::BufMut>(&self, node_id: NodeId, out: &mut B) {
         let cached = self.cached_references[node_id as usize].get();
         let node_ref = match cached {
             Some(node_ref) => node_ref,
@@ -537,7 +565,7 @@ impl<'a> Mpt<'a> {
         key: &[u8],
         value: impl alloy_rlp::Encodable,
     ) -> Result<bool, Error> {
-        let mut rlp_bytes = BumpBytesMut::with_capacity_in(VALUE_RLP_BUFFER_CAPACITY, self.bump);
+        let mut rlp_bytes = BumpBytesMut::with_capacity_in(value.length(), self.bump);
         value.encode(&mut rlp_bytes);
         self.insert(key, rlp_bytes.into_inner().into_bump_slice())
     }
