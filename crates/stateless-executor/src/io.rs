@@ -1,4 +1,4 @@
-use std::iter::once;
+use std::{cell::Cell, iter::once};
 
 use crate::error::StatelessExecutorError;
 use alloy_consensus::Header;
@@ -274,7 +274,7 @@ pub trait WitnessInput<'a> {
             block_hashes.insert(parent_header.number, child_header.parent_hash);
         }
 
-        Ok(WitnessDb { inner: state, block_hashes, bytecode_by_hash })
+        Ok(WitnessDb::new(state, block_hashes, bytecode_by_hash))
     }
 }
 
@@ -286,6 +286,9 @@ pub struct WitnessDb<'a, 'b> {
     inner: &'b EthereumState<'a>,
     block_hashes: HashMap<u64, B256>,
     bytecode_by_hash: HashMap<B256, &'b Bytecode>,
+    /// The most recently hashed address. Account and storage lookups arrive in
+    /// runs against the same address, so caching one entry skips most keccaks.
+    hashed_address_cache: Cell<Option<(Address, B256)>>,
 }
 
 impl<'a, 'b> WitnessDb<'a, 'b> {
@@ -294,7 +297,18 @@ impl<'a, 'b> WitnessDb<'a, 'b> {
         block_hashes: HashMap<u64, B256>,
         bytecode_by_hash: HashMap<B256, &'b Bytecode>,
     ) -> Self {
-        Self { inner, block_hashes, bytecode_by_hash }
+        Self { inner, block_hashes, bytecode_by_hash, hashed_address_cache: Cell::new(None) }
+    }
+
+    fn hashed_address(&self, address: Address) -> B256 {
+        if let Some((cached_address, cached_hash)) = self.hashed_address_cache.get() {
+            if cached_address == address {
+                return cached_hash;
+            }
+        }
+        let hashed_address = keccak256(address);
+        self.hashed_address_cache.set(Some((address, hashed_address)));
+        hashed_address
     }
 }
 
@@ -311,7 +325,7 @@ impl DatabaseRef for WitnessDb<'_, '_> {
 
     /// Get basic account information.
     fn basic_ref(&self, address: Address) -> Result<Option<AccountInfo>, Self::Error> {
-        let hashed_address = keccak256(address);
+        let hashed_address = self.hashed_address(address);
 
         let account_in_trie = self
             .inner
@@ -342,7 +356,7 @@ impl DatabaseRef for WitnessDb<'_, '_> {
     ///
     /// Returns `U256::ZERO` if the slot is not found in the trie.
     fn storage_ref(&self, address: Address, index: U256) -> Result<U256, Self::Error> {
-        let hashed_address = keccak256(address);
+        let hashed_address = self.hashed_address(address);
 
         let storage_trie = self.inner.storage_tries.get(&hashed_address).ok_or_else(|| {
             ProviderError::TrieWitnessError(format!("storage trie for {address} not found"))
