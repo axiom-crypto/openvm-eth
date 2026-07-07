@@ -2460,6 +2460,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "openvm-guest-mem"
+version = "0.4.0"
+
+[[package]]
 name = "openvm-keccak256"
 version = "2.0.0"
 source = "git+https://github.com/openvm-org/openvm.git?branch=develop-v2.0.0-rc.3#cbf9339c6bc8413532775289247617f72c08f68e"
@@ -2626,6 +2630,7 @@ dependencies = [
  "bumpalo",
  "itertools 0.14.0",
  "openvm-chainspec",
+ "openvm-guest-mem",
  "openvm-mpt",
  "openvm-revm-crypto",
  "reth-consensus",
