@@ -118,12 +118,31 @@ fn is_null_ref(slice: &[u8]) -> bool {
     matches!(slice, [byte] if *byte == alloy_rlp::EMPTY_STRING_CODE)
 }
 
-/// Byte-slice equality as an explicit loop. Slice `==` compiles to a `memcmp` call; the node
-/// references compared during decoding are at most 33 bytes, where the call overhead dominates
-/// an inline loop.
+/// Byte-slice equality without a `memcmp` call (slice `==` compiles to one, and its call
+/// overhead dominates for the at-most-33-byte node references compared during decoding).
+///
+/// Short slices use a byte loop. Longer ones — usually 32-byte digests — compare four bytes at
+/// a time through unaligned word reads, which rv32 lowers to a handful of loads and shifts per
+/// word, well under the ~6 instructions per byte of a byte loop, with no alignment requirement.
+/// The accumulator form scans the whole slice; equal inputs (the common case, since these are
+/// verifications) need the full scan anyway.
 #[inline(always)]
 fn bytes_eq(a: &[u8], b: &[u8]) -> bool {
-    a.len() == b.len() && std::iter::zip(a, b).all(|(x, y)| x == y)
+    if a.len() != b.len() {
+        return false;
+    }
+    if a.len() < 16 {
+        return std::iter::zip(a, b).all(|(x, y)| x == y);
+    }
+    let mut a_words = a.chunks_exact(4);
+    let mut b_words = b.chunks_exact(4);
+    let mut acc = 0u32;
+    for (x, y) in std::iter::zip(&mut a_words, &mut b_words) {
+        let x = u32::from_ne_bytes(x.try_into().expect("chunks_exact yields 4-byte chunks"));
+        let y = u32::from_ne_bytes(y.try_into().expect("chunks_exact yields 4-byte chunks"));
+        acc |= x ^ y;
+    }
+    acc == 0 && std::iter::zip(a_words.remainder(), b_words.remainder()).all(|(x, y)| x == y)
 }
 
 /// Writes an RLP header with the given base code (`EMPTY_LIST_CODE` for lists,
@@ -1083,6 +1102,28 @@ impl Mpt<'_> {
             }
             NodeData::Digest(digest) => {
                 println!("{}Digest {:?}", indent, B256::from_slice(digest));
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod trie_tests {
+    use super::bytes_eq;
+
+    #[test]
+    fn test_bytes_eq() {
+        let base: Vec<u8> = (0u8..96).collect();
+        for len in [0, 1, 5, 15, 16, 17, 32, 33, 47] {
+            for offset in 0..4 {
+                let a = &base[offset..offset + len];
+                assert!(bytes_eq(a, &a.to_vec()));
+                for diff_pos in 0..len {
+                    let mut b = a.to_vec();
+                    b[diff_pos] ^= 0x01;
+                    assert!(!bytes_eq(a, &b), "len={len} offset={offset} diff_pos={diff_pos}");
+                }
+                assert!(!bytes_eq(a, &base[offset..offset + len + 1]));
             }
         }
     }
