@@ -2,15 +2,23 @@ use revm_primitives::hex;
 
 pub(crate) type NodeId = u32;
 
-/// Node data for arena-based trie with zero-copy optimization
+/// Index into the owning trie's branch-children arena (`Mpt::branches`).
+pub(crate) type BranchId = u32;
+
+/// Node data for arena-based trie with zero-copy optimization.
+///
+/// Branch children are stored out-of-line in the owning trie's branch arena so this enum stays
+/// small: nodes live in a flat `Vec<NodeData>`, and inlining the 16-child array would make every
+/// node (mostly leaves and digests) pay the branch variant's size when pushed, copied, or moved.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Ord, PartialOrd)]
 pub(crate) enum NodeData<'a> {
     #[default]
     /// Absence of a node. Encoded as empty string in RLP.
     Null,
     /// 16-way branch. Each child is optional; the branch's value slot is unused in our state trie
-    /// and must be empty, enforced during decoding.
-    Branch([Option<NodeId>; 16]),
+    /// and must be empty, enforced during decoding. The id is only meaningful within the owning
+    /// trie.
+    Branch(BranchId),
     /// Leaf node containing a compact hex-prefix path and a value. Both slices borrow from the
     /// input buffer or bump arena. The path encodes the remainder of the key.
     Leaf(&'a [u8], &'a [u8]),
