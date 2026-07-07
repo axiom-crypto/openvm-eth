@@ -295,6 +295,28 @@ impl Crypto for OpenVmCrypto {
         Ok(address)
     }
 
+    /// Custom secp256r1 (P-256) signature verification with openvm optimization. The default
+    /// implementation runs the vanilla `p256` crate in software, which costs tens of millions of
+    /// cycles per P256VERIFY call in the zkVM.
+    fn secp256r1_verify_signature(&self, msg: &[u8; 32], sig: &[u8; 64], pk: &[u8; 64]) -> bool {
+        let Ok(signature) = openvm_p256::ecdsa::Signature::from_slice(sig) else {
+            return false;
+        };
+
+        // SEC1 uncompressed encoding: 0x04 || x || y. `from_sec1_bytes` rejects points not on
+        // the curve and the identity; P-256 has cofactor 1, so no further subgroup check is
+        // needed.
+        let mut sec1_bytes = [0u8; 65];
+        sec1_bytes[0] = 0x04;
+        sec1_bytes[1..].copy_from_slice(pk);
+        let Ok(verifying_key) = openvm_p256::ecdsa::VerifyingKey::from_sec1_bytes(&sec1_bytes)
+        else {
+            return false;
+        };
+
+        verifying_key.verify_prehash(msg, &signature).is_ok()
+    }
+
     /// Custom KZG point evaluation with configurable backends
     fn verify_kzg_proof(
         &self,
@@ -555,6 +577,32 @@ fn encode_bls_g2_point(point: &bls::G2Affine) -> [u8; BLS_G2_LEN] {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Runs `secp256r1_verify_signature` on a 160-byte P256VERIFY input (msg || sig || pk).
+    fn p256_verify_input(input_hex: &str) -> bool {
+        let input = alloy_primitives::hex::decode(input_hex).unwrap();
+        assert_eq!(input.len(), 160);
+        OpenVmCrypto.secp256r1_verify_signature(
+            input[..32].try_into().unwrap(),
+            input[32..96].try_into().unwrap(),
+            input[96..160].try_into().unwrap(),
+        )
+    }
+
+    // Test vectors from https://github.com/daimo-eth/p256-verifier/tree/master/test-vectors,
+    // as used by revm-precompile's secp256r1 tests.
+    #[test]
+    fn test_secp256r1_verify_signature() {
+        // valid signature
+        assert!(p256_verify_input("4cee90eb86eaa050036147a12d49004b6b9c72bd725d39d4785011fe190f0b4da73bd4903f0ce3b639bbbf6e8e80d16931ff4bcf5993d58468e8fb19086e8cac36dbcd03009df8c59286b162af3bd7fcc0450c9aa81be5d10d312af6c66b1d604aebd3099c618202fcfe16ae7770b0c49ab5eadf74b754204a3bb6060e44eff37618b065f9832de4ca6ca971a7a1adc826d0f7c00181a5fb2ddf79ae00b4e10e"));
+        assert!(p256_verify_input("3fec5769b5cf4e310a7d150508e82fb8e3eda1c2c94c61492d3bd8aea99e06c9e22466e928fdccef0de49e3503d2657d00494a00e764fd437bdafa05f5922b1fbbb77c6817ccf50748419477e843d5bac67e6a70e97dde5a57e0c983b777e1ad31a80482dadf89de6302b1988c82c29544c9c07bb910596158f6062517eb089a2f54c9a0f348752950094d3228d3b940258c75fe2a413cb70baa21dc2e352fc5"));
+        // wrong message
+        assert!(!p256_verify_input("3cee90eb86eaa050036147a12d49004b6b9c72bd725d39d4785011fe190f0b4da73bd4903f0ce3b639bbbf6e8e80d16931ff4bcf5993d58468e8fb19086e8cac36dbcd03009df8c59286b162af3bd7fcc0450c9aa81be5d10d312af6c66b1d604aebd3099c618202fcfe16ae7770b0c49ab5eadf74b754204a3bb6060e44eff37618b065f9832de4ca6ca971a7a1adc826d0f7c00181a5fb2ddf79ae00b4e10e"));
+        // signature values out of range
+        assert!(!p256_verify_input("4cee90eb86eaa050036147a12d49004b6b9c72bd725d39d4785011fe190f0b4dffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff4aebd3099c618202fcfe16ae7770b0c49ab5eadf74b754204a3bb6060e44eff37618b065f9832de4ca6ca971a7a1adc826d0f7c00181a5fb2ddf79ae00b4e10e"));
+        // public key not on the curve
+        assert!(!p256_verify_input("4cee90eb86eaa050036147a12d49004b6b9c72bd725d39d4785011fe190f0b4da73bd4903f0ce3b639bbbf6e8e80d16931ff4bcf5993d58468e8fb19086e8cac36dbcd03009df8c59286b162af3bd7fcc0450c9aa81be5d10d312af6c66b1d6000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"));
+    }
 
     /// BN254 Fr modulus in big-endian bytes
     fn bn254_fr_modulus_be() -> Vec<u8> {
