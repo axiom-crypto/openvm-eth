@@ -5,6 +5,7 @@ members = [
     "crates/mpt",
     "crates/revm-crypto",
     "crates/stateless-executor",
+    "crates/guest-mem",
     "crates/chainspec",
     "crates/stateless-witness",
     "crates/mpt-tools",
@@ -64,6 +65,7 @@ openvm-curve-utils = { path = "./crates/curve-utils", default-features = false }
 openvm-kzg = { path = "./crates/kzg", default-features = false }
 openvm-mpt = { path = "./crates/mpt" }
 openvm-revm-crypto = { path = "./crates/revm-crypto" }
+openvm-guest-mem = { path = "./crates/guest-mem" }
 openvm-stateless-executor = { path = "./crates/stateless-executor" }
 openvm-chainspec = { path = "./crates/chainspec" }
 # workspace (host only)
