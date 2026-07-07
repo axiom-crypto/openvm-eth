@@ -12,8 +12,8 @@ use smallvec::SmallVec;
 use crate::{
     bump_bufmut::BumpBytesMut,
     hp::{
-        encoded_path_eq_nibs, encoded_path_strip_prefix, lcp, prefix_to_nibs,
-        to_encoded_path_with_bump, to_nibs,
+        encoded_path_eq_key, encoded_path_from_key, encoded_path_strip_prefix_key, lcp_key,
+        prefix_to_nibs, to_encoded_path_with_bump, KeyNibbles,
     },
     node::{BranchId, NodeData, NodeId, NodeRef},
 };
@@ -542,7 +542,7 @@ impl<'a> Mpt<'a> {
     /// Retrieves the value associated with a given key in the trie.
     #[inline]
     pub fn get<'s>(&'s self, key: &[u8]) -> Result<Option<&'a [u8]>, Error> {
-        self.get_internal(self.root_id, &to_nibs(key))
+        self.get_internal(self.root_id, KeyNibbles::new(key))
     }
 
     /// Retrieves the RLP-decoded value corresponding to the key.
@@ -560,8 +560,7 @@ impl<'a> Mpt<'a> {
     /// Inserts a key-value pair into the trie.
     #[inline]
     pub fn insert(&mut self, key: &[u8], value: &'a [u8]) -> Result<bool, Error> {
-        let key_nibs = &to_nibs(key);
-        self.insert_internal(self.root_id, key_nibs, value)
+        self.insert_internal(self.root_id, KeyNibbles::new(key), value)
     }
 
     /// Inserts an RLP-encoded value into the trie.
@@ -582,8 +581,7 @@ impl<'a> Mpt<'a> {
     /// present, it returns `true`. Otherwise, it returns `false`.
     #[inline]
     pub fn delete(&mut self, key: &[u8]) -> Result<bool, Error> {
-        let key_nibs = &to_nibs(key);
-        self.delete_internal(self.root_id, key_nibs)
+        self.delete_internal(self.root_id, KeyNibbles::new(key))
     }
 
     #[inline]
@@ -652,12 +650,16 @@ impl<'a> Mpt<'a> {
     }
 
     #[inline]
-    fn get_internal(&self, node_id: NodeId, key_nibs: &[u8]) -> Result<Option<&'a [u8]>, Error> {
+    fn get_internal(
+        &self,
+        node_id: NodeId,
+        key: KeyNibbles<'_>,
+    ) -> Result<Option<&'a [u8]>, Error> {
         match &self.nodes[node_id as usize] {
             NodeData::Null => Ok(None),
             NodeData::Branch(branch_id) => {
-                if let Some((i, tail)) = key_nibs.split_first() {
-                    match self.branches[*branch_id as usize][*i as usize] {
+                if let Some((i, tail)) = key.split_first() {
+                    match self.branches[*branch_id as usize][usize::from(i)] {
                         Some(id) => self.get_internal(id, tail),
                         None => Ok(None),
                     }
@@ -667,7 +669,7 @@ impl<'a> Mpt<'a> {
             }
             NodeData::Leaf(path_bytes, value) => {
                 // Compare compact path to key nibbles without allocating
-                if encoded_path_eq_nibs(path_bytes, key_nibs) {
+                if encoded_path_eq_key(path_bytes, key) {
                     Ok(Some(value))
                 } else {
                     Ok(None)
@@ -675,7 +677,7 @@ impl<'a> Mpt<'a> {
             }
             NodeData::Extension(path_bytes, child_id) => {
                 // Strip compact path prefix without allocating
-                if let Some(tail) = encoded_path_strip_prefix(path_bytes, key_nibs) {
+                if let Some(tail) = encoded_path_strip_prefix_key(path_bytes, key) {
                     self.get_internal(*child_id, tail)
                 } else {
                     Ok(None)
@@ -689,23 +691,23 @@ impl<'a> Mpt<'a> {
     fn insert_internal(
         &mut self,
         node_id: NodeId,
-        key_nibs: &[u8],
+        key: KeyNibbles<'_>,
         value: &'a [u8],
     ) -> Result<bool, Error> {
         let updated = match self.nodes[node_id as usize] {
             NodeData::Null => {
-                let path = to_encoded_path_with_bump(self.bump, key_nibs, true);
+                let path = encoded_path_from_key(self.bump, key, true);
                 self.nodes[node_id as usize] = NodeData::Leaf(path, value);
                 true
             }
             NodeData::Branch(branch_id) => {
-                if let Some((i, tail)) = key_nibs.split_first() {
-                    match self.branches[branch_id as usize][*i as usize] {
+                if let Some((i, tail)) = key.split_first() {
+                    match self.branches[branch_id as usize][usize::from(i)] {
                         Some(id) => self.insert_internal(id, tail, value)?,
                         None => {
-                            let path = to_encoded_path_with_bump(self.bump, tail, true);
+                            let path = encoded_path_from_key(self.bump, tail, true);
                             let new_leaf_id = self.add_node(NodeData::Leaf(path, value), None);
-                            self.branches[branch_id as usize][*i as usize] = Some(new_leaf_id);
+                            self.branches[branch_id as usize][usize::from(i)] = Some(new_leaf_id);
                             true
                         }
                     }
@@ -714,7 +716,7 @@ impl<'a> Mpt<'a> {
                 }
             }
             NodeData::Leaf(prefix, old_value) => {
-                if encoded_path_eq_nibs(prefix, key_nibs) {
+                if encoded_path_eq_key(prefix, key) {
                     // update the value if it is different
                     if old_value == value {
                         return Ok(false);
@@ -723,9 +725,9 @@ impl<'a> Mpt<'a> {
                     true
                 } else {
                     let self_nibs = prefix_to_nibs(prefix);
-                    let common_len = lcp(&self_nibs, key_nibs);
+                    let common_len = lcp_key(&self_nibs, key);
 
-                    if common_len == self_nibs.len() || common_len == key_nibs.len() {
+                    if common_len == self_nibs.len() || common_len == key.len() {
                         return Err(Error::ValueInBranch);
                     } else {
                         // otherwise, create a branch with two children
@@ -737,11 +739,11 @@ impl<'a> Mpt<'a> {
                         let leaf1_id = self.add_node(NodeData::Leaf(leaf1_path, old_value), None);
 
                         let leaf2_path =
-                            to_encoded_path_with_bump(self.bump, &key_nibs[split_point..], true);
+                            encoded_path_from_key(self.bump, key.advanced(split_point), true);
                         let leaf2_id = self.add_node(NodeData::Leaf(leaf2_path, value), None);
 
                         children[self_nibs[common_len] as usize] = Some(leaf1_id);
-                        children[key_nibs[common_len] as usize] = Some(leaf2_id);
+                        children[usize::from(key.nib(common_len))] = Some(leaf2_id);
 
                         let branch_id = self.add_branch(children);
                         let new_node_data = if common_len > 0 {
@@ -761,13 +763,13 @@ impl<'a> Mpt<'a> {
                 }
             }
             NodeData::Extension(prefix, child_id) => {
-                if let Some(tail) = encoded_path_strip_prefix(prefix, key_nibs) {
+                if let Some(tail) = encoded_path_strip_prefix_key(prefix, key) {
                     self.insert_internal(child_id, tail, value)?
                 } else {
                     let self_nibs = prefix_to_nibs(prefix);
-                    let common_len = lcp(&self_nibs, key_nibs);
+                    let common_len = lcp_key(&self_nibs, key);
 
-                    if common_len == key_nibs.len() {
+                    if common_len == key.len() {
                         return Err(Error::ValueInBranch);
                     }
                     let split_point = common_len + 1;
@@ -783,9 +785,9 @@ impl<'a> Mpt<'a> {
                     }
 
                     let leaf_path =
-                        to_encoded_path_with_bump(self.bump, &key_nibs[split_point..], true);
+                        encoded_path_from_key(self.bump, key.advanced(split_point), true);
                     let leaf_id = self.add_node(NodeData::Leaf(leaf_path, value), None);
-                    children[key_nibs[common_len] as usize] = Some(leaf_id);
+                    children[usize::from(key.nib(common_len))] = Some(leaf_id);
 
                     let branch_id = self.add_branch(children);
                     let new_node_data = if common_len > 0 {
@@ -813,12 +815,12 @@ impl<'a> Mpt<'a> {
     }
 
     #[inline]
-    fn delete_internal(&mut self, node_id: NodeId, key_nibs: &[u8]) -> Result<bool, Error> {
+    fn delete_internal(&mut self, node_id: NodeId, key: KeyNibbles<'_>) -> Result<bool, Error> {
         let updated = match self.nodes[node_id as usize] {
             NodeData::Null => false,
             NodeData::Branch(branch_id) => {
-                if let Some((i, tail)) = key_nibs.split_first() {
-                    let child_id = self.branches[branch_id as usize][*i as usize];
+                if let Some((i, tail)) = key.split_first() {
+                    let child_id = self.branches[branch_id as usize][usize::from(i)];
                     match child_id {
                         Some(id) => {
                             if !self.delete_internal(id, tail)? {
@@ -827,7 +829,7 @@ impl<'a> Mpt<'a> {
 
                             // if the node is now empty, remove it
                             if matches!(self.nodes[id as usize], NodeData::Null) {
-                                self.branches[branch_id as usize][*i as usize] = None;
+                                self.branches[branch_id as usize][usize::from(i)] = None;
                             }
                         }
                         None => return Ok(false),
@@ -885,14 +887,14 @@ impl<'a> Mpt<'a> {
                 true
             }
             NodeData::Leaf(prefix, _) => {
-                if !encoded_path_eq_nibs(prefix, key_nibs) {
+                if !encoded_path_eq_key(prefix, key) {
                     return Ok(false);
                 }
                 self.nodes[node_id as usize] = NodeData::Null;
                 true
             }
             NodeData::Extension(prefix, child_id) => {
-                let tail = match encoded_path_strip_prefix(prefix, key_nibs) {
+                let tail = match encoded_path_strip_prefix_key(prefix, key) {
                     Some(tail) => tail,
                     None => return Ok(false),
                 };
