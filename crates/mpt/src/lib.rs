@@ -11,5 +11,8 @@ mod node;
 #[cfg(feature = "host")]
 pub mod resolver;
 
+#[cfg(feature = "witness")]
+pub mod witness;
+
 #[cfg(test)]
 mod tests;

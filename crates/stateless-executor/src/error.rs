@@ -1,5 +1,5 @@
 use alloy_consensus::crypto::RecoveryError;
-use alloy_primitives::BlockNumber;
+use openvm_mpt::witness::WitnessError;
 use reth_consensus::ConsensusError;
 use reth_evm::block::BlockExecutionError;
 use revm_primitives::B256;
@@ -12,11 +12,8 @@ pub enum StatelessExecutorError {
     #[error("parent storage root mismatch on hashed account {hashed_account}: got {actual}, expected {expected}")]
     ParentStorageRootMismatch { hashed_account: B256, actual: B256, expected: B256 },
 
-    #[error("non-consecutive block headers: parent block number {parent_block_number}, child block number {child_block_number}")]
-    NonConsecutiveBlockHeaders { parent_block_number: BlockNumber, child_block_number: BlockNumber },
-
-    #[error("parent block hash mismatch at block number {parent_block_number}: expected {expected}, got {actual}")]
-    ParentBlockHashMismatch { parent_block_number: BlockNumber, expected: B256, actual: B256 },
+    #[error(transparent)]
+    Witness(#[from] WitnessError),
 
     #[error("failed to recover block sender: {0}")]
     BlockSenderRecoveryError(#[from] RecoveryError),

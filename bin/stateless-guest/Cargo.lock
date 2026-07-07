@@ -2505,10 +2505,13 @@ dependencies = [
 name = "openvm-mpt"
 version = "0.4.0"
 dependencies = [
+ "alloy-consensus",
  "alloy-rlp",
  "alloy-trie",
  "bumpalo",
  "bytes",
+ "itertools 0.14.0",
+ "reth-evm",
  "revm",
  "revm-primitives",
  "serde",
@@ -2624,7 +2627,6 @@ dependencies = [
  "alloy-rlp",
  "alloy-trie",
  "bumpalo",
- "itertools 0.14.0",
  "openvm-chainspec",
  "openvm-mpt",
  "openvm-revm-crypto",

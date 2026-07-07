@@ -21,6 +21,11 @@ revm-primitives.workspace = true
 alloy-rlp.workspace = true
 alloy-trie.workspace = true
 
+# `witness` feature only
+alloy-consensus = { workspace = true, optional = true }
+reth-evm = { workspace = true, optional = true }
+itertools = { workspace = true, optional = true }
+
 [dev-dependencies]
 hex-literal.workspace = true
 
@@ -30,3 +35,6 @@ workspace = true
 [features]
 default = []
 host = []
+# Enables the `witness` module (`WitnessDb` / `WitnessInput`), which pulls in `reth-evm` and
+# `alloy-consensus`. Kept out of the default build so lean MPT consumers don't take those deps.
+witness = ["dep:alloy-consensus", "dep:reth-evm", "dep:itertools"]

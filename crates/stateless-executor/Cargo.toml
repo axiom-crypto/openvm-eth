@@ -14,11 +14,10 @@ thiserror.workspace = true
 serde.workspace = true
 serde_with.workspace = true
 bumpalo.workspace = true
-itertools.workspace = true
 
 # workspace
 openvm-chainspec.workspace = true
-openvm-mpt.workspace = true
+openvm-mpt = { workspace = true, features = ["witness"] }
 openvm-revm-crypto = { workspace = true, optional = true }
 
 # reth
