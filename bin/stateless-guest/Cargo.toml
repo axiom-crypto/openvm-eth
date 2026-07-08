@@ -41,3 +41,10 @@ strip = true
 inherits = "release"
 debug = 2
 strip = false
+
+# Open-codes `Uint` equality/`is_zero` so U256 comparisons stop lowering to a
+# `memcmp` libcall on rv32. Pending upstream (alloy-rs/ruint#604); replace with
+# a version bump once released. Pinned to a 1.17.2-based branch so it stays
+# semver-compatible with the guest's resolved `ruint` version.
+[patch.crates-io]
+ruint = { git = "https://github.com/qumeric/uint", branch = "ruint-eq-1.17.2" }
