@@ -636,9 +636,6 @@ jobs:
             echo "GPU_PEAK_MEMORY_MIB=0" >> $GITHUB_ENV
           elif [[ "${{ inputs.profiling || github.event.inputs.profiling }}" == "nsys" ]]; then
             nsys profile --trace=cuda,osrt,nvtx \
-             --sample=cpu \
-             --cpuctxsw=true \
-             --cuda-memory-usage=true \
              --force-overwrite=true \
              -o reth.nsys-rep \
              ./run_benchmark.sh
