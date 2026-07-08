@@ -1,0 +1,15 @@
+[submodule "openvm"]
+	path = openvm
+	url = git@github.com:openvm-org/openvm.git
+[submodule "halo2-gpu"]
+	path = halo2-gpu
+	url = git@github.com:axiom-crypto/halo2-gpu.git
+[submodule "halo2-lib"]
+	path = halo2-lib
+	url = git@github.com:axiom-crypto/halo2-lib.git
+[submodule "halo2"]
+	path = halo2
+	url = git@github.com:axiom-crypto/halo2.git
+[submodule "snark-verifier"]
+	path = snark-verifier
+	url = git@github.com:axiom-crypto/snark-verifier.git

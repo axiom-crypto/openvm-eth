@@ -13,7 +13,7 @@ members = [
   "crates/kzg",
   "crates/kzg/tests/programs/verify_kzg",
 ]
-exclude = []
+exclude = ["openvm", "halo2-gpu", "halo2", "halo2-lib"]
 resolver = "3"
 
 [workspace.package]
@@ -22,6 +22,9 @@ repository = "https://github.com/axiom-crypto/openvm-eth"
 homepage = "https://github.com/axiom-crypto/openvm-eth"
 edition = "2024"
 exclude = ["**/target"]
+rust-version = "1.91.1"
+authors = ["me"]
+license = "MIT OR Apache-2.0"
 
 [workspace.dependencies]
 # Not directly used, just to have rayon feature always
@@ -158,6 +161,8 @@ lto = "thin"
 inherits = "maxperf"
 debug = "full"
 strip = "none"
+incremental = false
+codegen-units = 1
 
 [profile.maxperf]
 inherits = "release"
@@ -172,82 +177,86 @@ opt-level = 3
 inherits = "release"
 debug = 1
 
+[patch."https://github.com/axiom-crypto/snark-verifier.git"]
+snark-verifier-sdk = { path = "snark-verifier/snark-verifier-sdk" }
+snark-verifier = { path = "snark-verifier/snark-verifier" }
+
 [patch."https://github.com/axiom-crypto/halo2-gpu.git"]
-halo2-axiom-gpu = { path = "../halo2-gpu/halo2_proofs" }
+halo2-axiom-gpu = { path = "halo2-gpu/halo2_proofs" }
 
 [patch."https://github.com/axiom-crypto/halo2.git"]
-halo2-axiom = { path = "../halo2/halo2_proofs" }
+halo2-axiom = { path = "halo2/halo2_proofs" }
 
 [patch."https://github.com/axiom-crypto/halo2-lib.git"]
-halo2-base = { path = "../halo2-base" }
-halo2-ecc = { path = "../halo2-ecc" }
+halo2-base = { path = "halo2-lib/halo2-base" }
+halo2-ecc = { path = "halo2-lib/halo2-ecc" }
 
 [patch.crates-io]
-halo2-base = { path = "../halo2-base" }
-halo2-ecc = { path = "../halo2-ecc" }
-halo2-axiom = { path = "../halo2/halo2_proofs" }
+halo2-base = { path = "halo2-lib/halo2-base" }
+halo2-ecc = { path = "halo2-lib/halo2-ecc" }
+halo2-axiom = { path = "halo2/halo2_proofs" }
 
 [patch."https://github.com/openvm-org/openvm.git"]
 # crates/toolchain
-openvm = { path = "../openvm/crates/toolchain/openvm" }
-openvm-build = { path = "../openvm/crates/toolchain/build" }
-openvm-custom-insn = { path = "../openvm/crates/toolchain/custom_insn" }
-openvm-instructions = { path = "../openvm/crates/toolchain/instructions" }
-openvm-instructions-derive = { path = "../openvm/crates/toolchain/instructions/derive" }
-openvm-macros-common = { path = "../openvm/crates/toolchain/macros" }
-openvm-platform = { path = "../openvm/crates/toolchain/platform" }
-openvm-transpiler = { path = "../openvm/crates/toolchain/transpiler" }
+openvm = { path = "openvm/crates/toolchain/openvm" }
+openvm-build = { path = "openvm/crates/toolchain/build" }
+openvm-custom-insn = { path = "openvm/crates/toolchain/custom_insn" }
+openvm-instructions = { path = "openvm/crates/toolchain/instructions" }
+openvm-instructions-derive = { path = "openvm/crates/toolchain/instructions/derive" }
+openvm-macros-common = { path = "openvm/crates/toolchain/macros" }
+openvm-platform = { path = "openvm/crates/toolchain/platform" }
+openvm-transpiler = { path = "openvm/crates/toolchain/transpiler" }
 # crates
-openvm-circuit = { path = "../openvm/crates/vm" }
-openvm-circuit-derive = { path = "../openvm/crates/vm/derive" }
-openvm-circuit-primitives = { path = "../openvm/crates/circuits/primitives" }
-openvm-circuit-primitives-derive = { path = "../openvm/crates/circuits/primitives/derive" }
-openvm-mod-circuit-builder = { path = "../openvm/crates/circuits/mod-builder" }
-openvm-poseidon2-air = { path = "../openvm/crates/circuits/poseidon2-air" }
-openvm-sha2-air = { path = "../openvm/crates/circuits/sha2-air" }
-openvm-continuations = { path = "../openvm/crates/continuations" }
-openvm-prof = { path = "../openvm/crates/prof" }
-openvm-recursion-circuit = { path = "../openvm/crates/recursion" }
-openvm-recursion-circuit-derive = { path = "../openvm/crates/recursion/derive" }
-openvm-sdk = { path = "../openvm/crates/sdk" }
-openvm-sdk-config = { path = "../openvm/crates/sdk-config" }
-openvm-static-verifier = { path = "../openvm/crates/static-verifier" }
-openvm-verify-stark-host = { path = "../openvm/crates/verify" }
+openvm-circuit = { path = "openvm/crates/vm" }
+openvm-circuit-derive = { path = "openvm/crates/vm/derive" }
+openvm-circuit-primitives = { path = "openvm/crates/circuits/primitives" }
+openvm-circuit-primitives-derive = { path = "openvm/crates/circuits/primitives/derive" }
+openvm-mod-circuit-builder = { path = "openvm/crates/circuits/mod-builder" }
+openvm-poseidon2-air = { path = "openvm/crates/circuits/poseidon2-air" }
+openvm-sha2-air = { path = "openvm/crates/circuits/sha2-air" }
+openvm-continuations = { path = "openvm/crates/continuations" }
+openvm-prof = { path = "openvm/crates/prof" }
+openvm-recursion-circuit = { path = "openvm/crates/recursion" }
+openvm-recursion-circuit-derive = { path = "openvm/crates/recursion/derive" }
+openvm-sdk = { path = "openvm/crates/sdk" }
+openvm-sdk-config = { path = "openvm/crates/sdk-config" }
+openvm-static-verifier = { path = "openvm/crates/static-verifier" }
+openvm-verify-stark-host = { path = "openvm/crates/verify" }
 # extensions
-openvm-algebra-circuit = { path = "../openvm/extensions/algebra/circuit" }
-openvm-algebra-complex-macros = { path = "../openvm/extensions/algebra/complex-macros" }
-openvm-algebra-guest = { path = "../openvm/extensions/algebra/guest" }
-openvm-algebra-moduli-macros = { path = "../openvm/extensions/algebra/moduli-macros" }
-openvm-algebra-transpiler = { path = "../openvm/extensions/algebra/transpiler" }
-openvm-bigint-circuit = { path = "../openvm/extensions/bigint/circuit" }
-openvm-bigint-guest = { path = "../openvm/extensions/bigint/guest" }
-openvm-bigint-transpiler = { path = "../openvm/extensions/bigint/transpiler" }
-openvm-deferral-circuit = { path = "../openvm/extensions/deferral/circuit" }
-openvm-deferral-guest = { path = "../openvm/extensions/deferral/guest" }
-openvm-deferral-transpiler = { path = "../openvm/extensions/deferral/transpiler" }
-openvm-ecc-circuit = { path = "../openvm/extensions/ecc/circuit" }
-openvm-ecc-guest = { path = "../openvm/extensions/ecc/guest" }
-openvm-ecc-sw-macros = { path = "../openvm/extensions/ecc/sw-macros" }
-openvm-ecc-transpiler = { path = "../openvm/extensions/ecc/transpiler" }
-openvm-keccak256-circuit = { path = "../openvm/extensions/keccak256/circuit" }
-openvm-keccak256-guest = { path = "../openvm/extensions/keccak256/guest" }
-openvm-keccak256-transpiler = { path = "../openvm/extensions/keccak256/transpiler" }
-openvm-pairing-circuit = { path = "../openvm/extensions/pairing/circuit" }
-openvm-pairing-guest = { path = "../openvm/extensions/pairing/guest" }
-openvm-pairing-transpiler = { path = "../openvm/extensions/pairing/transpiler" }
-openvm-rv32-adapters = { path = "../openvm/extensions/rv32-adapters" }
-openvm-rv32im-circuit = { path = "../openvm/extensions/rv32im/circuit" }
-openvm-rv32im-guest = { path = "../openvm/extensions/rv32im/guest" }
-openvm-rv32im-transpiler = { path = "../openvm/extensions/rv32im/transpiler" }
-openvm-sha2-circuit = { path = "../openvm/extensions/sha2/circuit" }
-openvm-sha2-guest = { path = "../openvm/extensions/sha2/guest" }
-openvm-sha2-transpiler = { path = "../openvm/extensions/sha2/transpiler" }
+openvm-algebra-circuit = { path = "openvm/extensions/algebra/circuit" }
+openvm-algebra-complex-macros = { path = "openvm/extensions/algebra/complex-macros" }
+openvm-algebra-guest = { path = "openvm/extensions/algebra/guest" }
+openvm-algebra-moduli-macros = { path = "openvm/extensions/algebra/moduli-macros" }
+openvm-algebra-transpiler = { path = "openvm/extensions/algebra/transpiler" }
+openvm-bigint-circuit = { path = "openvm/extensions/bigint/circuit" }
+openvm-bigint-guest = { path = "openvm/extensions/bigint/guest" }
+openvm-bigint-transpiler = { path = "openvm/extensions/bigint/transpiler" }
+openvm-deferral-circuit = { path = "openvm/extensions/deferral/circuit" }
+openvm-deferral-guest = { path = "openvm/extensions/deferral/guest" }
+openvm-deferral-transpiler = { path = "openvm/extensions/deferral/transpiler" }
+openvm-ecc-circuit = { path = "openvm/extensions/ecc/circuit" }
+openvm-ecc-guest = { path = "openvm/extensions/ecc/guest" }
+openvm-ecc-sw-macros = { path = "openvm/extensions/ecc/sw-macros" }
+openvm-ecc-transpiler = { path = "openvm/extensions/ecc/transpiler" }
+openvm-keccak256-circuit = { path = "openvm/extensions/keccak256/circuit" }
+openvm-keccak256-guest = { path = "openvm/extensions/keccak256/guest" }
+openvm-keccak256-transpiler = { path = "openvm/extensions/keccak256/transpiler" }
+openvm-pairing-circuit = { path = "openvm/extensions/pairing/circuit" }
+openvm-pairing-guest = { path = "openvm/extensions/pairing/guest" }
+openvm-pairing-transpiler = { path = "openvm/extensions/pairing/transpiler" }
+openvm-rv32-adapters = { path = "openvm/extensions/rv32-adapters" }
+openvm-rv32im-circuit = { path = "openvm/extensions/rv32im/circuit" }
+openvm-rv32im-guest = { path = "openvm/extensions/rv32im/guest" }
+openvm-rv32im-transpiler = { path = "openvm/extensions/rv32im/transpiler" }
+openvm-sha2-circuit = { path = "openvm/extensions/sha2/circuit" }
+openvm-sha2-guest = { path = "openvm/extensions/sha2/guest" }
+openvm-sha2-transpiler = { path = "openvm/extensions/sha2/transpiler" }
 # guest-libs
-openvm-ff-derive = { path = "../openvm/guest-libs/ff_derive" }
-openvm-keccak256 = { path = "../openvm/guest-libs/keccak256" }
-openvm-pairing = { path = "../openvm/guest-libs/pairing" }
-openvm-sha2 = { path = "../openvm/guest-libs/sha2" }
-openvm-verify-stark-circuit = { path = "../openvm/guest-libs/verify-stark/circuit" }
-openvm-verify-stark-guest = { path = "../openvm/guest-libs/verify-stark/guest" }
-k256 = { path = "../openvm/guest-libs/k256" }
-p256 = { path = "../openvm/guest-libs/p256" }
+openvm-ff-derive = { path = "openvm/guest-libs/ff_derive" }
+openvm-keccak256 = { path = "openvm/guest-libs/keccak256" }
+openvm-pairing = { path = "openvm/guest-libs/pairing" }
+openvm-sha2 = { path = "openvm/guest-libs/sha2" }
+openvm-verify-stark-circuit = { path = "openvm/guest-libs/verify-stark/circuit" }
+openvm-verify-stark-guest = { path = "openvm/guest-libs/verify-stark/guest" }
+k256 = { path = "openvm/guest-libs/k256" }
+p256 = { path = "openvm/guest-libs/p256" }
