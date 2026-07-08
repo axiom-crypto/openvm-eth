@@ -271,7 +271,7 @@ jobs:
         working-directory: openvm2
         run: |
           cargo build -p openvm-prof
-          echo "${{ github.workspace }}/openvm/target/debug" >> $GITHUB_PATH
+          echo "${{ github.workspace }}/openvm2/target/debug" >> $GITHUB_PATH
       - name: Install architecture specific tools
         run: |
           source openvm/ci/scripts/utils.sh
@@ -409,7 +409,7 @@ jobs:
         working-directory: openvm2
         run: |
           cargo build --locked -p cargo-openvm
-          echo "${{ github.workspace }}/openvm/target/debug" >> $GITHUB_PATH
+          echo "${{ github.workspace }}/openvm2/target/debug" >> $GITHUB_PATH
       - name: Build Guest ELF
         if: steps.cache-guest-elf-restore.outputs.cache-hit != 'true'
         working-directory: bin/stateless-guest
