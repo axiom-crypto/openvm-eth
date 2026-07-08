@@ -77,5 +77,5 @@
 # openvm-sha2 = { git = "ssh://git@github.com/openvm-org/openvm.git", branch = "main" }
 
 
-[target.x86_64-unknown-linux-gnu]
-rustflags = ["-C", "link-arg=-fuse-ld=mold"]
+# [target.x86_64-unknown-linux-gnu]
+# rustflags = ["-C", "link-arg=-fuse-ld=mold"]
