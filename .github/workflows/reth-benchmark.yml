@@ -265,10 +265,10 @@ jobs:
 
       - name: "Init submodules"
         run: git submodule update --init --recursive
-      # - name: Checkout openvm (for scripts)
-      #   run: git clone --depth=1 --branch="develop-v2.0.0-rc.3" https://github.com/openvm-org/openvm.git
+      - name: Checkout openvm (for scripts)
+        run: git clone --depth=1 --branch="develop-v2.0.0-rc.3" https://github.com/openvm-org/openvm.git openvm2
       - name: Build openvm-prof
-        working-directory: openvm
+        working-directory: openvm2
         run: |
           cargo build -p openvm-prof
           echo "${{ github.workspace }}/openvm/target/debug" >> $GITHUB_PATH
@@ -406,7 +406,7 @@ jobs:
 
       - name: Build cargo-openvm
         if: steps.cache-guest-elf-restore.outputs.cache-hit != 'true'
-        working-directory: openvm
+        working-directory: openvm2
         run: |
           cargo build --locked -p cargo-openvm
           echo "${{ github.workspace }}/openvm/target/debug" >> $GITHUB_PATH
