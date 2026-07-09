@@ -82,8 +82,9 @@ impl MptResolver {
                         let child_id = self.resolve_internal(&mut item, mpt)?;
                         childs[i] = if child_id == NULL_NODE_ID { None } else { Some(child_id) };
                     }
-                    let branch_id = mpt.add_branch(childs);
-                    mpt.add_node_copied(&NodeData::Branch(branch_id))
+                    // The children array is allocated in `mpt`'s own bump, so no copy is needed.
+                    let children = mpt.alloc_branch(childs);
+                    mpt.add_node(NodeData::Branch(children), None)
                 }
                 _ => {
                     return Err(Error::RlpError(alloy_rlp::Error::UnexpectedLength));
