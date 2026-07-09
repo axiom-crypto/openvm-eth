@@ -1,0 +1,23 @@
+{
+  "_meta": "Curated benchmark blocks. Percentile roles come from the 16-GPU release benchmark over blocks 24000000..24007199 (July 2026) \u2014 re-derive them after major guest program changes. Precompile counts were measured with .github/scripts/precompile_mix.py; every compare run also measures the mix of the block it actually benchmarks, so these notes are documentation, not the source of truth.",
+  "p100": {
+    "block": 24001988,
+    "notes": "Slowest block of the range (123 segments). 60M gas in only 65 txs, precompiles: ecRecover=1 \u2014 structurally slow pure-EVM compute, so its tail ranking is robust to precompile accelerations."
+  },
+  "p99": {
+    "block": 24004255,
+    "notes": "p99 latency block (79 segments). 57M gas, clean mix (single bn254 add/mul/pairing). Cheaper CI alternative to p100."
+  },
+  "p50": {
+    "block": 24000855,
+    "notes": "Median block (40 segments). 28M gas, no exotic precompiles. Use to check that a win on tail blocks generalizes to typical blocks."
+  },
+  "bn254-stress": {
+    "block": 24002549,
+    "notes": "modexp=277 (all bn254-Fr modulus, already served by the accelerated fast path in revm-crypto) plus bn254 add/mul=65 each \u2014 Aztec-style workload, 109 segments. Stress block for bn254 field/EC intrinsic work; its cost is intrinsic-side, not software bigint."
+  },
+  "p256-heavy": {
+    "block": 23992138,
+    "notes": "P256VERIFY=7, modexp=14, bn254 add/mul=29 each. Default block until July 2026; it over-represents P256VERIFY (~8% of its instructions before the openvm p256 hook), which is why single-block wins on it did not generalize. Kept for precompile-targeted comparisons."
+  }
+}
