@@ -1,0 +1,12 @@
+[package]
+name = "openvm-guest-mem"
+description = "Optimized mem* routines for the OpenVM guest target"
+version.workspace = true
+edition.workspace = true
+homepage.workspace = true
+repository.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
