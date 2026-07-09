@@ -11,7 +11,7 @@ on:
         description: "Block number to generate input for"
         required: true
         type: string
-        default: "23992138"
+        default: "24001988"
       rerun_keygen:
         description: "Rerun keygen"
         required: false

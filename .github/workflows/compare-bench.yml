@@ -16,7 +16,7 @@ on:
         type: number
         required: false
         description: Ethereum block number
-        default: 23992138
+        default: 24001988
       benchmark_mode:
         type: choice
         required: false
@@ -54,7 +54,7 @@ jobs:
       OPENVM_REV: ${{ github.event.inputs.base_rev }}
       run_benchmark: true
       benchmark_mode: ${{ github.event.inputs.benchmark_mode }}
-      benchmark_block_number: ${{ fromJSON(inputs.block_number || github.event.inputs.block_number || '23992138') }}
+      benchmark_block_number: ${{ fromJSON(inputs.block_number || github.event.inputs.block_number || '24001988') }}
       instance_family: ${{ github.event.inputs.instance_family }}
     secrets: inherit
 
@@ -73,7 +73,7 @@ jobs:
     needs: patch-target
     with:
       mode: ${{ github.event.inputs.benchmark_mode }}
-      block_number: ${{ fromJSON(inputs.block_number || github.event.inputs.block_number || '23992138') }}
+      block_number: ${{ fromJSON(inputs.block_number || github.event.inputs.block_number || '24001988') }}
       instance_family: ${{ github.event.inputs.instance_family }}
       ref: ${{ needs.patch-target.outputs.branch_name }}
       tag: ${{ needs.patch-target.outputs.tag }}
@@ -87,7 +87,7 @@ jobs:
     needs: patch-target
     with:
       mode: ${{ github.event.inputs.benchmark_mode }}
-      block_number: ${{ fromJSON(inputs.block_number || github.event.inputs.block_number || '23992138') }}
+      block_number: ${{ fromJSON(inputs.block_number || github.event.inputs.block_number || '24001988') }}
       instance_family: ${{ github.event.inputs.instance_family }}
       ref: ${{ needs.patch-target.outputs.branch_name }}
       tag: ${{ needs.patch-target.outputs.tag }}
@@ -101,7 +101,7 @@ jobs:
     needs: patch-target
     with:
       mode: ${{ github.event.inputs.benchmark_mode }}
-      block_number: ${{ fromJSON(inputs.block_number || github.event.inputs.block_number || '23992138') }}
+      block_number: ${{ fromJSON(inputs.block_number || github.event.inputs.block_number || '24001988') }}
       instance_family: ${{ github.event.inputs.instance_family }}
       ref: ${{ needs.patch-target.outputs.branch_name }}
       tag: ${{ needs.patch-target.outputs.tag }}
