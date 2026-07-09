@@ -101,6 +101,23 @@ unsafe fn advance_unchecked<'a>(buf: &mut &'a [u8], cnt: usize) -> &'a [u8] {
     bytes
 }
 
+/// Whether `slice` is the RLP encoding of an empty node reference: a single `EMPTY_STRING_CODE`
+/// byte. Written as an explicit pattern match because comparing against [`NULL_NODE_REF_SLICE`]
+/// with `==` compiles to a `memcmp` call, whose overhead dwarfs this one-byte check — and trie
+/// decoding performs it for every branch child.
+#[inline(always)]
+fn is_null_ref(slice: &[u8]) -> bool {
+    matches!(slice, [byte] if *byte == alloy_rlp::EMPTY_STRING_CODE)
+}
+
+/// Byte-slice equality as an explicit loop. Slice `==` compiles to a `memcmp` call; the node
+/// references compared during decoding are at most 33 bytes, where the call overhead dominates
+/// an inline loop.
+#[inline(always)]
+fn bytes_eq(a: &[u8], b: &[u8]) -> bool {
+    a.len() == b.len() && std::iter::zip(a, b).all(|(x, y)| x == y)
+}
+
 /// Writes an RLP header with the given base code (`EMPTY_LIST_CODE` for lists,
 /// `EMPTY_STRING_CODE` for strings). Emits the same bytes as [`alloy_rlp::Header::encode`], but
 /// is generic over the output buffer: `alloy_rlp` encoding goes through `&mut dyn BufMut`, and
@@ -244,18 +261,18 @@ impl<'a> Mpt<'a> {
         // calculate node's reference and ensure it matches the `expected_node_ref` from parent.
         let node_ref = {
             if rlp_node_length < 32 {
-                if rlp_node != expected_node_ref.as_slice() {
+                if !bytes_eq(rlp_node, expected_node_ref.as_slice()) {
                     return Err(Error::NodeRefMismatch);
                 }
                 NodeRef::Bytes(rlp_node)
             } else if payload_length == 32 && !list {
-                if payload != expected_node_ref.as_slice() {
+                if !bytes_eq(payload, expected_node_ref.as_slice()) {
                     return Err(Error::NodeRefMismatch);
                 }
                 expected_node_ref
             } else {
                 let digest = keccak256(rlp_node);
-                if digest != expected_node_ref.as_slice() {
+                if !bytes_eq(digest.as_slice(), expected_node_ref.as_slice()) {
                     return Err(Error::NodeRefMismatch);
                 }
                 expected_node_ref
@@ -311,7 +328,7 @@ impl<'a> Mpt<'a> {
         // branch
         let child0_expected_node_ref = NodeRef::from_rlp_slice(&item0_header_start[..item0_length]);
         let child0 = {
-            if child0_expected_node_ref.as_slice() == NULL_NODE_REF_SLICE {
+            if is_null_ref(child0_expected_node_ref.as_slice()) {
                 None
             } else {
                 Some(self.decode_trie_internal(bytes, child0_expected_node_ref)?)
@@ -320,7 +337,7 @@ impl<'a> Mpt<'a> {
 
         let child1_expected_node_ref = NodeRef::from_rlp_slice(&item1_header_start[..item1_length]);
         let child1 = {
-            if child1_expected_node_ref.as_slice() == NULL_NODE_REF_SLICE {
+            if is_null_ref(child1_expected_node_ref.as_slice()) {
                 None
             } else {
                 Some(self.decode_trie_internal(bytes, child1_expected_node_ref)?)
@@ -349,7 +366,7 @@ impl<'a> Mpt<'a> {
                 NodeRef::from_rlp_slice(&item_header_start[..item_length]);
 
             *child = MaybeUninit::new({
-                if child_expected_node_ref.as_slice() == NULL_NODE_REF_SLICE {
+                if is_null_ref(child_expected_node_ref.as_slice()) {
                     None
                 } else {
                     Some(self.decode_trie_internal(bytes, child_expected_node_ref)?)
@@ -363,7 +380,7 @@ impl<'a> Mpt<'a> {
             std::mem::transmute::<[MaybeUninit<Option<NodeId>>; 16], [Option<NodeId>; 16]>(childs)
         };
 
-        if payload != NULL_NODE_REF_SLICE {
+        if !is_null_ref(payload) {
             return Err(Error::ValueInBranch);
         }
 
