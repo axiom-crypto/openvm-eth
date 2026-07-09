@@ -1,0 +1,42 @@
+[package]
+name = "static-verifier-tracegen"
+edition.workspace = true
+repository.workspace = true
+homepage.workspace = true
+exclude.workspace = true
+version.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+eyre.workspace = true
+tracing = "0.1.44"
+metrics = "0.23"
+
+openvm.workspace = true
+openvm-sdk = { workspace = true, features = ["evm-prove", "root-prover"] }
+openvm-transpiler.workspace = true
+openvm-stark-sdk.workspace = true
+openvm-static-verifier = { workspace = true, features = ["evm-prove"] }
+openvm-continuations.workspace = true
+halo2-base = { workspace = true, features = ["halo2-axiom"] }
+openvm-cuda-backend = { git = "https://github.com/openvm-org/stark-backend.git", branch = "develop-v2", default-features = false, optional = true }
+coz = { version = "0.1", optional = true }
+
+[features]
+default = ["parallel", "jemalloc", "cuda", "metrics"]
+parallel = ["openvm-sdk/parallel"]
+jemalloc = ["openvm-sdk/jemalloc"]
+metrics = ["openvm-sdk/metrics"]
+cuda = [
+  "dep:openvm-cuda-backend",
+  "openvm-sdk/cuda",
+  "openvm-sdk/halo2-gpu",
+  "openvm-static-verifier/cuda",
+  "openvm-static-verifier/halo2-gpu",
+  "halo2-base/cuda",
+]
+halo2-asm = ["halo2-base/asm"]
+nvtx = ["openvm-stark-sdk/nvtx"]
+coz = ["dep:coz", "halo2-base/coz"]

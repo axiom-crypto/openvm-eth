@@ -604,7 +604,9 @@ pub async fn run_reth_benchmark(args: HostArgs, openvm_client_eth_elf: &[u8]) ->
                 BenchMode::ProveEvm => {
                     let mut evm_prover = sdk.evm_prover(exe)?;
                     evm_prover.stark_prover.app_prover.set_program_name(&program_name);
-                    let proof = evm_prover.prove_evm(stdin, &[])?;
+                    let proof = evm_prover.prove_evm(stdin.clone(), &[])?;
+                    let proof = evm_prover.prove_evm(stdin.clone(), &[])?;
+                    let proof = evm_prover.prove_evm(stdin.clone(), &[])?;
                     let block_hash = &proof.user_public_values;
                     println!("block_hash (prove_evm): {}", hex::encode(block_hash));
                     let openvm_verifier = sdk.generate_halo2_verifier_solidity()?;
@@ -729,9 +731,9 @@ fn max_rule_length<F>(dag: &SymbolicExpressionDag<F>) -> usize {
             count += 1;
 
             match &dag.nodes[idx] {
-                SymbolicExpressionNode::Add { left_idx, right_idx, .. } |
-                SymbolicExpressionNode::Sub { left_idx, right_idx, .. } |
-                SymbolicExpressionNode::Mul { left_idx, right_idx, .. } => {
+                SymbolicExpressionNode::Add { left_idx, right_idx, .. }
+                | SymbolicExpressionNode::Sub { left_idx, right_idx, .. }
+                | SymbolicExpressionNode::Mul { left_idx, right_idx, .. } => {
                     stack.push(*left_idx);
                     stack.push(*right_idx);
                 }

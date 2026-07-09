@@ -2,6 +2,8 @@
 members = [
   "bin/reth-benchmark",
   "bin/reth-verify",
+  "bin/static-verifier-tracegen",
+  "bin/static-verifier-tracegen-arithonly",
   "crates/mpt",
   "crates/revm-crypto",
   "crates/stateless-executor",
@@ -135,6 +137,10 @@ openvm-algebra-guest = { git = "https://github.com/openvm-org/openvm.git", branc
 openvm-sdk = { git = "https://github.com/openvm-org/openvm.git", branch = "develop-v2.0.0-rc.3", default-features = false }
 openvm-build = { git = "https://github.com/openvm-org/openvm.git", branch = "develop-v2.0.0-rc.3", default-features = false }
 openvm-stark-sdk = { git = "https://github.com/openvm-org/stark-backend.git", branch = "develop-v2", default-features = false }
+openvm-transpiler = { path = "openvm/crates/toolchain/transpiler", default-features = false }
+openvm-static-verifier = { path = "openvm/crates/static-verifier", default-features = false }
+openvm-continuations = { path = "openvm/crates/continuations", default-features = false }
+halo2-base = { path = "halo2-lib/halo2-base", default-features = false }
 
 # crates/kzg
 hex = { version = "0.4.3", default-features = false }
@@ -158,11 +164,12 @@ rustdoc.all = "warn"
 lto = "thin"
 
 [profile.profiling]
-inherits = "maxperf"
+inherits = "release"
 debug = "full"
 strip = "none"
-incremental = false
-codegen-units = 1
+incremental = true
+codegen-units = 256
+lto = false
 
 [profile.maxperf]
 inherits = "release"

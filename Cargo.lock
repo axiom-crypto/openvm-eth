@@ -2573,7 +2573,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "117725a109d387c937a1533ce01b450cbde6b88abceea8473c4d7a85853cda3c"
 dependencies = [
  "lazy_static",
- "windows-sys 0.48.0",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -2744,6 +2744,16 @@ name = "core_extensions_proc_macros"
 version = "1.5.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "533d38ecd2709b7608fb8e18e4504deb99e9a72879e6aa66373a76d8dc4259ea"
+
+[[package]]
+name = "coz"
+version = "0.1.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cef55b3fe2f5477d59e12bc792e8b3c95a25bd099eadcfae006ecea136de76e2"
+dependencies = [
+ "libc",
+ "once_cell",
+]
 
 [[package]]
 name = "cpufeatures"
@@ -3586,7 +3596,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cea14ef9355e3beab063703aa9dab15afd25f0667c341310c1e5274bb1d0da18"
 dependencies = [
  "libc",
- "windows-sys 0.52.0",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -4306,6 +4316,7 @@ dependencies = [
 name = "halo2-base"
 version = "0.5.3"
 dependencies = [
+ "coz",
  "getset",
  "halo2-axiom",
  "halo2-axiom-gpu",
@@ -8860,7 +8871,7 @@ dependencies = [
  "once_cell",
  "socket2 0.5.10",
  "tracing",
- "windows-sys 0.52.0",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -12303,7 +12314,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys",
- "windows-sys 0.52.0",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -12362,7 +12373,7 @@ dependencies = [
  "security-framework 3.5.1",
  "security-framework-sys",
  "webpki-root-certs 0.26.11",
- "windows-sys 0.52.0",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -12383,7 +12394,7 @@ dependencies = [
  "security-framework 3.5.1",
  "security-framework-sys",
  "webpki-root-certs 1.0.5",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.1",
 ]
 
 [[package]]
@@ -13001,7 +13012,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3a766e1110788c36f4fa1c2b71b387a7815aa65f88ce0229841826633d93723e"
 dependencies = [
  "libc",
- "windows-sys 0.60.2",
+ "windows-sys 0.61.1",
 ]
 
 [[package]]
@@ -13053,6 +13064,46 @@ name = "stable_deref_trait"
 version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a8f112729512f8e442d81f95a8a7ddf2b7c6b8a1a6f509a95864142b30cab2d3"
+
+[[package]]
+name = "static-verifier-tracegen"
+version = "0.4.0"
+dependencies = [
+ "coz",
+ "eyre",
+ "halo2-base",
+ "metrics 0.23.1",
+ "openvm",
+ "openvm-continuations",
+ "openvm-cuda-backend",
+ "openvm-sdk",
+ "openvm-stark-sdk",
+ "openvm-static-verifier",
+ "openvm-transpiler",
+ "tracing",
+]
+
+[[package]]
+name = "static-verifier-tracegen-arithonly"
+version = "0.4.0"
+dependencies = [
+ "coz",
+ "eyre",
+ "halo2-base",
+ "itertools 0.14.0",
+ "metrics 0.23.1",
+ "num-bigint",
+ "num-integer",
+ "openvm",
+ "openvm-continuations",
+ "openvm-cuda-backend",
+ "openvm-sdk",
+ "openvm-stark-sdk",
+ "openvm-static-verifier",
+ "openvm-transpiler",
+ "openvm-verify-stark-host",
+ "tracing",
+]
 
 [[package]]
 name = "static_assertions"
@@ -13253,7 +13304,7 @@ dependencies = [
  "getrandom 0.3.3",
  "once_cell",
  "rustix",
- "windows-sys 0.52.0",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -14541,7 +14592,7 @@ version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
 dependencies = [
- "windows-sys 0.48.0",
+ "windows-sys 0.61.1",
 ]
 
 [[package]]
