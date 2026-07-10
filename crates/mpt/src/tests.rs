@@ -261,10 +261,11 @@ fn test_delete_with_unresolved_sibling_errors() {
     let mut children: [Option<u32>; 16] = Default::default();
     children[0] = Some(leaf_id);
     children[1] = Some(digest_id);
-    let branch_id = trie.add_node(NodeData::Branch(children), None);
+    let branch_children = trie.alloc_branch(children);
+    let branch_node_id = trie.add_node(NodeData::Branch(branch_children), None);
 
     // Set the root to the branch
-    trie.set_root_id(branch_id);
+    trie.set_root_id(branch_node_id);
 
     // Now try to delete the key 0x00 (nibbles [0, 0])
     // This should:
