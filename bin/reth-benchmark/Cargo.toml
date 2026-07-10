@@ -56,7 +56,7 @@ openvm-sdk = { git = "https://github.com/openvm-org/openvm.git", branch = "main"
 openvm-sdk-config = { git = "https://github.com/openvm-org/openvm.git", branch = "main", default-features = false }
 
 # halo2
-halo2-axiom = { git = "https://github.com/axiom-crypto/halo2.git", tag = "v0.5.1", default-features = false, optional = true }
+halo2-axiom = { git = "https://github.com/axiom-crypto/halo2.git", tag = "v0.5.2", default-features = false, optional = true }
 
 [package.metadata.cargo-machete]
 ignored = ["halo2-axiom"]
