@@ -8,7 +8,7 @@ on:
         type: number
         required: false
         description: Ethereum block number
-        default: 23992138
+        default: 24001988
       mode:
         type: choice
         required: false
@@ -104,7 +104,7 @@ on:
         type: number
         required: false
         description: Ethereum block number
-        default: 23992138
+        default: 24001988
       mode:
         type: string
         required: false

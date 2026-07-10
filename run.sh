@@ -8,7 +8,7 @@
 #   --generate-vm-vkey  Shortcut for --mode generate-vm-vkey
 #   --profile <PROFILE> Set the Cargo build profile (default: profiling)
 #                       Valid profiles: dev, release, profiling
-#   --block <N>         Set the block number to prove (default: 23992138)
+#   --block <N>         Set the block number to prove (default: 24001988)
 #   --app-log-blowup <N>
 #   --app-l-skip <N>    Log of univariate skip domain size (default: 4)
 #   --leaf-log-blowup <N>
@@ -36,7 +36,7 @@
 #   ./run.sh --perf --mode execute         # Run with host profiling (Firefox Profiler link)
 #   ./run.sh --nsys --mode prove-app      # Run with nsys profiling
 #   ./run.sh --nsys --nsys-gpu-metrics --mode prove-app
-#   ./run.sh --block 23992138             # Prove a specific block
+#   ./run.sh --block 24001988             # Prove a specific block
 #   ./run.sh --mode generate-vm-vkey      # Generate reth.vm.vk locally
 #   ./run.sh --generate-vm-vkey           # Same as above (shortcut)
 #
@@ -252,7 +252,7 @@ case "${PROFILE_OVERRIDE:-release}" in
         ;;
 esac
 FEATURES="parallel,metrics,jemalloc,unprotected"
-BLOCK_NUMBER="${BLOCK_NUMBER_OVERRIDE:-23992138}"
+BLOCK_NUMBER="${BLOCK_NUMBER_OVERRIDE:-24001988}"
 TOOLCHAIN="+$RUST_TOOLCHAIN"
 BIN_NAME="openvm-reth-benchmark"
 export VPMM_PAGE_SIZE=$((4 << 20))
