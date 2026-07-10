@@ -342,10 +342,18 @@ impl<'a> Mpt<'a> {
             }
         };
 
-        // Create an uninitialized array to avoid wasteful default initialization
-        // SAFETY: below we assign to each element of the array.
-        let mut childs: [MaybeUninit<Option<NodeId>>; 16] =
-            unsafe { MaybeUninit::uninit().assume_init() };
+        // Allocate the children slots directly in the bump arena and fill them as they are
+        // decoded, avoiding a stack staging array that would then be copied into the arena.
+        // SAFETY: the allocation matches the layout of the target array type, and every element
+        // is written exactly once below before the array is cast to its initialized type. On an
+        // early error return the partially initialized allocation is abandoned, never read.
+        let childs = unsafe {
+            &mut *self
+                .bump
+                .alloc_layout(std::alloc::Layout::new::<[Cell<Option<NodeId>>; 16]>())
+                .cast::<[MaybeUninit<Option<NodeId>>; 16]>()
+                .as_ptr()
+        };
 
         // Initialize first two elements
         childs[0] = MaybeUninit::new(child0);
@@ -372,17 +380,17 @@ impl<'a> Mpt<'a> {
             });
         }
 
-        // Transmute the fully initialized array to the final type
-        // SAFETY: we already initialized all elements of the array.
-        let childs: [Option<NodeId>; 16] = unsafe {
-            std::mem::transmute::<[MaybeUninit<Option<NodeId>>; 16], [Option<NodeId>; 16]>(childs)
-        };
-
         if !is_null_ref(payload) {
             return Err(Error::ValueInBranch);
         }
 
-        let children = self.alloc_branch(childs);
+        // Cast the fully initialized array to the final type.
+        // SAFETY: all elements of the array were initialized above, and `Cell<T>` is
+        // `repr(transparent)` over `T`.
+        let children: BranchChildren<'a> = unsafe {
+            &*(childs as *const [MaybeUninit<Option<NodeId>>; 16]
+                as *const [Cell<Option<NodeId>>; 16])
+        };
         let node_id = self.add_node(NodeData::Branch(children), Some(node_ref));
         Ok(node_id)
     }
