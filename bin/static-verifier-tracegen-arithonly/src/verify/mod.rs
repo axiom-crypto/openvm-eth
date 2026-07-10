@@ -1,7 +1,4 @@
 //! Arithmetic-only clone of `openvm_static_verifier::stages::*`.
-//!
-//! Every `_assigned` helper is preserved verbatim in structure; only the wire
-//! types and chip method signatures changed.
 
 pub mod batch_constraints;
 pub mod full_pipeline;
@@ -11,31 +8,28 @@ pub mod whir;
 use openvm_stark_sdk::openvm_stark_backend::p3_field::{Field as _, PrimeCharacteristicRing};
 
 use crate::chip::{BabyBearExt, BabyBearExtInst};
-use crate::wire::{ExtWire, ReducedExtWire, Wire};
+use crate::wire::{ExtWire, Wire};
 use openvm_stark_sdk::config::baby_bear_bn254_poseidon2::F as RootF;
 
-pub(crate) fn column_openings_by_rot_assigned(
-    ext_chip: &impl BabyBearExtInst,
-    openings: &[ExtWire],
+pub(crate) fn column_openings_by_rot_assigned<E: BabyBearExtInst>(
+    ext_chip: &E,
+    openings: &[ExtWire<E::R>],
     need_rot: bool,
-) -> Vec<(ExtWire, ExtWire)> {
+) -> Vec<(ExtWire<E::R>, ExtWire<E::R>)> {
     if need_rot {
         assert!(openings.len().is_multiple_of(2));
-        openings
-            .chunks_exact(2)
-            .map(|c| (c[0], c[1]))
-            .collect()
+        openings.chunks_exact(2).map(|c| (c[0], c[1])).collect()
     } else {
         let zero = ext_chip.zero();
         openings.iter().map(|o| (*o, zero)).collect()
     }
 }
 
-pub(crate) fn horner_eval_ext_poly_assigned(
-    ext_chip: &impl BabyBearExtInst,
-    coeffs: &[ExtWire],
-    x: &ExtWire,
-) -> ExtWire {
+pub(crate) fn horner_eval_ext_poly_assigned<E: BabyBearExtInst>(
+    ext_chip: &E,
+    coeffs: &[ExtWire<E::R>],
+    x: &ExtWire<E::R>,
+) -> ExtWire<E::R> {
     if coeffs.is_empty() {
         return ext_chip.zero();
     }
@@ -48,11 +42,11 @@ pub(crate) fn horner_eval_ext_poly_assigned(
     acc
 }
 
-pub(crate) fn horner_eval_ext_poly_f_assigned(
-    ext_chip: &impl BabyBearExtInst,
-    coeffs: &[ExtWire],
-    x: &Wire,
-) -> ExtWire {
+pub(crate) fn horner_eval_ext_poly_f_assigned<E: BabyBearExtInst>(
+    ext_chip: &E,
+    coeffs: &[ExtWire<E::R>],
+    x: &Wire<E::R>,
+) -> ExtWire<E::R> {
     if coeffs.is_empty() {
         return ext_chip.zero();
     }
@@ -64,11 +58,11 @@ pub(crate) fn horner_eval_ext_poly_f_assigned(
     acc
 }
 
-pub(crate) fn interpolate_quadratic_at_012_assigned(
-    ext_chip: &impl BabyBearExtInst,
-    evals: [&ExtWire; 3],
-    x: &ExtWire,
-) -> ExtWire {
+pub(crate) fn interpolate_quadratic_at_012_assigned<E: BabyBearExtInst>(
+    ext_chip: &E,
+    evals: [&ExtWire<E::R>; 3],
+    x: &ExtWire<E::R>,
+) -> ExtWire<E::R> {
     let one = ext_chip.from_base_const(RootF::ONE);
     let two = ext_chip.from_base_const(RootF::TWO);
     let inv_two = RootF::ONE.halve();
@@ -88,9 +82,4 @@ pub(crate) fn interpolate_quadratic_at_012_assigned(
     let term2 = ext_chip.mul(*evals[2], l2);
     let sum01 = ext_chip.add(term0, term1);
     ext_chip.add(sum01, term2)
-}
-
-// Re-exports for the pipeline.
-pub(crate) fn ext_wire_from(rw: &ReducedExtWire) -> ExtWire {
-    (*rw).into()
 }

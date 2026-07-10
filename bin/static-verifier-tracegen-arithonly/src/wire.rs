@@ -1,82 +1,77 @@
-//! Minimal wire representation for arithmetic-only tracegen.
-//!
-//! `Wire` replaces `BabyBearWire { value: AssignedValue<Fr>, max_bits: usize }`
-//! from `openvm-static-verifier`. Since no advice buffer or context cell is
-//! ever populated, we store just the raw Fr value and the max_bits tag needed
-//! for lazy-reduction bookkeeping.
+//! Wire representation, generic over the field-element repr `R`.
 
 use halo2_base::halo2_proofs::halo2curves::bn256::Fr;
 
-/// A single BabyBear-domain value emulated inside BN254 Fr.
+use crate::repr::FieldRepr;
+
+/// A single BabyBear-domain value emulated inside BN254 Fr (or a fraction repr).
 ///
-/// Invariant: `|value| < 2^max_bits` (signed).
+/// Invariant: the underlying field value is a signed integer with `|value| < 2^max_bits`.
 #[derive(Copy, Clone, Debug)]
-pub struct Wire {
-    pub value: Fr,
+pub struct Wire<R: FieldRepr> {
+    pub value: R,
     pub max_bits: u32,
 }
 
-impl Wire {
+impl<R: FieldRepr> Wire<R> {
     #[inline]
-    pub const fn new(value: Fr, max_bits: u32) -> Self {
+    pub const fn new(value: R, max_bits: u32) -> Self {
         Self { value, max_bits }
     }
 }
 
-/// A quartic BabyBear extension value, one Wire per coefficient.
+/// Quartic BabyBear-extension wire — one `Wire<R>` per coefficient.
 #[derive(Copy, Clone, Debug)]
-pub struct ExtWire(pub [Wire; 4]);
+pub struct ExtWire<R: FieldRepr>(pub [Wire<R>; 4]);
 
-/// A BN254 digest node — same shape as `AssignedValue<Fr>` in the original,
-/// but here it's just an Fr since there's nothing to assign.
+/// Digest node from a proof (always concrete Fr — not affected by repr).
 pub type DigestWire = Fr;
 
-/// Type-level canonicality tag. Zero runtime cost — same layout as `Wire`.
+/// Type-level canonicality tag.
 #[derive(Copy, Clone, Debug)]
-pub struct ReducedWire(pub Wire);
+pub struct ReducedWire<R: FieldRepr>(pub Wire<R>);
 
-impl From<ReducedWire> for Wire {
+impl<R: FieldRepr> From<ReducedWire<R>> for Wire<R> {
     #[inline]
-    fn from(w: ReducedWire) -> Self {
+    fn from(w: ReducedWire<R>) -> Self {
         w.0
     }
 }
 
-impl From<&ReducedWire> for Wire {
+impl<R: FieldRepr> From<&ReducedWire<R>> for Wire<R> {
     #[inline]
-    fn from(w: &ReducedWire) -> Self {
+    fn from(w: &ReducedWire<R>) -> Self {
         w.0
     }
 }
 
-impl ReducedWire {
+impl<R: FieldRepr> ReducedWire<R> {
     #[inline]
-    pub fn value(&self) -> Fr {
+    pub fn value(&self) -> R {
         self.0.value
     }
 }
 
-/// Extension-field analogue of `ReducedWire`.
 #[derive(Copy, Clone, Debug)]
-pub struct ReducedExtWire(pub [ReducedWire; 4]);
+pub struct ReducedExtWire<R: FieldRepr>(pub [ReducedWire<R>; 4]);
 
-impl From<ReducedExtWire> for ExtWire {
+impl<R: FieldRepr> From<ReducedExtWire<R>> for ExtWire<R> {
     #[inline]
-    fn from(w: ReducedExtWire) -> Self {
+    fn from(w: ReducedExtWire<R>) -> Self {
         ExtWire(w.0.map(Wire::from))
     }
 }
 
-impl From<&ReducedExtWire> for ExtWire {
+impl<R: FieldRepr> From<&ReducedExtWire<R>> for ExtWire<R> {
     #[inline]
-    fn from(w: &ReducedExtWire) -> Self {
+    fn from(w: &ReducedExtWire<R>) -> Self {
         ExtWire(w.0.map(Wire::from))
     }
 }
 
-impl ReducedExtWire {
+impl<R: FieldRepr> ReducedExtWire<R> {
     #[inline]
-    pub fn coeffs(&self) -> &[ReducedWire; 4] {
+    pub fn coeffs(&self) -> &[ReducedWire<R>; 4] {
         &self.0
     }
 }

@@ -42,11 +42,11 @@ pub fn log_heights_per_air_from_proof(proof: &Proof<RootConfig>) -> Vec<usize> {
         .collect()
 }
 
-pub fn load_proof_wire(
-    ext_chip: &impl BabyBearExtInst,
+pub fn load_proof_wire<E: BabyBearExtInst>(
+    ext_chip: &E,
     proof: &Proof<RootConfig>,
     log_heights_per_air: &[usize],
-) -> ProofWire {
+) -> ProofWire<E::R> {
     let from_proof = log_heights_per_air_from_proof(proof);
     assert_eq!(
         from_proof.as_slice(),
@@ -65,7 +65,7 @@ pub fn load_proof_wire(
             values
                 .iter()
                 .map(|&value| base_chip.load_reduced_witness(value))
-                .collect::<Vec<ReducedWire>>()
+                .collect::<Vec<ReducedWire<E::R>>>()
         })
         .collect::<Vec<_>>();
 
@@ -106,7 +106,7 @@ fn observe_preamble<B: crate::chip::BabyBearExt + Clone>(
     transcript: &mut TranscriptChip<B>,
     mvk: &MultiStarkVerifyingKey<RootConfig>,
     log_heights_per_air: &[usize],
-    public_values: &[Vec<ReducedWire>],
+    public_values: &[Vec<ReducedWire<B::R>>],
     cached_commitment_roots: &[Vec<Fr>],
     vk_pre_hash: DigestWire,
     common_main_commit: DigestWire,
@@ -147,7 +147,7 @@ fn observe_preamble<B: crate::chip::BabyBearExt + Clone>(
 pub fn constrained_verify<E: BabyBearExtInst>(
     ext_chip: &E,
     root_vk: &MultiStarkVerifyingKey<RootConfig>,
-    proof_wire: &ProofWire,
+    proof_wire: &ProofWire<E::R>,
     trace_id_to_air_id: &[usize],
     log_heights_per_air: &[usize],
     stacked_layouts: &[StackedLayout],

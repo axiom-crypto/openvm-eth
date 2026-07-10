@@ -20,6 +20,7 @@ use openvm_stark_sdk::config::baby_bear_bn254_poseidon2::{
 };
 
 use crate::chip::baby_bear::BABYBEAR_MAX_BITS;
+use crate::repr::FieldRepr;
 use crate::chip::{BabyBearExt, BabyBearExtInst, RangeExt};
 use crate::hash::poseidon2::{compress_bn254_digests, hash_babybear_slice_to_digest};
 use crate::proof_wire::{MerklePathWire, WhirProofWire};
@@ -31,7 +32,7 @@ use crate::wire::{ExtWire, ReducedExtWire, ReducedWire, Wire};
 pub(crate) fn load_whir_proof_wire<E: BabyBearExtInst>(
     ext_chip: &E,
     whir_proof: &WhirProof<RootConfig>,
-) -> WhirProofWire {
+) -> WhirProofWire<E::R> {
     let base_chip = ext_chip.base();
     let mu_pow_witness = base_chip.load_reduced_witness(whir_proof.mu_pow_witness);
     let folding_pow_witnesses = whir_proof
@@ -85,7 +86,7 @@ pub(crate) fn load_whir_proof_wire<E: BabyBearExtInst>(
                         .map(|row| {
                             row.iter()
                                 .map(|&v| base_chip.load_reduced_witness(v))
-                                .collect::<Vec<ReducedWire>>()
+                                .collect::<Vec<ReducedWire<E::R>>>()
                         })
                         .collect::<Vec<_>>();
                     let siblings = merkle_proof
@@ -118,7 +119,7 @@ pub(crate) fn load_whir_proof_wire<E: BabyBearExtInst>(
                                 .map(|&coeff| {
                                     base_chip.load_reduced_witness(RootF::from_u64(coeff))
                                 })
-                                .collect::<Vec<ReducedWire>>()
+                                .collect::<Vec<ReducedWire<E::R>>>()
                         })
                         .collect::<Vec<_>>();
                     let siblings = merkle_proof
@@ -160,11 +161,11 @@ fn digest_to_fr(digest: RootDigest) -> Fr {
     biguint_to_fe(&digest[0].as_canonical_biguint())
 }
 
-fn eval_mobius_eq_mle_assigned(
-    ext_chip: &impl BabyBearExtInst,
-    u: &[ExtWire],
-    x: &[ExtWire],
-) -> ExtWire {
+fn eval_mobius_eq_mle_assigned<E: BabyBearExtInst>(
+    ext_chip: &E,
+    u: &[ExtWire<E::R>],
+    x: &[ExtWire<E::R>],
+) -> ExtWire<E::R> {
     assert_eq!(u.len(), x.len());
     let one = ext_chip.from_base_const(RootF::ONE);
     let two = ext_chip.from_base_const(RootF::TWO);
@@ -181,11 +182,11 @@ fn eval_mobius_eq_mle_assigned(
     acc
 }
 
-fn eval_mle_evals_at_point_assigned(
-    ext_chip: &impl BabyBearExtInst,
-    evals: &[ExtWire],
-    x: &[ExtWire],
-) -> ExtWire {
+fn eval_mle_evals_at_point_assigned<E: BabyBearExtInst>(
+    ext_chip: &E,
+    evals: &[ExtWire<E::R>],
+    x: &[ExtWire<E::R>],
+) -> ExtWire<E::R> {
     assert_eq!(evals.len(), 1usize << x.len());
     let mut values = evals.to_vec();
     let mut len = values.len();
@@ -202,22 +203,22 @@ fn eval_mle_evals_at_point_assigned(
     values.first().copied().unwrap()
 }
 
-fn invert_base_assigned<B: BabyBearExt>(base_chip: &B, value: Wire) -> Wire {
+fn invert_base_assigned<B: BabyBearExt>(base_chip: &B, value: Wire<B::R>) -> Wire<B::R> {
     let one = base_chip.one();
     base_chip.div(one, value)
 }
 
 fn query_root_from_bits_assigned<B: BabyBearExt>(
     base_chip: &B,
-    query_bits: &[Fr],
+    query_bits: &[B::R],
     log_rs_domain_size: usize,
-) -> Wire {
+) -> Wire<B::R> {
     let gate = base_chip.gate();
     let omega = RootF::two_adic_generator(log_rs_domain_size);
-    let mut root: Option<Wire> = None;
+    let mut root: Option<Wire<B::R>> = None;
     for (bit_idx, &bit) in query_bits.iter().enumerate() {
         let omega_pow = omega.exp_u64(1u64 << bit_idx).as_canonical_u64();
-        let value = gate.select(Fr::from(omega_pow), Fr::from(1u64), bit);
+        let value = gate.select(B::R::from_fr(Fr::from(omega_pow)), B::R::from_fr(Fr::from(1u64)), bit);
         let selected = Wire::new(value, BABYBEAR_MAX_BITS);
         if let Some(prev) = &mut root {
             *prev = base_chip.mul(*prev, selected);
@@ -228,12 +229,12 @@ fn query_root_from_bits_assigned<B: BabyBearExt>(
     root.unwrap()
 }
 
-fn binary_k_fold_assigned(
-    ext_chip: &impl BabyBearExtInst,
-    mut values: Vec<ExtWire>,
-    alphas: &[ExtWire],
-    x: Wire,
-) -> ExtWire {
+fn binary_k_fold_assigned<E: BabyBearExtInst>(
+    ext_chip: &E,
+    mut values: Vec<ExtWire<E::R>>,
+    alphas: &[ExtWire<E::R>],
+    x: Wire<E::R>,
+) -> ExtWire<E::R> {
     let base_chip = ext_chip.base();
     let n = values.len();
     assert_eq!(n, 1usize << alphas.len());
@@ -278,7 +279,7 @@ fn binary_k_fold_assigned(
     values[0]
 }
 
-fn tree_compress_assigned_digests(digests: Vec<Fr>) -> Fr {
+fn tree_compress_assigned_digests<R: crate::repr::FieldRepr>(digests: Vec<R>) -> R {
     assert!(digests.len().is_power_of_two());
     let mut level = digests;
     while level.len() > 1 {
@@ -291,10 +292,10 @@ fn tree_compress_assigned_digests(digests: Vec<Fr>) -> Fr {
     level.pop().unwrap()
 }
 
-fn constrain_merkle_path(
-    ext_chip: &impl BabyBearExtInst,
-    query_bits: &[Fr],
-    merkle_path: &MerklePathWire,
+fn constrain_merkle_path<E: BabyBearExtInst>(
+    ext_chip: &E,
+    query_bits: &[E::R],
+    merkle_path: &MerklePathWire<E::R>,
     _root_digest: Fr,
 ) {
     assert!(merkle_path.leaf_values.len().is_power_of_two());
@@ -307,8 +308,9 @@ fn constrain_merkle_path(
         .collect::<Vec<_>>();
     let mut cur = tree_compress_assigned_digests(leaf_hashes);
     for (bit, &sibling) in query_bits.iter().zip(merkle_path.siblings.iter()) {
-        let left = gate.select(sibling, cur, *bit);
-        let right = gate.select(cur, sibling, *bit);
+        let sibling_r = E::R::from_fr(sibling);
+        let left = gate.select(sibling_r, cur, *bit);
+        let right = gate.select(cur, sibling_r, *bit);
         cur = compress_bn254_digests(left, right);
     }
     // constrain_equal(cur, root_digest) — no-op in arithonly.
@@ -320,10 +322,10 @@ pub(crate) fn constrain_whir_verification<E: BabyBearExtInst>(
     ext_chip: &E,
     transcript: &mut TranscriptChip<E::Base>,
     mvk0: &MultiStarkVerifyingKey0<RootConfig>,
-    whir_wire: &WhirProofWire,
-    stacking_openings: &[Vec<ReducedExtWire>],
+    whir_wire: &WhirProofWire<E::R>,
+    stacking_openings: &[Vec<ReducedExtWire<E::R>>],
     initial_commitment_roots: &[Fr],
-    u_cube: &[ExtWire],
+    u_cube: &[ExtWire<E::R>],
 ) where
     E::Base: Clone,
 {
@@ -341,7 +343,7 @@ pub(crate) fn constrain_whir_verification<E: BabyBearExtInst>(
     let whir_sumcheck_polys = &whir_wire.whir_sumcheck_polys;
     let ood_values = &whir_wire.ood_values;
     let final_poly_reduced = &whir_wire.final_poly;
-    let final_poly = final_poly_reduced.iter().map(ExtWire::from).collect::<Vec<_>>();
+    let final_poly = final_poly_reduced.iter().map(ExtWire::<E::R>::from).collect::<Vec<_>>();
     let codeword_commitment_roots = &whir_wire.codeword_commitment_roots;
     let codeword_commitment_digests = codeword_commitment_roots
         .iter()
@@ -404,8 +406,8 @@ pub(crate) fn constrain_whir_verification<E: BabyBearExtInst>(
                 alphas_round.push(alpha);
                 folding_alphas.push(alpha);
 
-                let ev1: ExtWire = (&ev1).into();
-                let ev2: ExtWire = (&ev2).into();
+                let ev1: ExtWire<E::R> = (&ev1).into();
+                let ev2: ExtWire<E::R> = (&ev2).into();
                 let ev0 = ext_chip.sub(final_claim, ev1);
                 final_claim = interpolate_quadratic_at_012_assigned(
                     ext_chip,
@@ -460,7 +462,7 @@ pub(crate) fn constrain_whir_verification<E: BabyBearExtInst>(
             let zi = ext_chip.base().pow_power_of_two(zi_root, k_whir);
 
             let yi = if is_initial_round {
-                let mut codeword_vals: Vec<Option<ExtWire>> = vec![None; 1usize << k_whir];
+                let mut codeword_vals: Vec<Option<ExtWire<E::R>>> = vec![None; 1usize << k_whir];
                 let mut mu_power_idx = 0usize;
                 for (commit_idx, commit_openings) in stacking_openings.iter().enumerate() {
                     let merkle_path = &whir_wire.initial_round_merkle_paths[commit_idx][query_idx];
@@ -474,7 +476,7 @@ pub(crate) fn constrain_whir_verification<E: BabyBearExtInst>(
                         let mu_pow = mu_pows[mu_power_idx];
                         let is_first_mu = mu_power_idx == 0;
                         for (row_idx, row) in merkle_path.leaf_values.iter().enumerate() {
-                            let opened_base: Wire = row[col_idx].into();
+                            let opened_base: Wire<E::R> = row[col_idx].into();
                             codeword_vals[row_idx] = if let Some(prev) = codeword_vals[row_idx] {
                                 Some(ext_chip.scalar_mul_add(mu_pow, opened_base, prev))
                             } else if is_first_mu {
@@ -499,7 +501,7 @@ pub(crate) fn constrain_whir_verification<E: BabyBearExtInst>(
                 let opened_values = merkle_path
                     .leaf_values
                     .iter()
-                    .map(|row| ExtWire(core::array::from_fn(|idx| row[idx].into())))
+                    .map(|row| ExtWire::<E::R>(core::array::from_fn(|idx| row[idx].into())))
                     .collect::<Vec<_>>();
                 binary_k_fold_assigned(ext_chip, opened_values, &alphas_round, zi_root)
             };

@@ -24,10 +24,10 @@ use crate::verify::{
 };
 use crate::wire::{ExtWire, ReducedExtWire};
 
-pub(crate) fn load_stacking_proof_wire(
-    ext_chip: &impl BabyBearExtInst,
+pub(crate) fn load_stacking_proof_wire<E: BabyBearExtInst>(
+    ext_chip: &E,
     stacking_proof: &openvm_stark_sdk::openvm_stark_backend::proof::StackingProof<RootConfig>,
-) -> StackingProofWire {
+) -> StackingProofWire<E::R> {
     let univariate_round_coeffs = stacking_proof
         .univariate_round_coeffs
         .iter()
@@ -58,12 +58,12 @@ pub(crate) fn load_stacking_proof_wire(
     }
 }
 
-fn eval_in_uni_assigned(
-    ext_chip: &impl BabyBearExtInst,
+fn eval_in_uni_assigned<E: BabyBearExtInst>(
+    ext_chip: &E,
     l_skip: usize,
     n: isize,
-    z: ExtWire,
-) -> ExtWire {
+    z: ExtWire<E::R>,
+) -> ExtWire<E::R> {
     debug_assert!(n >= -(l_skip as isize));
     if n.is_negative() {
         let z_pow = ext_chip.pow_power_of_two(z, l_skip.wrapping_add_signed(n));
@@ -77,14 +77,14 @@ fn eval_in_uni_assigned(
 pub(crate) fn constrain_stacked_reduction<E: BabyBearExtInst>(
     ext_chip: &E,
     transcript: &mut TranscriptChip<E::Base>,
-    stacking_wire: &StackingProofWire,
+    stacking_wire: &StackingProofWire<E::R>,
     layouts: &[StackedLayout],
     need_rot_per_commit: &[Vec<bool>],
     l_skip: usize,
     n_stack: usize,
-    batch_column_openings: &[Vec<Vec<ReducedExtWire>>],
-    r: &[ExtWire],
-) -> StackedReductionIntermediatesWire
+    batch_column_openings: &[Vec<Vec<ReducedExtWire<E::R>>>],
+    r: &[ExtWire<E::R>],
+) -> StackedReductionIntermediatesWire<E::R>
 where
     E::Base: Clone,
 {
@@ -111,14 +111,14 @@ where
     let mut t_claims = Vec::with_capacity(lambda_idx);
     for (trace_idx, parts) in batch_column_openings.iter().enumerate() {
         let need_rot = need_rot_per_commit[0][trace_idx];
-        let openings = parts[0].iter().map(ExtWire::from).collect::<Vec<_>>();
+        let openings = parts[0].iter().map(ExtWire::<E::R>::from).collect::<Vec<_>>();
         t_claims.extend(column_openings_by_rot_assigned(ext_chip, &openings, need_rot));
     }
     let mut commit_idx = 1usize;
     for parts in batch_column_openings {
         for cols in parts.iter().skip(1) {
             let need_rot = need_rot_per_commit[commit_idx][0];
-            let openings = cols.iter().map(ExtWire::from).collect::<Vec<_>>();
+            let openings = cols.iter().map(ExtWire::<E::R>::from).collect::<Vec<_>>();
             t_claims.extend(column_openings_by_rot_assigned(ext_chip, &openings, need_rot));
             commit_idx += 1;
         }
@@ -149,8 +149,8 @@ where
     }
 
     let univariate_round_coeffs = &stacking_wire.univariate_round_coeffs;
-    let univariate_round_coeffs_raw: Vec<ExtWire> =
-        univariate_round_coeffs.iter().map(ExtWire::from).collect();
+    let univariate_round_coeffs_raw: Vec<ExtWire<E::R>> =
+        univariate_round_coeffs.iter().map(ExtWire::<E::R>::from).collect();
     let mut s_0_sum_eval = ext_chip.zero();
     for coeff in univariate_round_coeffs_raw.iter().step_by(omega_order) {
         s_0_sum_eval = ext_chip.add(s_0_sum_eval, *coeff);
@@ -175,8 +175,8 @@ where
         transcript.observe_ext(&s_j_1);
         transcript.observe_ext(&s_j_2);
         let u_j = transcript.sample_ext();
-        let s_j_1: ExtWire = (&s_j_1).into();
-        let s_j_2: ExtWire = (&s_j_2).into();
+        let s_j_1: ExtWire<E::R> = (&s_j_1).into();
+        let s_j_2: ExtWire<E::R> = (&s_j_2).into();
         let s_j_0 = ext_chip.sub(final_claim, s_j_1);
         final_claim = interpolate_quadratic_at_012_assigned(
             ext_chip,
@@ -209,8 +209,8 @@ where
         .iter()
         .any(|indices| indices.iter().any(|&(_, rot)| rot));
 
-    let mut n_cache: HashMap<isize, (ExtWire, ExtWire, ExtWire)> = HashMap::new();
-    let mut eq_mle_cache: HashMap<(isize, usize), ExtWire> = HashMap::new();
+    let mut n_cache: HashMap<isize, (ExtWire<E::R>, ExtWire<E::R>, ExtWire<E::R>)> = HashMap::new();
+    let mut eq_mle_cache: HashMap<(isize, usize), ExtWire<E::R>> = HashMap::new();
 
     for (commit_idx, layout) in layouts.iter().enumerate() {
         let lambda_indices = &lambda_indices_per_layout[commit_idx];

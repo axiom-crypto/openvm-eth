@@ -1,15 +1,10 @@
-//! Arithmetic-only re-implementation of `halo2_base::gates::range::RangeChip<Fr>`.
-//!
-//! `range_check` preserves the limb-decomposition + inner-product reconstruction
-//! Fr arithmetic (per user's decision). Everything else that is pure Fr witness
-//! generation (BigUint div_mod, shifted-diff constructions for less-than checks)
-//! is preserved as well. What we drop is the lookup-row bookkeeping and
-//! Assigned/AssignedValue plumbing.
+//! Arithmetic-only `RangeChip<R>`.
 
 use std::cmp::Ordering;
+use std::marker::PhantomData;
 
 use halo2_base::{
-    halo2_proofs::{arithmetic::Field, halo2curves::bn256::Fr},
+    halo2_proofs::halo2curves::bn256::Fr,
     utils::{biguint_to_fe, decompose_fe_to_u64_limbs, fe_to_biguint},
 };
 use num_bigint::BigUint;
@@ -17,29 +12,30 @@ use num_integer::Integer;
 
 use super::gate::GateChip;
 use super::RangeExt;
+use crate::repr::FieldRepr;
 
 fn bit_length(x: u64) -> usize {
     if x == 0 { 0 } else { 64 - x.leading_zeros() as usize }
 }
 
 #[derive(Clone, Debug)]
-pub struct RangeChip {
-    pub gate: GateChip,
+pub struct RangeChip<R: FieldRepr> {
+    pub gate: GateChip<R>,
     pub lookup_bits: usize,
-    /// Precomputed `[1, 2^lookup_bits, 2^{2*lookup_bits}, ...]` up to the
-    /// number of limbs that fit in `Fr::CAPACITY`.
+    /// `[1, 2^lookup_bits, 2^{2*lookup_bits}, ...]` — Fr constants.
     pub limb_bases: Vec<Fr>,
+    _marker: PhantomData<R>,
 }
 
-impl RangeChip {
+impl<R: FieldRepr> RangeChip<R> {
     pub fn new(lookup_bits: usize) -> Self {
         let gate = GateChip::new();
         let limb_base = Fr::from(1u64 << lookup_bits);
-        let capacity = 253usize; // Fr::CAPACITY
+        let capacity = 253usize;
         let num_bases = capacity / lookup_bits;
         let mut running = limb_base;
         let mut limb_bases = Vec::with_capacity(num_bases + 1);
-        limb_bases.push(Fr::ONE);
+        limb_bases.push(Fr::from(1u64));
         limb_bases.push(running);
         for _ in 2..=num_bases {
             running *= limb_base;
@@ -49,54 +45,55 @@ impl RangeChip {
             gate,
             lookup_bits,
             limb_bases,
+            _marker: PhantomData,
         }
     }
 
-    /// Emit the arithmetic for a `range_check`. Returns the last limb's value.
-    /// Preserves the inner-product reconstruction Fr multiplications, but does
-    /// not queue any lookup rows.
-    fn _range_check(&self, a: Fr, range_bits: usize) -> Fr {
+    /// Emit the arithmetic for `range_check`. Preserves the limb-decomposition
+    /// + inner-product reconstruction (per user's decision).
+    fn _range_check(&self, a: R, range_bits: usize) -> R {
         if range_bits == 0 {
             return a;
         }
         let num_limbs = range_bits.div_ceil(self.lookup_bits);
         let rem_bits = range_bits % self.lookup_bits;
 
-        let last_limb = if num_limbs == 1 {
-            a
+        // Resolve to Fr for BigUint decomposition. For FractionRepr this may
+        // invert the denominator, but in the arithonly path every value passed
+        // to range_check is `Trivial` (nothing here comes from `is_zero`).
+        let fr = R::resolve(a);
+        let last_limb_r;
+        if num_limbs == 1 {
+            last_limb_r = a;
         } else {
-            let limbs = decompose_fe_to_u64_limbs(&a, num_limbs, self.lookup_bits);
-            // Inner product reconstruction: preserves n Fr muls + (n-1) Fr adds
-            // exactly like `inner_product_simple` in halo2-lib. (The first limb
-            // multiplies by 1, so no mul there; halo2-lib special-cases that,
-            // and we do too.)
-            let mut acc = Fr::from(limbs[0]);
+            let limbs = decompose_fe_to_u64_limbs(&fr, num_limbs, self.lookup_bits);
+            // Inner-product reconstruction; preserves n muls + (n-1) adds
+            // exactly like `inner_product_simple` in halo2-lib.
+            let mut acc = R::from_fr(Fr::from(limbs[0]));
             for i in 1..num_limbs {
-                acc += Fr::from(limbs[i]) * self.limb_bases[i];
+                let term = R::mul(R::from_fr(Fr::from(limbs[i])), R::from_fr(self.limb_bases[i]));
+                acc = R::add(acc, term);
             }
-            let _ = acc; // acc == a modulo range (arithmetic done, not used).
-            Fr::from(limbs[num_limbs - 1])
-        };
+            let _ = acc;
+            last_limb_r = R::from_fr(Fr::from(limbs[num_limbs - 1]));
+        }
 
         match rem_bits.cmp(&1) {
-            Ordering::Equal => {
-                // assert_bit: constraint-only in the real chip, no Fr mul.
-            }
+            Ordering::Equal => {}
             Ordering::Greater => {
-                // The real chip does `mul(last_limb, pow_of_two[lookup_bits - rem_bits])`
-                // to align the highest limb. Preserve that Fr mul.
-                let mult = self.gate.pow_of_two[self.lookup_bits - rem_bits];
-                let _check = self.gate.mul(last_limb, mult);
+                let mult = R::from_fr(self.gate.pow_of_two[self.lookup_bits - rem_bits]);
+                let _check = self.gate.mul(last_limb_r, mult);
             }
             Ordering::Less => {}
         }
-
-        last_limb
+        last_limb_r
     }
 }
 
-impl RangeExt for RangeChip {
-    fn gate(&self) -> &GateChip {
+impl<R: FieldRepr> RangeExt for RangeChip<R> {
+    type R = R;
+
+    fn gate(&self) -> &GateChip<R> {
         &self.gate
     }
 
@@ -104,66 +101,64 @@ impl RangeExt for RangeChip {
         self.lookup_bits
     }
 
-    fn range_check(&self, a: Fr, range_bits: usize) {
+    fn range_check(&self, a: R, range_bits: usize) {
         self._range_check(a, range_bits);
     }
 
-    fn check_less_than(&self, a: Fr, b: Fr, num_bits: usize) {
-        assert!(num_bits < 253, "num_bits must fit Fr::CAPACITY");
-        let pow_of_two = self.gate.pow_of_two[num_bits];
-        let shift_a_val = pow_of_two + a;
-        let diff_val = shift_a_val - b;
+    fn check_less_than(&self, a: R, b: R, num_bits: usize) {
+        assert!(num_bits < 253);
+        let pow_of_two = R::from_fr(self.gate.pow_of_two[num_bits]);
+        let shift_a_val = R::add(pow_of_two, a);
+        let diff_val = R::sub(shift_a_val, b);
         self._range_check(diff_val, num_bits);
     }
 
-    fn check_less_than_safe(&self, a: Fr, b: u64) {
+    fn check_less_than_safe(&self, a: R, b: u64) {
         let range_bits = bit_length(b).div_ceil(self.lookup_bits) * self.lookup_bits;
         self._range_check(a, range_bits);
-        self.check_less_than(a, Fr::from(b), range_bits);
+        self.check_less_than(a, R::from_fr(Fr::from(b)), range_bits);
     }
 
-    fn check_big_less_than_safe(&self, a: Fr, b: BigUint) {
+    fn check_big_less_than_safe(&self, a: R, b: BigUint) {
         let range_bits = (b.bits() as usize).div_ceil(self.lookup_bits) * self.lookup_bits;
         self._range_check(a, range_bits);
-        self.check_less_than(a, biguint_to_fe(&b), range_bits);
+        self.check_less_than(a, R::from_fr(biguint_to_fe(&b)), range_bits);
     }
 
-    fn is_less_than(&self, a: Fr, b: Fr, num_bits: usize) -> Fr {
+    fn is_less_than(&self, a: R, b: R, num_bits: usize) -> R {
         let k = num_bits.div_ceil(self.lookup_bits);
         let padded_bits = k * self.lookup_bits;
         assert!(padded_bits + self.lookup_bits <= 253);
-        let pow_padded = self.gate.pow_of_two[padded_bits];
-        let shift_a_val = pow_padded + a;
-        let shifted_val = shift_a_val - b;
-        // Range-check the (padded_bits + lookup_bits)-bit representation to
-        // extract the top limb.
+        let pow_padded = R::from_fr(self.gate.pow_of_two[padded_bits]);
+        let shift_a_val = R::add(pow_padded, a);
+        let shifted_val = R::sub(shift_a_val, b);
         let last_limb = self._range_check(shifted_val, padded_bits + self.lookup_bits);
         self.gate.is_zero(last_limb)
     }
 
-    fn is_less_than_safe(&self, a: Fr, b: u64) -> Fr {
+    fn is_less_than_safe(&self, a: R, b: u64) -> R {
         let range_bits = bit_length(b).div_ceil(self.lookup_bits) * self.lookup_bits;
         self._range_check(a, range_bits);
-        self.is_less_than(a, Fr::from(b), range_bits)
+        self.is_less_than(a, R::from_fr(Fr::from(b)), range_bits)
     }
 
-    fn is_big_less_than_safe(&self, a: Fr, b: BigUint) -> Fr {
+    fn is_big_less_than_safe(&self, a: R, b: BigUint) -> R {
         let range_bits = (b.bits() as usize).div_ceil(self.lookup_bits) * self.lookup_bits;
         self._range_check(a, range_bits);
-        self.is_less_than(a, biguint_to_fe(&b), range_bits)
+        self.is_less_than(a, R::from_fr(biguint_to_fe(&b)), range_bits)
     }
 
-    fn div_mod(&self, a: Fr, b: BigUint, a_num_bits: usize) -> (Fr, Fr) {
-        let a_val = fe_to_biguint(&a);
+    fn div_mod(&self, a: R, b: BigUint, a_num_bits: usize) -> (R, R) {
+        let fr = R::resolve(a);
+        let a_val = fe_to_biguint(&fr);
         let (div, rem) = a_val.div_mod_floor(&b);
-        let div_fr: Fr = biguint_to_fe(&div);
-        let rem_fr: Fr = biguint_to_fe(&rem);
-        // Preserve the constraint-time range checks' arithmetic.
+        let div_r: R = R::from_fr(biguint_to_fe(&div));
+        let rem_r: R = R::from_fr(biguint_to_fe(&rem));
         self.check_big_less_than_safe(
-            div_fr,
+            div_r,
             (BigUint::from(1u32) << a_num_bits) / &b + BigUint::from(1u32),
         );
-        self.check_big_less_than_safe(rem_fr, b);
-        (div_fr, rem_fr)
+        self.check_big_less_than_safe(rem_r, b);
+        (div_r, rem_r)
     }
 }

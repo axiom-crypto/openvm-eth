@@ -1,9 +1,4 @@
-//! Arithmetic-only BabyBear-in-Fr chip.
-//!
-//! Direct port of `openvm/crates/static-verifier/src/field/baby_bear/base.rs`
-//! with `AssignedValue<Fr>` → `Fr`. Wire = (Fr, max_bits). All Fr and BigUint
-//! arithmetic (including `signed_div_mod`, range-check limb decomposition,
-//! BabyBear inversion for `div`) is preserved. Assertions become no-ops.
+//! Arithmetic-only `BabyBearChip<R>`.
 
 use std::{cell::RefCell, collections::HashMap, sync::Arc};
 
@@ -21,6 +16,7 @@ use openvm_stark_sdk::{
 use super::gate::GateChip;
 use super::range::RangeChip;
 use super::{BabyBearExt, RangeExt};
+use crate::repr::FieldRepr;
 use crate::wire::{ReducedWire, Wire};
 
 pub(crate) const BABY_BEAR_MODULUS_U64: u64 = 0x78000001;
@@ -36,8 +32,9 @@ fn bit_length_u64(x: u64) -> u32 {
     }
 }
 
-pub(crate) fn wire_to_baby_bear(w: Wire) -> BabyBear {
-    let b_int = fe_to_bigint(&w.value);
+pub(crate) fn wire_to_baby_bear<R: FieldRepr>(w: Wire<R>) -> BabyBear {
+    let fr = R::resolve(w.value);
+    let b_int = fe_to_bigint(&fr);
     let m = BigInt::from(BABY_BEAR_MODULUS_U64);
     let mut r = b_int % &m;
     if r < BigInt::from(0) {
@@ -47,13 +44,13 @@ pub(crate) fn wire_to_baby_bear(w: Wire) -> BabyBear {
 }
 
 #[derive(Clone, Debug)]
-pub struct BabyBearChip {
-    pub range: Arc<RangeChip>,
-    const_cache: RefCell<HashMap<u64, Wire>>,
+pub struct BabyBearChip<R: FieldRepr> {
+    pub range: Arc<RangeChip<R>>,
+    const_cache: RefCell<HashMap<u64, Wire<R>>>,
 }
 
-impl BabyBearChip {
-    pub fn new(range: Arc<RangeChip>) -> Self {
+impl<R: FieldRepr> BabyBearChip<R> {
+    pub fn new(range: Arc<RangeChip<R>>) -> Self {
         Self {
             range,
             const_cache: RefCell::new(HashMap::new()),
@@ -61,26 +58,21 @@ impl BabyBearChip {
     }
 
     #[inline]
-    pub fn gate_ref(&self) -> &GateChip {
+    pub fn gate_ref(&self) -> &GateChip<R> {
         self.range.gate()
     }
 
-    /// Constrains that `|a| < 2^a_num_bits`, returns `(div, rem)` such that
-    /// `a = p * div + rem` (`0 <= rem < p`). Mirrors the halo2-lib
-    /// `signed_div_mod` used by `BabyBearChip::reduce`.
-    fn signed_div_mod(&self, a: Fr, a_num_bits: u32) -> (Fr, Fr) {
+    fn signed_div_mod(&self, a: R, a_num_bits: u32) -> (R, R) {
         assert!(a_num_bits <= FR_CAPACITY - RESERVED_HIGH_BITS);
+        let fr = R::resolve(a);
         let b = BigUint::from(BABY_BEAR_MODULUS_U64);
         let b_int = BigInt::from(b.clone());
-        let a_val = fe_to_bigint(&a);
+        let a_val = fe_to_bigint(&fr);
         let (div, rem) = a_val.div_mod_floor(&b_int);
-        let div_val: Fr = bigint_to_fe(&div);
-        let rem_val: Fr = biguint_to_fe(&rem.to_biguint().unwrap());
-        // Same arithmetic as the original: shifted_div = div + bound, then
-        // range_check on padded length. Emit the Fr adds and the range_check
-        // limb decomposition + inner product.
+        let div_val: R = R::from_fr(bigint_to_fe(&div));
+        let rem_val: R = R::from_fr(biguint_to_fe(&rem.to_biguint().unwrap()));
         let bound = ((BigUint::from(1u32) << a_num_bits) - 1u32).div_ceil(&b);
-        let shifted_div = div_val + biguint_to_fe::<Fr>(&bound);
+        let shifted_div = R::add(div_val, R::from_fr(biguint_to_fe::<Fr>(&bound)));
         let range_bits = ((&bound * 2u32 + 1u32).bits()) as usize;
         self.range.range_check(shifted_div, range_bits);
         self.range.check_big_less_than_safe(rem_val, b);
@@ -88,47 +80,50 @@ impl BabyBearChip {
     }
 }
 
-impl BabyBearExt for BabyBearChip {
-    type Range = RangeChip;
+impl<R: FieldRepr> BabyBearExt for BabyBearChip<R> {
+    type R = R;
+    type Range = RangeChip<R>;
 
-    fn range(&self) -> &RangeChip {
+    fn range(&self) -> &RangeChip<R> {
         &self.range
     }
 
-    fn load_witness(&self, value: BabyBear) -> Wire {
+    fn load_witness(&self, value: BabyBear) -> Wire<R> {
         let fr_val = Fr::from(PrimeField64::as_canonical_u64(&value));
-        self.range.range_check(fr_val, BABYBEAR_MAX_BITS as usize);
-        Wire::new(fr_val, BABYBEAR_MAX_BITS)
+        let r_val = R::from_fr(fr_val);
+        self.range.range_check(r_val, BABYBEAR_MAX_BITS as usize);
+        Wire::new(r_val, BABYBEAR_MAX_BITS)
     }
 
-    fn load_reduced_witness(&self, value: BabyBear) -> ReducedWire {
+    fn load_reduced_witness(&self, value: BabyBear) -> ReducedWire<R> {
         let fr_val = Fr::from(PrimeField64::as_canonical_u64(&value));
-        self.range.check_less_than_safe(fr_val, BABY_BEAR_MODULUS_U64);
-        ReducedWire(Wire::new(fr_val, BABYBEAR_MAX_BITS))
+        let r_val = R::from_fr(fr_val);
+        self.range.check_less_than_safe(r_val, BABY_BEAR_MODULUS_U64);
+        ReducedWire(Wire::new(r_val, BABYBEAR_MAX_BITS))
     }
 
-    fn load_constant(&self, value: BabyBear) -> Wire {
+    fn load_constant(&self, value: BabyBear) -> Wire<R> {
         let key = value.as_canonical_u64();
         if let Some(&cached) = self.const_cache.borrow().get(&key) {
             return cached;
         }
         let max_bits = bit_length_u64(key);
-        let wire = Wire::new(Fr::from(key), max_bits);
+        let wire = Wire::new(R::from_fr(Fr::from(key)), max_bits);
         self.const_cache.borrow_mut().insert(key, wire);
         wire
     }
 
-    fn load_reduced_constant(&self, value: BabyBear) -> ReducedWire {
+    fn load_reduced_constant(&self, value: BabyBear) -> ReducedWire<R> {
         ReducedWire(self.load_constant(value))
     }
 
-    fn reduce(&self, a: Wire) -> Wire {
+    fn reduce(&self, a: Wire<R>) -> Wire<R> {
         assert!(a.max_bits <= FR_CAPACITY - RESERVED_HIGH_BITS);
         let (_, r) = self.signed_div_mod(a.value, a.max_bits);
         Wire::new(r, BABYBEAR_MAX_BITS)
     }
 
-    fn reduce_max_bits(&self, a: Wire) -> Wire {
+    fn reduce_max_bits(&self, a: Wire<R>) -> Wire<R> {
         if a.max_bits > BABYBEAR_MAX_BITS {
             self.reduce(a)
         } else {
@@ -136,34 +131,31 @@ impl BabyBearExt for BabyBearChip {
         }
     }
 
-    fn add(&self, mut a: Wire, mut b: Wire) -> Wire {
+    fn add(&self, mut a: Wire<R>, mut b: Wire<R>) -> Wire<R> {
         if a.max_bits + 1 > FR_CAPACITY - RESERVED_HIGH_BITS {
             a = self.reduce(a);
         }
         if b.max_bits + 1 > FR_CAPACITY - RESERVED_HIGH_BITS {
             b = self.reduce(b);
         }
-        let value = self.gate_ref().add(a.value, b.value);
-        let max_bits = a.max_bits.max(b.max_bits) + 1;
-        Wire::new(value, max_bits)
+        Wire::new(self.gate_ref().add(a.value, b.value), a.max_bits.max(b.max_bits) + 1)
     }
 
-    fn neg(&self, a: Wire) -> Wire {
+    fn neg(&self, a: Wire<R>) -> Wire<R> {
         Wire::new(self.gate_ref().neg(a.value), a.max_bits)
     }
 
-    fn sub(&self, mut a: Wire, mut b: Wire) -> Wire {
+    fn sub(&self, mut a: Wire<R>, mut b: Wire<R>) -> Wire<R> {
         if a.max_bits + 1 > FR_CAPACITY - RESERVED_HIGH_BITS {
             a = self.reduce(a);
         }
         if b.max_bits + 1 > FR_CAPACITY - RESERVED_HIGH_BITS {
             b = self.reduce(b);
         }
-        let value = self.gate_ref().sub(a.value, b.value);
-        Wire::new(value, a.max_bits.max(b.max_bits) + 1)
+        Wire::new(self.gate_ref().sub(a.value, b.value), a.max_bits.max(b.max_bits) + 1)
     }
 
-    fn mul(&self, mut a: Wire, mut b: Wire) -> Wire {
+    fn mul(&self, mut a: Wire<R>, mut b: Wire<R>) -> Wire<R> {
         if a.max_bits < b.max_bits {
             std::mem::swap(&mut a, &mut b);
         }
@@ -173,11 +165,10 @@ impl BabyBearExt for BabyBearChip {
                 b = self.reduce(b);
             }
         }
-        let value = self.gate_ref().mul(a.value, b.value);
-        Wire::new(value, a.max_bits + b.max_bits)
+        Wire::new(self.gate_ref().mul(a.value, b.value), a.max_bits + b.max_bits)
     }
 
-    fn mul_add(&self, mut a: Wire, mut b: Wire, mut c: Wire) -> Wire {
+    fn mul_add(&self, mut a: Wire<R>, mut b: Wire<R>, mut c: Wire<R>) -> Wire<R> {
         if a.max_bits < b.max_bits {
             std::mem::swap(&mut a, &mut b);
         }
@@ -195,7 +186,7 @@ impl BabyBearExt for BabyBearChip {
         Wire::new(value, max_bits)
     }
 
-    fn div(&self, mut a: Wire, mut b: Wire) -> Wire {
+    fn div(&self, mut a: Wire<R>, mut b: Wire<R>) -> Wire<R> {
         let b_val = wire_to_baby_bear(b);
         let b_inv_val = b_val.try_inverse().unwrap();
         let b_inv = self.load_witness(b_inv_val);
@@ -219,7 +210,7 @@ impl BabyBearExt for BabyBearChip {
         c
     }
 
-    fn special_inner_product(&self, a: &mut [Wire], b: &mut [Wire], s: usize) -> Wire {
+    fn special_inner_product(&self, a: &mut [Wire<R>], b: &mut [Wire<R>], s: usize) -> Wire<R> {
         assert!(a.len() == b.len());
         assert!(a.len() == 4);
         let mut max_bits: u32 = 0;
@@ -253,45 +244,35 @@ impl BabyBearExt for BabyBearChip {
                 max_bits = max_bits.max(c.max_bits + d.max_bits) + 1;
             }
         }
-        // Compute the actual inner product Σ a[i]*b[i] over the sliced ranges.
-        let mut acc = Fr::from(0u64);
+        let mut acc = R::zero();
         for (av, bv) in a[range].iter().zip(b[other_range].iter().rev()) {
             acc = self.gate_ref().mul_add(av.value, bv.value, acc);
         }
         Wire::new(acc, max_bits)
     }
 
-    fn select(&self, cond: Fr, a: Wire, b: Wire) -> Wire {
+    fn select(&self, cond: R, a: Wire<R>, b: Wire<R>) -> Wire<R> {
         let value = self.gate_ref().select(a.value, b.value, cond);
         Wire::new(value, a.max_bits.max(b.max_bits))
     }
 
-    fn assert_zero(&self, _a: Wire) {
-        // No-op: constraint-only in arithonly.
-    }
+    fn assert_zero(&self, _a: Wire<R>) {}
+    fn assert_equal(&self, _a: Wire<R>, _b: Wire<R>) {}
 
-    fn assert_equal(&self, _a: Wire, _b: Wire) {
-        // No-op: constraint-only in arithonly.
-    }
-
-    fn zero(&self) -> Wire {
+    fn zero(&self) -> Wire<R> {
         self.load_constant(BabyBear::ZERO)
     }
-
-    fn one(&self) -> Wire {
+    fn one(&self) -> Wire<R> {
         self.load_constant(BabyBear::ONE)
     }
-
-    fn mul_const(&self, a: Wire, c: BabyBear) -> Wire {
+    fn mul_const(&self, a: Wire<R>, c: BabyBear) -> Wire<R> {
         let c_wire = self.load_constant(c);
         self.mul(a, c_wire)
     }
-
-    fn square(&self, a: Wire) -> Wire {
+    fn square(&self, a: Wire<R>) -> Wire<R> {
         self.mul(a, a)
     }
-
-    fn pow_power_of_two(&self, a: Wire, n: usize) -> Wire {
+    fn pow_power_of_two(&self, a: Wire<R>, n: usize) -> Wire<R> {
         let mut r = a;
         for _ in 0..n {
             r = self.square(r);

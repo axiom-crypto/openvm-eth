@@ -1,7 +1,4 @@
-//! BN254 Poseidon2 for the arithonly transcript. Same round schedule + round
-//! constants as the halo2 gadget in
-//! `openvm/crates/static-verifier/src/hash/{mod,poseidon2}.rs`, but every Fr op
-//! is a raw multiplication/addition — no advice cell writes.
+//! BN254 Poseidon2 params (Fr constants). Repr-generic state lives in poseidon2.rs.
 
 use core::array;
 use std::sync::LazyLock;
@@ -20,6 +17,8 @@ pub mod poseidon2;
 
 pub(crate) const COMPRESS_WIDTH: usize = 2;
 
+/// Poseidon2 params keyed on plain `Fr` constants. The `Poseidon2State<R, T>`
+/// lifts these to `R` at use site.
 #[derive(Debug, Clone)]
 pub struct Poseidon2Params<const T: usize> {
     pub rounds_f: usize,
