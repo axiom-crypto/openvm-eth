@@ -1,6 +1,9 @@
 use revm_primitives::{b256, keccak256, B256};
 
-use crate::{node::NodeData, Error, Mpt};
+use crate::{
+    node::{BranchChildId, NodeData},
+    Error, Mpt,
+};
 
 trait RlpBytes {
     /// Returns the RLP-encoding.
@@ -258,9 +261,9 @@ fn test_delete_with_unresolved_sibling_errors() {
     let digest_id = trie.add_node(NodeData::Digest(fake_digest), None);
 
     // Create a branch with these two children
-    let mut children: [Option<u32>; 16] = Default::default();
-    children[0] = Some(leaf_id);
-    children[1] = Some(digest_id);
+    let mut children: [Option<BranchChildId>; 16] = Default::default();
+    children[0] = BranchChildId::new(leaf_id);
+    children[1] = BranchChildId::new(digest_id);
     let branch_children = trie.alloc_branch(children);
     let branch_node_id = trie.add_node(NodeData::Branch(branch_children), None);
 
