@@ -130,11 +130,10 @@ jobs:
 
       - name: Compare metrics
         run: |
-          ls
           BASE_NAME=${{ needs.run-base-benchmark.outputs.metric_name }}
-          BASE_JSON=$BASE_NAME/metrics.json
+          BASE_JSON=$BASE_NAME/$BASE_NAME.json
           TARGET_NAME=${{ needs.run-target-benchmark.outputs.metric_name }}
-          TARGET_JSON=$TARGET_NAME/metrics.json
+          TARGET_JSON=$TARGET_NAME/$TARGET_NAME.json
 
           openvm-prof --json-paths $TARGET_JSON --prev-json-paths $BASE_JSON
           MD_PATH=${TARGET_JSON%.json}.md
