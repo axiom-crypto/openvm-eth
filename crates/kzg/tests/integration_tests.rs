@@ -1,7 +1,6 @@
 use std::path::PathBuf;
 
 use openvm_build::{GuestOptions, TargetFilter};
-use openvm_circuit::openvm_stark_sdk::config::setup_tracing;
 use openvm_kzg::{
     test_files::{
         ONLY_INVALID_KZG_PROOF_TESTS, ONLY_VALID_KZG_PROOF_TESTS, SINGLE_VALID_KZG_PROOF_TEST,
@@ -10,9 +9,11 @@ use openvm_kzg::{
     KzgInputs,
 };
 use openvm_sdk::{
-    config::{AppConfig, SdkVmConfig},
+    config::{AggregationSystemParams, AppConfig},
     Sdk, StdIn,
 };
+use openvm_sdk_config::SdkVmConfig;
+use openvm_stark_sdk::utils::setup_tracing;
 use serde_yaml::from_str;
 
 #[test]
@@ -47,7 +48,7 @@ fn test_multiple_invalid_verify_kzg() {
 }
 
 pub fn run_test_from_yaml_str(data: &str) {
-    let test: Test<Input> = from_str(data).unwrap();
+    let test: Test<Input<'_>> = from_str(data).unwrap();
     let (Ok(commitment), Ok(z), Ok(y), Ok(proof)) = (
         test.input.get_commitment(),
         test.input.get_z(),
@@ -67,7 +68,7 @@ pub fn run_guest_program(input: KzgInputs) {
     setup_tracing();
     let app_config: AppConfig<SdkVmConfig> =
         toml::from_str(include_str!("programs/verify_kzg/openvm.toml")).unwrap();
-    let sdk = Sdk::new(app_config).unwrap();
+    let sdk = Sdk::new(app_config, AggregationSystemParams::default()).unwrap();
 
     let guest_opts = GuestOptions::default();
     let target_filter =

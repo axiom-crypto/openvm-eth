@@ -30,6 +30,7 @@ openvm-stark-sdk.workspace = true
 
 openvm.workspace = true
 openvm-sdk.workspace = true
+openvm-sdk-config.workspace = true
 openvm-build.workspace = true
 openvm-circuit = { workspace = true, features = ["parallel", "test-utils"] }
 openvm-pairing = { workspace = true, features = ["halo2curves"] }

@@ -126,6 +126,7 @@ openvm-algebra-guest = { git = "https://github.com/openvm-org/openvm.git", branc
 
 # openvm (host only)
 openvm-sdk = { git = "https://github.com/openvm-org/openvm.git", branch = "develop-v2.1.0-rv64", default-features = false }
+openvm-sdk-config = { git = "https://github.com/openvm-org/openvm.git", branch = "develop-v2.1.0-rv64", default-features = false }
 openvm-build = { git = "https://github.com/openvm-org/openvm.git", branch = "develop-v2.1.0-rv64", default-features = false }
 openvm-stark-sdk = { git = "https://github.com/openvm-org/stark-backend.git", branch = "develop-v2", default-features = false }
 
