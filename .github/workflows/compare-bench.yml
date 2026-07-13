@@ -141,9 +141,13 @@ jobs:
           TARGET_NAME=${{ needs.run-target-benchmark.outputs.metric_name }}
           BASE_JSON=$(find $BASE_NAME -name "*.json" | head -1)
           TARGET_JSON=$(find $TARGET_NAME -name "*.json" | head -1)
+          BASE_REPORT_JSON=${BASE_JSON%.json}.report.json
+          TARGET_REPORT_JSON=${TARGET_JSON%.json}.report.json
 
-          openvm-prof --json-paths $TARGET_JSON --prev-json-paths $BASE_JSON
-          MD_PATH=${TARGET_JSON%.json}.md
+          scripts/clean_proof_metrics.sh "$BASE_JSON" "$BASE_REPORT_JSON"
+          scripts/clean_proof_metrics.sh "$TARGET_JSON" "$TARGET_REPORT_JSON"
+          openvm-prof --json-paths "$TARGET_REPORT_JSON" --prev-json-paths "$BASE_REPORT_JSON"
+          MD_PATH=${TARGET_REPORT_JSON%.json}.md
           cat $MD_PATH >> $GITHUB_STEP_SUMMARY
 
           echo "" >> $GITHUB_STEP_SUMMARY

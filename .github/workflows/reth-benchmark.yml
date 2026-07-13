@@ -594,8 +594,15 @@ jobs:
           fi
           cat > run_benchmark.sh <<EOF
           #!/bin/bash
-          /usr/bin/time -v ./target/$HOST_PROFILE/${{ env.BIN_NAME }} \
-            --mode $MODE --block-number $BLOCK_NUMBER $PROVIDER_ARGS $CACHE_ARGS \
+          set -euo pipefail
+          BENCHMARK_MODE="\${1:-$MODE}"
+          if [[ "\${OPENVM_BENCHMARK_UNTIMED:-0}" == "1" ]]; then
+            TIME_COMMAND=()
+          else
+            TIME_COMMAND=(/usr/bin/time -v)
+          fi
+          "\${TIME_COMMAND[@]}" ./target/$HOST_PROFILE/${{ env.BIN_NAME }} \
+            --mode "\${BENCHMARK_MODE}" --block-number $BLOCK_NUMBER $PROVIDER_ARGS $CACHE_ARGS \
             $OPTIONAL_ARGS
           EOF
           chmod +x run_benchmark.sh
@@ -608,6 +615,7 @@ jobs:
           export JEMALLOC_SYS_WITH_MALLOC_CONF=${JEMALLOC_SYS_WITH_MALLOC_CONF}
           export RUST_LOG="info,p3_=warn"
           export OUTPUT_PATH=${METRIC_PATH}
+          set -o pipefail
 
           # Source GPU monitoring utilities
           source "$GITHUB_WORKSPACE/scripts/gpu_monitor.sh"
@@ -665,11 +673,33 @@ jobs:
             # nsys has its own memory tracking, set peak to 0
             echo "GPU_PEAK_MEMORY_MIB=0" >> $GITHUB_ENV
           else
+            EXEC_MODE="${{ inputs.exec_mode || github.event.inputs.exec_mode || 'rvr' }}"
+            MODE="${{ inputs.mode || github.event.inputs.mode }}"
+            if [[ "$EXEC_MODE" == "rvr" && "$MODE" == prove-* ]]; then
+              export OPENVM_RVR_METERED_LIB="$RUNNER_TEMP/openvm-rvr-metered.so"
+              export OPENVM_RVR_PREFLIGHT_LIB="$RUNNER_TEMP/openvm-rvr-preflight.so"
+              export OPENVM_RVR_PREFLIGHT_ENGINE=rvr
+
+              RVR_WARMUP_METRIC_PATH=".bench_metrics/${METRIC_NAME}.rvr-warmup.json"
+              RVR_WARMUP_LOG_PATH="rvr_warmup_output.log"
+              # execute-metered only prepares the metered library; preflight is
+              # initialized lazily by the continuation proving path.
+              echo "Pre-warming RVR native libraries outside the timed benchmark."
+              OPENVM_BENCHMARK_UNTIMED=1 OUTPUT_PATH="$RVR_WARMUP_METRIC_PATH" \
+                ./run_benchmark.sh prove-app 2>&1 | tee "$RVR_WARMUP_LOG_PATH"
+              echo "RVR_WARMUP_METRIC_PATH=$RVR_WARMUP_METRIC_PATH" >> "$GITHUB_ENV"
+              echo "RVR_WARMUP_LOG_PATH=$RVR_WARMUP_LOG_PATH" >> "$GITHUB_ENV"
+            fi
+
             # Start GPU memory monitoring
             start_gpu_monitor "$GPU_LOG_FILE" 5
 
-            set -o pipefail
             ./ci/monitor_memory.sh ./run_benchmark.sh 2>&1 | tee benchmark_output.log
+
+            TIMED_RVR_REBUILD=false
+            if [[ "$EXEC_MODE" == "rvr" && "$MODE" == prove-* ]] && grep -Fq "building rvr native library" benchmark_output.log; then
+              TIMED_RVR_REBUILD=true
+            fi
 
             # Finalize GPU monitoring and capture peak
             finalize_gpu_monitor
@@ -677,6 +707,11 @@ jobs:
             echo "GPU_LOG_FILE=${GPU_LOG_FILE}" >> $GITHUB_ENV
 
             echo "MEM_USAGE_PATH=memory_usage.png" >> $GITHUB_ENV
+
+            if [[ "$TIMED_RVR_REBUILD" == "true" ]]; then
+              echo "::error::Timed RVR benchmark rebuilt a native library; proof and wall metrics are invalid."
+              exit 1
+            fi
           fi
 
       - name: Save RPC input cache to S3
@@ -735,10 +770,22 @@ jobs:
       - name: Upload Benchmark Metrics
         run: s5cmd cp ${METRIC_PATH} ${{ env.S3_METRICS_PATH }}/${METRIC_NAME}.json
 
+      - name: Upload RVR warm-up diagnostics
+        if: ${{ (inputs.exec_mode || github.event.inputs.exec_mode || 'rvr') == 'rvr' && startsWith(inputs.mode || github.event.inputs.mode, 'prove-') && (inputs.profiling || github.event.inputs.profiling || 'none') == 'none' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.set-metric-name.outputs.name }}-rvr-warmup
+          path: |
+            .bench_metrics/*.rvr-warmup.json
+            rvr_warmup_output.log
+          retention-days: 1
+
       - name: Generate markdown
         run: |
-          openvm-prof --json-paths $METRIC_PATH --num-devices 16 --proofs-per-device 1
-          MD_PATH=${METRIC_PATH%.json}.md
+          REPORT_METRIC_PATH=${METRIC_PATH%.json}.report.json
+          scripts/clean_proof_metrics.sh "$METRIC_PATH" "$REPORT_METRIC_PATH"
+          openvm-prof --json-paths "$REPORT_METRIC_PATH" --num-devices 16 --proofs-per-device 1
+          MD_PATH=${REPORT_METRIC_PATH%.json}.md
           echo "MD_PATH=${MD_PATH}" >> $GITHUB_ENV
 
       - name: Add benchmark metadata to markdown
@@ -758,6 +805,18 @@ jobs:
           if [[ -n "${GPU_PEAK_MEMORY_MIB}" && "${GPU_PEAK_MEMORY_MIB}" != "0" ]]; then
             echo "" >> $MD_PATH
             echo "**Peak GPU Memory (nvidia-smi):** $(awk "BEGIN{printf \"%.2f\",${GPU_PEAK_MEMORY_MIB}/1024}") GB" >> $MD_PATH
+          fi
+
+          if [[ -n "${RVR_WARMUP_METRIC_PATH:-}" && -f "${RVR_WARMUP_METRIC_PATH}" ]]; then
+            METERED_COMPILE_MS=$(jq '[.gauge[] | select(.metric == "compile_metered_time_ms") | (.value | tonumber)] | add // 0' "$RVR_WARMUP_METRIC_PATH")
+            PREFLIGHT_COMPILE_MS=$(jq '[.gauge[] | select(.metric == "compile_preflight_time_ms") | (.value | tonumber)] | add // 0' "$RVR_WARMUP_METRIC_PATH")
+            echo "" >> "$MD_PATH"
+            echo "### One-time RVR native compilation (excluded from proof and wall metrics)" >> "$MD_PATH"
+            echo "" >> "$MD_PATH"
+            echo "| Phase | Time (s) |" >> "$MD_PATH"
+            echo "| --- | ---: |" >> "$MD_PATH"
+            awk "BEGIN{printf \"| Metered native compile | %.3f |\\n\",${METERED_COMPILE_MS}/1000}" >> "$MD_PATH"
+            awk "BEGIN{printf \"| Preflight native compile | %.3f |\\n\",${PREFLIGHT_COMPILE_MS}/1000}" >> "$MD_PATH"
           fi
 
       - name: Generate samply profile artifacts
