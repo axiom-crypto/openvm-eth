@@ -25,6 +25,7 @@ env:
   CARGO_TERM_COLOR: always
   CARGO_NET_GIT_FETCH_WITH_CLI: "true"
   OPENVM_FAST_TEST: "1"
+  OPENVM_BRANCH: develop-v2.1.0-rv64
 
 jobs:
   test:
@@ -43,13 +44,27 @@ jobs:
       - uses: taiki-e/install-action@nextest
 
       # The KZG integration tests build a zkVM guest via the OpenVM SDK, which
-      # compiles with `-Z build-std` using OpenVM's pinned nightly + rust-src.
-      # This must match `DEFAULT_RUSTUP_TOOLCHAIN_NAME` in OpenVM's
-      # crates/toolchain/build (overridable via the OPENVM_RUST_TOOLCHAIN env var).
-      - name: Install OpenVM guest toolchain
+      # requires the custom `openvm-1.94.0` rustup toolchain. It is installed
+      # by the cargo-openvm CLI built from the same openvm branch this repo pins.
+      - name: Checkout openvm (for cargo-openvm CLI)
+        run: git clone --depth=1 --branch="$OPENVM_BRANCH" https://github.com/openvm-org/openvm.git
+
+      - name: Build cargo-openvm
+        working-directory: openvm
         run: |
-          rustup install nightly-2025-08-02
-          rustup component add rust-src --toolchain nightly-2025-08-02
+          cargo update -p openvm-stark-sdk
+          cargo build --locked -p cargo-openvm
+          echo "${{ github.workspace }}/openvm/target/debug" >> $GITHUB_PATH
+
+      - name: Restore openvm toolchain from cache
+        uses: runs-on/cache@v4
+        with:
+          path: ~/.openvm/toolchains
+          key: openvm-toolchain-openvm-1.94.0-${{ runner.os }}-${{ runner.arch }}
+
+      # Skips the download if restored from cache, just re-links into rustup.
+      - name: Install openvm rust toolchain
+        run: cargo openvm toolchain install
 
       - name: Run tests
         run: cargo nextest run -p openvm-kzg --release
