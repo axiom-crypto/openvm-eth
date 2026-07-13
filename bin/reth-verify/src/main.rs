@@ -42,12 +42,6 @@ fn load_stark_final_proof(path: &PathBuf) -> Result<VmStarkProof> {
         .wrap_err_with(|| format!("Failed to read STARK final proof {}", path.display()))?;
     let proof_bytes = decode_persisted_final_proof_bytes(path, proof_bytes)?;
 
-    // Edge persists the final STARK proof as a `VmStarkProof` encoded with the
-    // openvm codec (proof + user public values + any deferral merkle proofs) —
-    // see edge's `persist_final_proof_to_disk` / `load_final_proof`. Decode with
-    // the same codec. Any `DeferralMerkleProofs` round-trip inline, so deferral
-    // proofs carry them through; non-deferral proofs decode with
-    // `deferral_merkle_proofs = None`.
     VmStarkProof::decode_from_bytes(&proof_bytes)
         .wrap_err_with(|| format!("Failed to decode STARK final proof {}", path.display()))
 }
