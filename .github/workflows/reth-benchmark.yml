@@ -50,7 +50,7 @@ on:
         options:
           - none
           - host # host profiling (samply, flamegraphs, etc)
-          # - guest # guest profiling (circuit flamegraphs)
+          - guest # guest profiling (circuit flamegraphs)
           - nsys # nsys profiling (cuda)
         default: none
       use_tco:
@@ -320,6 +320,11 @@ jobs:
           if [[ "${{ inputs.profiling || github.event.inputs.profiling }}" == "host" || "${{ inputs.profiling || github.event.inputs.profiling }}" == "nsys" ]]; then
             HOST_PROFILE="profiling"
           fi
+          if [[ "${{ inputs.profiling || github.event.inputs.profiling }}" == "guest" ]]; then
+            # Unstripped guest ELF so the transpiler can extract function bounds for
+            # per-function cycle attribution.
+            GUEST_PROFILE="profiling"
+          fi
           echo "guest_profile=${GUEST_PROFILE}" >> $GITHUB_OUTPUT
           echo "host_profile=${HOST_PROFILE}" >> $GITHUB_OUTPUT
       - name: Set build args
@@ -332,6 +337,12 @@ jobs:
           fi
           if [[ "${{ inputs.profiling || github.event.inputs.profiling }}" == "nsys" ]]; then
             FEATURES="${FEATURES},nvtx"
+          fi
+          if [[ "${{ inputs.profiling || github.event.inputs.profiling }}" == "guest" ]]; then
+            # Emits per-opcode metrics labeled with the guest function stack during preflight
+            # execution; openvm's flamegraph.py renders them as circuit flamegraphs. Requires a
+            # prove mode (preflight only runs during trace generation).
+            FEATURES="${FEATURES},perf-metrics"
           fi
 
           MODE="${{ inputs.mode || github.event.inputs.mode }}"
@@ -611,6 +622,11 @@ jobs:
           export JEMALLOC_SYS_WITH_MALLOC_CONF=${JEMALLOC_SYS_WITH_MALLOC_CONF}
           export RUST_LOG="info,p3_=warn"
           export OUTPUT_PATH=${METRIC_PATH}
+          if [[ "${{ inputs.profiling || github.event.inputs.profiling }}" == "guest" ]]; then
+            # The transpiler (with function-span) writes the guest symbol string table here;
+            # flamegraph.py reads it back to resolve the span offsets to function names.
+            export GUEST_SYMBOLS_PATH="${METRIC_PATH%.json}.syms"
+          fi
 
           # Source GPU monitoring utilities
           source "$GITHUB_WORKSPACE/scripts/gpu_monitor.sh"
@@ -762,6 +778,25 @@ jobs:
             echo "" >> $MD_PATH
             echo "**Peak GPU Memory (nvidia-smi):** $(awk "BEGIN{printf \"%.2f\",${GPU_PEAK_MEMORY_MIB}/1024}") GB" >> $MD_PATH
           fi
+
+      - name: Generate circuit flamegraphs
+        if: ${{ (inputs.profiling || github.event.inputs.profiling) == 'guest' }}
+        run: |
+          cargo install inferno
+          GUEST_SYMBOLS_PATH="${METRIC_PATH%.json}.syms"
+          if [[ -f $GUEST_SYMBOLS_PATH ]]; then
+            python3 openvm/ci/scripts/metric_unify/flamegraph.py $METRIC_PATH --guest-symbols $GUEST_SYMBOLS_PATH
+          else
+            python3 openvm/ci/scripts/metric_unify/flamegraph.py $METRIC_PATH
+          fi
+
+      - name: Upload circuit flamegraphs
+        if: ${{ (inputs.profiling || github.event.inputs.profiling) == 'guest' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.set-metric-name.outputs.name }}-circuit-flamegraphs
+          path: .bench_metrics/flamegraphs/*.svg
+          retention-days: 3
 
       - name: Generate samply profile artifacts
         if: ${{ inputs.profiling == 'host' || github.event.inputs.profiling == 'host' }}
