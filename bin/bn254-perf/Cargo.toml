@@ -1,0 +1,17 @@
+[package]
+name = "bn254-perf"
+edition.workspace = true
+version.workspace = true
+repository.workspace = true
+homepage.workspace = true
+exclude.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+halo2-base = { workspace = true, default-features = false, features = ["halo2-axiom", "cuda"] }
+libc = "0.2"
+
+[build-dependencies]
+openvm-cuda-builder = { git = "https://github.com/openvm-org/stark-backend.git", branch = "develop-v2", default-features = false }
