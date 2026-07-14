@@ -13,7 +13,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-# Toolchains: stable for cargo-openvm, nightly for tco build
+# Toolchains: stable for cargo-openvm, nightly for host build
 ENV CARGO_HOME="/root/.cargo" \
     RUSTUP_HOME="/root/.rustup" \
     PATH="/root/.cargo/bin:${PATH}"
@@ -41,7 +41,7 @@ RUN RUSTFLAGS="" cargo openvm build --no-transpile --profile=release \
 # Build host binary
 WORKDIR /app
 ENV JEMALLOC_SYS_WITH_MALLOC_CONF="retain:true,background_thread:true,metadata_thp:always,dirty_decay_ms:10000,muzzy_decay_ms:10000,abort_conf:true"
-ARG FEATURES="metrics,jemalloc,tco,unprotected,cuda"
+ARG FEATURES="metrics,jemalloc,rvr,unprotected,cuda"
 ARG PROFILE="release"
 # CUDA SASS targets: 89 = Ada, 120 = Blackwell
 ARG CUDA_ARCH="89,120"
