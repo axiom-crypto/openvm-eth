@@ -1,5 +1,5 @@
 name: "Compare Branches"
-run-name: "Compare Branches: ${{ inputs.base_ref }} vs ${{ inputs.target_ref }} (block ${{ inputs.block_number }})"
+run-name: "Compare Branches: ${{ inputs.base_ref }} vs ${{ inputs.target_ref }} (block ${{ inputs.block_number || inputs.block_preset }})"
 
 on:
   workflow_dispatch:
@@ -13,11 +13,21 @@ on:
         description: "Target branch/ref to compare"
         required: true
         type: string
-      block_number:
-        type: number
+      block_preset:
+        type: choice
         required: false
-        description: Ethereum block number
-        default: 24001988
+        description: Benchmark block preset (see .github/benchmark-blocks.json)
+        options:
+          - p100
+          - p99
+          - p50
+          - keccak-heavy
+          - p256-heavy
+        default: p100
+      block_number:
+        type: string
+        required: false
+        description: Ethereum block number (overrides block_preset)
       benchmark_mode:
         type: choice
         required: false
@@ -48,13 +58,36 @@ on:
         default: false
 
 jobs:
+  resolve-block:
+    name: "Resolve Benchmark Block"
+    runs-on: ubuntu-latest
+    outputs:
+      block: ${{ steps.resolve.outputs.block }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Resolve block number
+        id: resolve
+        run: |
+          BLOCK="${{ inputs.block_number }}"
+          if [[ -z "$BLOCK" ]]; then
+            BLOCK=$(jq -er --arg preset "${{ inputs.block_preset }}" '.[$preset].block' .github/benchmark-blocks.json)
+          fi
+          [[ "$BLOCK" =~ ^[0-9]+$ ]] || { echo "invalid block number: $BLOCK"; exit 1; }
+          echo "block=$BLOCK" >> "$GITHUB_OUTPUT"
+      - name: Measure precompile mix
+        continue-on-error: true
+        env:
+          RPC_URL: ${{ secrets.RPC_URL_1 }}
+        run: python3 .github/scripts/precompile_mix.py "${{ steps.resolve.outputs.block }}" >> "$GITHUB_STEP_SUMMARY"
+
   run-base-benchmark:
     name: "Run Base Benchmark (${{ inputs.base_ref }})"
     uses: ./.github/workflows/reth-benchmark.yml
+    needs: resolve-block
     with:
       ref: ${{ inputs.base_ref }}
       mode: ${{ inputs.benchmark_mode }}
-      block_number: ${{ fromJSON(inputs.block_number || '24001988') }}
+      block_number: ${{ fromJSON(needs.resolve-block.outputs.block) }}
       instance_family: ${{ inputs.instance_family }}
       profiling: none
     secrets: inherit
@@ -62,10 +95,11 @@ jobs:
   run-target-benchmark:
     name: "Run Target Benchmark (${{ inputs.target_ref }})"
     uses: ./.github/workflows/reth-benchmark.yml
+    needs: resolve-block
     with:
       ref: ${{ inputs.target_ref }}
       mode: ${{ inputs.benchmark_mode }}
-      block_number: ${{ fromJSON(inputs.block_number || '24001988') }}
+      block_number: ${{ fromJSON(needs.resolve-block.outputs.block) }}
       instance_family: ${{ inputs.instance_family }}
       profiling: none
     secrets: inherit
@@ -74,10 +108,11 @@ jobs:
     name: "Target Host Perf Flamegraph"
     uses: ./.github/workflows/reth-benchmark.yml
     if: ${{ inputs.host_flamegraph }}
+    needs: resolve-block
     with:
       ref: ${{ inputs.target_ref }}
       mode: ${{ inputs.benchmark_mode }}
-      block_number: ${{ fromJSON(inputs.block_number || '24001988') }}
+      block_number: ${{ fromJSON(needs.resolve-block.outputs.block) }}
       instance_family: ${{ inputs.instance_family }}
       profiling: host
     secrets: inherit
@@ -86,16 +121,18 @@ jobs:
     name: "Target Guest Circuit Flamegraphs"
     uses: ./.github/workflows/reth-benchmark.yml
     if: ${{ inputs.guest_flamegraph }}
+    needs: resolve-block
     with:
       ref: ${{ inputs.target_ref }}
       mode: ${{ inputs.benchmark_mode }}
-      block_number: ${{ fromJSON(inputs.block_number || '24001988') }}
+      block_number: ${{ fromJSON(needs.resolve-block.outputs.block) }}
       instance_family: ${{ inputs.instance_family }}
       profiling: guest
     secrets: inherit
 
   compare-results:
     needs:
+      - resolve-block
       - run-base-benchmark
       - run-target-benchmark
     runs-on: ubuntu-latest
@@ -146,4 +183,4 @@ jobs:
           echo "Target Ref: ${{ inputs.target_ref }}" >> $GITHUB_STEP_SUMMARY
           echo "Instance Family: ${{ inputs.instance_family }}" >> $GITHUB_STEP_SUMMARY
           echo "Benchmark Mode: ${{ inputs.benchmark_mode }}" >> $GITHUB_STEP_SUMMARY
-          echo "Block Number: ${{ inputs.block_number }}" >> $GITHUB_STEP_SUMMARY
+          echo "Block Number: ${{ needs.resolve-block.outputs.block }}" >> $GITHUB_STEP_SUMMARY
