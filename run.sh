@@ -18,7 +18,7 @@
 #   --num-children-internal <N>
 #   --segment-max-memory <N>
 #   --cuda              Force CUDA acceleration (auto-detected if nvidia-smi available)
-#   --exec-mode <MODE>  Select the OpenVM execution backend: interpreter | rvr | aot.
+#   --exec-mode <MODE>  Select the OpenVM execution backend: interpreter | tco | aot | rvr.
 #                       Defaults to rvr. aot is not supported on arm64.
 #                       rvr requires clang-22 and lld on PATH.
 #   --perf              Run with perf + samply host profiling and upload to Firefox Profiler
@@ -143,11 +143,11 @@ while [[ $# -gt 0 ]]; do
             ;;
         --exec-mode)
             case "${2:-}" in
-                interpreter|rvr|aot)
+                interpreter|tco|aot|rvr)
                     EXEC_MODE="$2"
                     ;;
                 *)
-                    echo "Error: --exec-mode requires one of: interpreter, rvr, aot (got '${2:-}')" >&2
+                    echo "Error: --exec-mode requires one of: interpreter, tco, aot, rvr (got '${2:-}')" >&2
                     exit 1
                     ;;
             esac
@@ -322,6 +322,9 @@ esac
 case "$EXEC_MODE" in
     interpreter)
         # default interpreted execution; no extra backend feature
+        ;;
+    tco)
+        FEATURES="$FEATURES,tco"
         ;;
     aot)
         # aot enables halo2curves-axiom/asm which is x86_64-only

@@ -25,6 +25,7 @@ env:
   CARGO_TERM_COLOR: always
   CARGO_NET_GIT_FETCH_WITH_CLI: "true"
   OPENVM_FAST_TEST: "1"
+  OPENVM_BRANCH: develop-v2.1.0
 
 jobs:
   test:
@@ -41,15 +42,20 @@ jobs:
         with:
           cache-on-failure: true
       - uses: taiki-e/install-action@nextest
+      - name: Restore openvm toolchain from cache
+        uses: runs-on/cache@v4
+        with:
+          path: ~/.openvm/toolchains
+          key: openvm-toolchain-openvm-1.94.0-${{ runner.os }}-${{ runner.arch }}
 
       # The KZG integration tests build a zkVM guest via the OpenVM SDK, which
-      # compiles with `-Z build-std` using OpenVM's pinned nightly + rust-src.
-      # This must match `DEFAULT_RUSTUP_TOOLCHAIN_NAME` in OpenVM's
-      # crates/toolchain/build (overridable via the OPENVM_RUST_TOOLCHAIN env var).
+      # compiles with OpenVM's named rustup toolchain.
       - name: Install OpenVM guest toolchain
         run: |
           rustup install nightly-2026-01-18
           rustup component add rust-src --toolchain nightly-2026-01-18
+          cargo install --git https://github.com/openvm-org/openvm.git --branch "$OPENVM_BRANCH" --locked --force cargo-openvm
+          cargo openvm toolchain install
 
       - name: Run tests
         run: cargo nextest run -p openvm-kzg --release
