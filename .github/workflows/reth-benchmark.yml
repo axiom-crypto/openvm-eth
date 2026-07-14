@@ -683,7 +683,7 @@ jobs:
           elif [[ "${{ inputs.profiling || github.event.inputs.profiling }}" == "nsys" ]]; then
             nsys profile --trace=cuda,osrt,nvtx \
              --sample=cpu \
-             --cpuctxsw=true \
+             --cpuctxsw=process-tree \
              --cuda-memory-usage=true \
              --force-overwrite=true \
              -o reth.nsys-rep \
