@@ -296,7 +296,7 @@ pub mod tests {
         let kzg_settings = KzgSettings::load_trusted_setup_file().unwrap();
 
         for (test_file, data) in &VERIFY_KZG_PROOF_TESTS {
-            let test: Test<Input> = serde_yaml::from_str(data).unwrap();
+            let test: Test<Input<'_>> = serde_yaml::from_str(data).unwrap();
             let (Ok(commitment), Ok(z), Ok(y), Ok(proof)) = (
                 test.input.get_commitment(),
                 test.input.get_z(),

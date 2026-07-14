@@ -48,7 +48,7 @@ fn test_multiple_invalid_verify_kzg() {
 }
 
 pub fn run_test_from_yaml_str(data: &str) {
-    let test: Test<Input> = from_str(data).unwrap();
+    let test: Test<Input<'_>> = from_str(data).unwrap();
     let (Ok(commitment), Ok(z), Ok(y), Ok(proof)) = (
         test.input.get_commitment(),
         test.input.get_z(),
