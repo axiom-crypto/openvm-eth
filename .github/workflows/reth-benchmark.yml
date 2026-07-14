@@ -76,6 +76,7 @@ on:
           - interpreter
           - rvr
           - aot
+          - tco
         default: rvr
       rpc_input_cache:
         type: choice
@@ -152,7 +153,7 @@ on:
       exec_mode:
         type: string
         required: false
-        description: OpenVM execution backend, one of {interpreter, rvr, aot} (aot is x86_64-only)
+        description: OpenVM execution backend, one of {interpreter, rvr, aot, tco} (aot is x86_64-only)
         default: rvr
       num_children_leaf:
         type: number
@@ -381,7 +382,7 @@ jobs:
             arm64|aarch64)
               if [[ "$EXEC_MODE" == "aot" ]]; then
                 # aot enables halo2curves-axiom/asm which is x86_64-only
-                echo "::error::exec_mode=aot is not supported on arm64; choose interpreter or rvr"
+                echo "::error::exec_mode=aot is not supported on arm64; choose interpreter, rvr, or tco"
                 exit 1
               fi
               ;;
@@ -394,6 +395,7 @@ jobs:
           esac
           case "$EXEC_MODE" in
             interpreter) ;; # default interpreted execution; no extra backend feature
+            tco) FEATURES="${FEATURES},tco" ;;
             aot) FEATURES="${FEATURES},aot" ;;
             rvr) FEATURES="${FEATURES},rvr" ;;
             *) echo "Unsupported exec_mode: $EXEC_MODE"; exit 1 ;;
