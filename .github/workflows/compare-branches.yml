@@ -21,7 +21,7 @@ on:
           - p100
           - p99
           - p50
-          - bn254-stress
+          - keccak-heavy
           - p256-heavy
         default: p100
       block_number:
