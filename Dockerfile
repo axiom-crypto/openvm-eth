@@ -61,7 +61,7 @@ RUN S5CMD_VER=$(curl -s https://api.github.com/repos/peak/s5cmd/releases/latest 
 
 WORKDIR /app
 COPY --from=builder /app/target/release/openvm-reth-benchmark /usr/local/bin/openvm-reth-benchmark
-COPY --from=builder /app/bin/openvm-reth-benchmark/elf/openvm-stateless-guest /app/bin/openvm-reth-benchmark/elf/openvm-stateless-guest
+COPY --from=builder /app/bin/reth-benchmark/elf/openvm-stateless-guest /app/bin/reth-benchmark/elf/openvm-stateless-guest
 COPY server /app/server
 
 RUN python3 -m venv /opt/venv \

@@ -24,7 +24,7 @@ use bumpalo::Bump;
 
 // Links the guest's optimized `memcmp`/`bcmp` overrides into every binary
 // that executes blocks inside the zkVM.
-#[cfg(target_os = "zkvm")]
+#[cfg(target_os = "openvm")]
 use openvm_guest_mem as _;
 
 use crate::{
