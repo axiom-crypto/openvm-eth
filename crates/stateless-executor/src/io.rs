@@ -1,4 +1,4 @@
-use alloc::{boxed::Box, format, string::ToString, vec::Vec};
+use alloc::{format, string::ToString, vec::Vec};
 use core::iter::once;
 
 use crate::error::StatelessExecutorError;

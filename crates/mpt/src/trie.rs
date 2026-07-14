@@ -1,5 +1,6 @@
 use alloc::vec::Vec;
 use core::{
+    alloc::Layout,
     cell::{Cell, RefCell},
     mem::MaybeUninit,
 };
@@ -116,7 +117,7 @@ fn is_null_ref(slice: &[u8]) -> bool {
 /// an inline loop.
 #[inline(always)]
 fn bytes_eq(a: &[u8], b: &[u8]) -> bool {
-    a.len() == b.len() && std::iter::zip(a, b).all(|(x, y)| x == y)
+    a.len() == b.len() && core::iter::zip(a, b).all(|(x, y)| x == y)
 }
 
 /// Writes an RLP header with the given base code (`EMPTY_LIST_CODE` for lists,
@@ -351,7 +352,7 @@ impl<'a> Mpt<'a> {
         let childs = unsafe {
             &mut *self
                 .bump
-                .alloc_layout(std::alloc::Layout::new::<[Cell<Option<NodeId>>; 16]>())
+                .alloc_layout(Layout::new::<[Cell<Option<NodeId>>; 16]>())
                 .cast::<[MaybeUninit<Option<NodeId>>; 16]>()
                 .as_ptr()
         };

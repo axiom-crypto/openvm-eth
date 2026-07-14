@@ -1,4 +1,4 @@
-use alloc::{boxed::Box, vec, vec::Vec};
+use alloc::{vec, vec::Vec};
 
 use alloy_trie::TrieAccount;
 use bumpalo::Bump;
