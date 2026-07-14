@@ -65,7 +65,6 @@ ignored = ["halo2-axiom"]
 default = ["parallel", "jemalloc", "metrics"]
 parallel = ["openvm-sdk/parallel"]
 metrics = ["openvm-sdk/metrics", "openvm-circuit/metrics", "openvm-stark-sdk/metrics"]
-tco = ["openvm-sdk/tco"]
 aot = ["openvm-sdk/aot"]
 # Mutually exclusive with `aot`
 rvr = ["openvm-sdk/rvr"]

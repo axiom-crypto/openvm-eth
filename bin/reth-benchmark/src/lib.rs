@@ -1,5 +1,3 @@
-#![cfg_attr(feature = "tco", allow(incomplete_features))]
-#![cfg_attr(feature = "tco", feature(explicit_tail_calls))]
 use std::{fs, io::Write, path::PathBuf, time::Instant};
 
 use alloy_provider::RootProvider;

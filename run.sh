@@ -18,8 +18,8 @@
 #   --num-children-internal <N>
 #   --segment-max-memory <N>
 #   --cuda              Force CUDA acceleration (auto-detected if nvidia-smi available)
-#   --exec-mode <MODE>  Select the OpenVM execution backend: interpreter | tco | aot | rvr.
-#                       Defaults to interpreter. aot is not supported on arm64.
+#   --exec-mode <MODE>  Select the OpenVM execution backend: interpreter | rvr | aot.
+#                       Defaults to rvr. aot is not supported on arm64.
 #                       rvr requires clang-22 and lld on PATH.
 #   --perf              Run with perf + samply host profiling and upload to Firefox Profiler
 #   --nsys              Run with nsys profiling and output summary stats
@@ -143,11 +143,11 @@ while [[ $# -gt 0 ]]; do
             ;;
         --exec-mode)
             case "${2:-}" in
-                interpreter|tco|aot|rvr)
+                interpreter|rvr|aot)
                     EXEC_MODE="$2"
                     ;;
                 *)
-                    echo "Error: --exec-mode requires one of: interpreter, tco, aot, rvr (got '${2:-}')" >&2
+                    echo "Error: --exec-mode requires one of: interpreter, rvr, aot (got '${2:-}')" >&2
                     exit 1
                     ;;
             esac
@@ -301,7 +301,7 @@ case $arch in
 arm64|aarch64)
     RUSTFLAGS="-Ctarget-cpu=native"
     if [ -z "$EXEC_MODE" ]; then
-        EXEC_MODE="interpreter"
+        EXEC_MODE="rvr"
     elif [ "$EXEC_MODE" = "aot" ]; then
         # aot enables halo2curves-axiom/asm which is x86_64-only
         echo "Error: --exec-mode aot is not supported on arm64" >&2
@@ -311,7 +311,7 @@ arm64|aarch64)
 x86_64|amd64)
     RUSTFLAGS="-Ctarget-cpu=native"
     if [ -z "$EXEC_MODE" ]; then
-        EXEC_MODE="interpreter"
+        EXEC_MODE="rvr"
     fi
     ;;
 *)
@@ -322,9 +322,6 @@ esac
 case "$EXEC_MODE" in
     interpreter)
         # default interpreted execution; no extra backend feature
-        ;;
-    tco)
-        FEATURES="$FEATURES,tco"
         ;;
     aot)
         # aot enables halo2curves-axiom/asm which is x86_64-only
@@ -340,7 +337,7 @@ case "$EXEC_MODE" in
         command -v lld      >/dev/null 2>&1 || missing+=("lld")
         if [ "${#missing[@]}" -gt 0 ]; then
             echo "Error: --exec-mode rvr requires the following tools on PATH: ${missing[*]}" >&2
-            echo "       Install them or rerun with --exec-mode tco (or --exec-mode aot on x86_64)." >&2
+            echo "       Install them or rerun with --exec-mode interpreter (or --exec-mode aot on x86_64)." >&2
             exit 1
         fi
         ;;
