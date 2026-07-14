@@ -63,6 +63,15 @@ on:
           - aot
           - tco
         default: rvr
+      guest_target_features:
+        type: choice
+        required: false
+        description: Guest RISC-V target features (-Ctarget-feature for guest build)
+        options:
+          - none
+          - zicclsm
+          - zicclsm-unaligned
+        default: none
       app_log_blowup:
         type: number
         required: false
@@ -140,6 +149,11 @@ on:
         required: false
         description: OpenVM execution backend, one of {interpreter, rvr, aot, tco} (aot is x86_64-only)
         default: rvr
+      guest_target_features:
+        type: string
+        required: false
+        description: Guest RISC-V target features (none, zicclsm, or zicclsm-unaligned)
+        default: none
       app_log_blowup:
         type: number
         required: false
@@ -326,6 +340,20 @@ jobs:
           [[ -n "$RUST_TOOLCHAIN" ]] || { echo "No channel in rust-toolchain.toml" >&2; exit 1; }
           echo "RUST_TOOLCHAIN=${RUST_TOOLCHAIN}" >> $GITHUB_ENV
 
+      - name: Resolve guest target features
+        run: |
+          GUEST_TARGET_FEATURES="${{ inputs.guest_target_features || github.event.inputs.guest_target_features }}"
+          GUEST_TARGET_FEATURES="${GUEST_TARGET_FEATURES:-none}"
+          case "$GUEST_TARGET_FEATURES" in
+            none)              GUEST_RUSTFLAGS="" ;;
+            zicclsm)           GUEST_RUSTFLAGS="-Ctarget-feature=+zicclsm" ;;
+            zicclsm-unaligned) GUEST_RUSTFLAGS="-Ctarget-feature=+zicclsm,+unaligned-scalar-mem" ;;
+            *) echo "::error::Unsupported guest_target_features: $GUEST_TARGET_FEATURES"; exit 1 ;;
+          esac
+          echo "Using guest target features: ${GUEST_TARGET_FEATURES} (RUSTFLAGS: ${GUEST_RUSTFLAGS})"
+          echo "GUEST_TARGET_FEATURES=${GUEST_TARGET_FEATURES}" >> $GITHUB_ENV
+          echo "GUEST_RUSTFLAGS=${GUEST_RUSTFLAGS}" >> $GITHUB_ENV
+
       - name: Set build profiles
         id: set-build-profiles
         run: |
@@ -410,7 +438,7 @@ jobs:
           # Use inputs.tag if defined, otherwise use current commit SHA
           TAG="${{ inputs.tag || env.current_sha }}"
           GUEST_PROFILE=${{ steps.set-build-profiles.outputs.guest_profile }}
-          echo "elf_cache_key=elf-${TAG}-${arch}-${GUEST_PROFILE}" >> $GITHUB_OUTPUT
+          echo "elf_cache_key=elf-${TAG}-${arch}-${GUEST_PROFILE}-${GUEST_TARGET_FEATURES}" >> $GITHUB_OUTPUT
           RUSTFLAGS_HASH=$(echo "${RUSTFLAGS}" | sha256sum | cut -d' ' -f1 | head -c8)
           JEMALLOC_CONF_HASH=$(echo "${JEMALLOC_SYS_WITH_MALLOC_CONF}" | sha256sum | cut -d' ' -f1 | head -c8)
           FEATURES_HASH=$(echo "${FEATURES}" | sha256sum | cut -d' ' -f1 | head -c8)
@@ -446,7 +474,9 @@ jobs:
         working-directory: bin/stateless-guest
         run: |
           GUEST_PROFILE=${{ steps.set-build-profiles.outputs.guest_profile }}
-          RUSTFLAGS="" cargo openvm build --no-transpile --profile=$GUEST_PROFILE
+          # cargo-openvm prepends RUSTFLAGS to the guest build flags; keep host
+          # flags out of it and pass only the selected guest target features
+          RUSTFLAGS="$GUEST_RUSTFLAGS" cargo openvm build --no-transpile --profile=$GUEST_PROFILE
           mkdir -p ../reth-benchmark/elf
           cp target/riscv64im-unknown-openvm-elf/$GUEST_PROFILE/openvm-stateless-guest ../reth-benchmark/elf/
 

@@ -12,6 +12,28 @@ on:
         description: "Target OpenVM revision to compare"
         required: true
         type: string
+      stark_backend_rev:
+        description: "Optional ref for openvm-stark-backend (defaults to pinned develop-v2 rev)"
+        required: false
+        type: string
+      base_guest_target_features:
+        description: Base guest RISC-V target features
+        type: choice
+        required: false
+        options:
+          - none
+          - zicclsm
+          - zicclsm-unaligned
+        default: none
+      target_guest_target_features:
+        description: Target guest RISC-V target features
+        type: choice
+        required: false
+        options:
+          - none
+          - zicclsm
+          - zicclsm-unaligned
+        default: none
       block_number:
         type: number
         required: false
@@ -52,10 +74,12 @@ jobs:
     uses: ./.github/workflows/update-patches.yml
     with:
       OPENVM_REV: ${{ github.event.inputs.base_rev }}
+      STARK_BACKEND_REV: ${{ github.event.inputs.stark_backend_rev }}
       run_benchmark: true
       benchmark_mode: ${{ github.event.inputs.benchmark_mode }}
       benchmark_block_number: ${{ fromJSON(inputs.block_number || github.event.inputs.block_number || '23992138') }}
       instance_family: ${{ github.event.inputs.instance_family }}
+      guest_target_features: ${{ github.event.inputs.base_guest_target_features || 'none' }}
     secrets: inherit
 
   # Only create branch because github workflow_call must run all jobs for "needs"
@@ -64,6 +88,7 @@ jobs:
     uses: ./.github/workflows/update-patches.yml
     with:
       OPENVM_REV: ${{ github.event.inputs.target_rev }}
+      STARK_BACKEND_REV: ${{ github.event.inputs.stark_backend_rev }}
       run_benchmark: false
     secrets: inherit
 
@@ -77,6 +102,7 @@ jobs:
       instance_family: ${{ github.event.inputs.instance_family }}
       ref: ${{ needs.patch-target.outputs.branch_name }}
       tag: ${{ needs.patch-target.outputs.tag }}
+      guest_target_features: ${{ github.event.inputs.target_guest_target_features || 'none' }}
       profiling: none
     secrets: inherit
 
@@ -91,6 +117,7 @@ jobs:
       instance_family: ${{ github.event.inputs.instance_family }}
       ref: ${{ needs.patch-target.outputs.branch_name }}
       tag: ${{ needs.patch-target.outputs.tag }}
+      guest_target_features: ${{ github.event.inputs.target_guest_target_features || 'none' }}
       profiling: host
     secrets: inherit
 
@@ -105,6 +132,7 @@ jobs:
       instance_family: ${{ github.event.inputs.instance_family }}
       ref: ${{ needs.patch-target.outputs.branch_name }}
       tag: ${{ needs.patch-target.outputs.tag }}
+      guest_target_features: ${{ github.event.inputs.target_guest_target_features || 'none' }}
       profiling: guest
     secrets: inherit
 
@@ -154,6 +182,8 @@ jobs:
           echo "### Workflow Inputs" >> $GITHUB_STEP_SUMMARY
           echo "Base OpenVM Revision: ${{ github.event.inputs.base_rev }}" >> $GITHUB_STEP_SUMMARY
           echo "Target OpenVM Revision: ${{ github.event.inputs.target_rev }}" >> $GITHUB_STEP_SUMMARY
+          echo "Base Guest Target Features: ${{ github.event.inputs.base_guest_target_features }}" >> $GITHUB_STEP_SUMMARY
+          echo "Target Guest Target Features: ${{ github.event.inputs.target_guest_target_features }}" >> $GITHUB_STEP_SUMMARY
           echo "Instance Family: ${{ github.event.inputs.instance_family }}" >> $GITHUB_STEP_SUMMARY
           echo "Benchmark Mode: ${{ github.event.inputs.benchmark_mode }}" >> $GITHUB_STEP_SUMMARY
           echo "Block Number: ${{ github.event.inputs.block_number }}" >> $GITHUB_STEP_SUMMARY

@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       STARK_BACKEND_REV:
-        description: "Optional ref for openvm-stark-backend (defaults to what openvm uses)"
+        description: "Optional ref for openvm-stark-backend (defaults to pinned develop-v2 rev)"
         required: false
       OPENVM_REV:
         description: "Optional ref for openvm"
@@ -42,6 +42,11 @@ on:
         type: number
         required: false
         default: 23992138
+      guest_target_features:
+        description: "Guest RISC-V target features (none, zicclsm, or zicclsm-unaligned)"
+        type: string
+        required: false
+        default: none
   #schedule:
   #  - cron: "0 */12 * * *" # Run every 12 hours
   workflow_call:
@@ -49,7 +54,7 @@ on:
       STARK_BACKEND_REV:
         type: string
         required: false
-        description: "Optional ref for openvm-stark-backend (defaults to what openvm uses)"
+        description: "Optional ref for openvm-stark-backend (defaults to pinned develop-v2 rev)"
       OPENVM_REV:
         type: string
         required: false
@@ -84,6 +89,11 @@ on:
         required: false
         description: "Block number to run the benchmark on"
         default: 23992138
+      guest_target_features:
+        type: string
+        required: false
+        description: "Guest RISC-V target features (none, zicclsm, or zicclsm-unaligned)"
+        default: none
       # https://github.com/actions/runner/discussions/1884
       manual_call:
         description: "To distinguish workflow_call from workflow_dispatch"
@@ -123,18 +133,14 @@ jobs:
         run: |
           echo "result=${OPENVM_REV:-$(git ls-remote https://github.com/openvm-org/openvm.git "refs/heads/$OPENVM_BRANCH" | cut -f1)}" >> "$GITHUB_OUTPUT"
 
-      - name: Check out openvm repository
-        uses: actions/checkout@v4
-        with:
-          repository: "openvm-org/openvm"
-          ref: ${{ steps.get-openvm-rev.outputs.result }}
-
-      - name: Get STARK_BACKEND_REV from openvm
+      - name: Get STARK_BACKEND_REV
         id: get-stark-backend-rev
         env:
           STARK_BACKEND_REV: "${{ inputs.STARK_BACKEND_REV || github.event.inputs.STARK_BACKEND_REV }}"
         run: |
-          RESULT=${STARK_BACKEND_REV:-$(cargo metadata --format-version=1 | jq -r '.packages[] | select(.name=="openvm-stark-sdk") | .source | split("#") | .[1]')}
+          # Pinned develop-v2 rev; openvm's own Cargo.lock is often stale, so we
+          # do not derive the default from it
+          RESULT=${STARK_BACKEND_REV:-0b04cdcd3f7790c5e2d306a4b5cd8640f89e2e49}
           echo "result=${RESULT}" >> "$GITHUB_OUTPUT"
 
       - name: Check out the repository
@@ -235,6 +241,7 @@ jobs:
       ref: ${{ needs.patch.outputs.branch_name }}
       tag: ${{ needs.patch.outputs.tag }}
       block_number: ${{ fromJSON(inputs.benchmark_block_number || github.event.inputs.benchmark_block_number || '23992138') }}
+      guest_target_features: ${{ inputs.guest_target_features || github.event.inputs.guest_target_features || 'none' }}
       profiling: none
     secrets: inherit
 
@@ -248,6 +255,7 @@ jobs:
       ref: ${{ needs.patch.outputs.branch_name }}
       tag: ${{ needs.patch.outputs.tag }}
       block_number: ${{ fromJSON(inputs.benchmark_block_number || github.event.inputs.benchmark_block_number || '23992138') }}
+      guest_target_features: ${{ inputs.guest_target_features || github.event.inputs.guest_target_features || 'none' }}
       profiling: host
     secrets: inherit
 
@@ -261,6 +269,7 @@ jobs:
       ref: ${{ needs.patch.outputs.branch_name }}
       tag: ${{ needs.patch.outputs.tag }}
       block_number: ${{ fromJSON(inputs.benchmark_block_number || github.event.inputs.benchmark_block_number || '23992138') }}
+      guest_target_features: ${{ inputs.guest_target_features || github.event.inputs.guest_target_features || 'none' }}
       profiling: guest
     secrets: inherit
 
