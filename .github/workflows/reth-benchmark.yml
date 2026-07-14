@@ -44,10 +44,22 @@ on:
           - guest # guest profiling (circuit flamegraphs)
           - nsys # nsys profiling (cuda)
         default: none
-      max_segment_length:
+      app_log_blowup:
         type: number
         required: false
-        description: Max segment length override for continuations
+        description: Application level log blowup
+      leaf_log_blowup:
+        type: number
+        required: false
+        description: Aggregation (leaf) level log blowup
+      internal_log_blowup:
+        type: number
+        required: false
+        description: Internal level log blowup
+      root_log_blowup:
+        type: number
+        required: false
+        description: Root level log blowup
       segment_max_memory:
         type: string
         required: false
@@ -130,10 +142,6 @@ on:
         required: false
         description: Profiling mode (none, host, guest, nsys)
         default: none
-      max_segment_length:
-        type: number
-        required: false
-        description: Max segment length override for continuations
       segment_max_memory:
         type: string
         required: false
@@ -591,7 +599,6 @@ jobs:
           LEAF_LOG_BLOWUP="${{ inputs.leaf_log_blowup || github.event.inputs.leaf_log_blowup }}"
           INTERNAL_LOG_BLOWUP="${{ inputs.internal_log_blowup || github.event.inputs.internal_log_blowup }}"
           ROOT_LOG_BLOWUP="${{ inputs.root_log_blowup || github.event.inputs.root_log_blowup }}"
-          MAX_SEGMENT_LENGTH="${{ inputs.max_segment_length || github.event.inputs.max_segment_length }}"
           SEGMENT_MAX_MEMORY="${{ inputs.segment_max_memory || github.event.inputs.segment_max_memory }}"
           APP_L_SKIP="${{ inputs.app_l_skip || github.event.inputs.app_l_skip }}"
           NUM_CHILDREN_LEAF="${{ inputs.num_children_leaf || github.event.inputs.num_children_leaf }}"
@@ -600,15 +607,12 @@ jobs:
           read_default() {
             awk -v arg="$1" '$0 ~ arg { in_arg = 1; next } in_arg && /\[default:/ { gsub(/.*\[default: |].*/, ""); print; exit }' <<< "$HELP_OUTPUT"
           }
-          DEFAULT_MAX_SEGMENT_LENGTH="$(read_default "--max-segment-length ")"
           DEFAULT_SEGMENT_MAX_MEMORY="$(read_default "--segment-max-memory ")"
-          if [[ -z "$DEFAULT_MAX_SEGMENT_LENGTH" || -z "$DEFAULT_SEGMENT_MAX_MEMORY" ]]; then
+          if [[ -z "$DEFAULT_SEGMENT_MAX_MEMORY" ]]; then
             echo "Failed to read segmentation defaults from ${{ env.BIN_NAME }} --help" >&2
             exit 1
           fi
-          RESOLVED_MAX_SEGMENT_LENGTH="${MAX_SEGMENT_LENGTH:-$DEFAULT_MAX_SEGMENT_LENGTH}"
           RESOLVED_SEGMENT_MAX_MEMORY="${SEGMENT_MAX_MEMORY:-$DEFAULT_SEGMENT_MAX_MEMORY}"
-          echo "RESOLVED_MAX_SEGMENT_LENGTH=$RESOLVED_MAX_SEGMENT_LENGTH" >> "$GITHUB_ENV"
           echo "RESOLVED_SEGMENT_MAX_MEMORY=$RESOLVED_SEGMENT_MAX_MEMORY" >> "$GITHUB_ENV"
           if [[ -n $APP_LOG_BLOWUP ]]; then
             OPTIONAL_ARGS="$OPTIONAL_ARGS --app-log-blowup $APP_LOG_BLOWUP"
@@ -621,9 +625,6 @@ jobs:
           fi
           if [[ -n $ROOT_LOG_BLOWUP ]]; then
             OPTIONAL_ARGS="$OPTIONAL_ARGS --root-log-blowup $ROOT_LOG_BLOWUP"
-          fi
-          if [[ -n $MAX_SEGMENT_LENGTH ]]; then
-            OPTIONAL_ARGS="$OPTIONAL_ARGS --max-segment-length $MAX_SEGMENT_LENGTH"
           fi
           if [[ -n $SEGMENT_MAX_MEMORY ]]; then
             OPTIONAL_ARGS="$OPTIONAL_ARGS --segment-max-memory $SEGMENT_MAX_MEMORY"
@@ -799,7 +800,6 @@ jobs:
           source openvm/ci/scripts/utils.sh
 
           add_metadata $MD_PATH \
-            $RESOLVED_MAX_SEGMENT_LENGTH \
             ${{ inputs.instance_family || github.event.inputs.instance_family }} \
             ${{ inputs.memory_allocator || github.event.inputs.memory_allocator || 'jemalloc' }} \
             $COMMIT_URL \

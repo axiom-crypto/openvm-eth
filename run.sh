@@ -16,7 +16,6 @@
 #   --root-log-blowup <N>
 #   --num-children-leaf <N>
 #   --num-children-internal <N>
-#   --max-segment-length <N>
 #   --segment-max-memory <N>
 #   --cuda              Force CUDA acceleration (auto-detected if nvidia-smi available)
 #   --exec-mode <MODE>  Select the OpenVM execution backend: interpreter | tco | aot | rvr.
@@ -49,21 +48,20 @@ REPO_ROOT=$(git rev-parse --show-toplevel)
 WORKDIR=$REPO_ROOT
 RUST_TOOLCHAIN=$(sed -n 's/^channel = "\(.*\)"/\1/p' "$REPO_ROOT/rust-toolchain.toml")
 
-cd "$REPO_ROOT/bin/stateless-guest"
-if ! rustup toolchain list | grep -q '^openvm-1\.94\.0'; then
-    echo "openvm-1.94.0 toolchain not found; installing..."
-    cargo openvm toolchain install
-fi
-cargo openvm build
-mkdir -p ../reth-benchmark/elf
-SRC="target/riscv64im-unknown-openvm-elf/release/openvm-stateless-guest"
-DEST="../reth-benchmark/elf/openvm-stateless-guest"
+DEST="$REPO_ROOT/bin/reth-benchmark/elf/openvm-stateless-guest"
 
-if [ ! -f "$DEST" ] || ! cmp -s "$SRC" "$DEST"; then
-    cp "$SRC" "$DEST"
-fi
+build_openvm_guest_elf() {
+    cd "$REPO_ROOT/bin/stateless-guest"
+    cargo openvm build
+    mkdir -p ../reth-benchmark/elf
+    SRC="target/riscv64im-unknown-openvm-elf/release/openvm-stateless-guest"
+    if [ ! -f "$DEST" ] || ! cmp -s "$SRC" "$DEST"; then
+        cp "$SRC" "$DEST"
+    fi
+    cd "$WORKDIR"
+}
 
-cd $WORKDIR
+cd "$WORKDIR"
 
 # =============== GPU memory usage monitoring ============================
 source "$REPO_ROOT/scripts/gpu_monitor.sh"
@@ -104,10 +102,6 @@ while [[ $# -gt 0 ]]; do
             ;;
         --block)
             BLOCK_NUMBER_OVERRIDE="$2"
-            shift 2
-            ;;
-        --max-segment-length)
-            MAX_SEGMENT_LENGTH="$2"
             shift 2
             ;;
         --segment-max-memory)
@@ -363,6 +357,7 @@ if [ "$USE_NSYS" = "false" ]; then
     export JEMALLOC_SYS_WITH_MALLOC_CONF="retain:true,background_thread:true,metadata_thp:always,dirty_decay_ms:10000,muzzy_decay_ms:10000,abort_conf:true"
 fi
 if [[ "${OPENVM_BENCH_SKIP_BUILD:-0}" != "1" ]]; then
+    build_openvm_guest_elf
     RUSTFLAGS=$RUSTFLAGS cargo $TOOLCHAIN build --bin $BIN_NAME --profile=$PROFILE --no-default-features --features=$FEATURES
 fi
 
@@ -400,10 +395,6 @@ fi
 if [[ -n $PROOF_CACHE ]]
 then
     CONFIG_ARGS="$CONFIG_ARGS --proof-cache ${PROOF_CACHE}"
-fi
-if [[ -n $MAX_SEGMENT_LENGTH ]]
-then
-    CONFIG_ARGS="$CONFIG_ARGS --max-segment-length ${MAX_SEGMENT_LENGTH}"
 fi
 if [[ -n $SEGMENT_MAX_MEMORY ]]
 then

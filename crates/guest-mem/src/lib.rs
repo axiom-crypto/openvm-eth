@@ -65,7 +65,7 @@ pub unsafe fn compare_bytes(mut a: *const u8, mut b: *const u8, mut n: usize) ->
     }
 }
 
-#[cfg(target_os = "zkvm")]
+#[cfg(target_os = "openvm")]
 mod c_exports {
     #[unsafe(no_mangle)]
     unsafe extern "C" fn memcmp(a: *const u8, b: *const u8, n: usize) -> i32 {

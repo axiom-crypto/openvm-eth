@@ -41,7 +41,7 @@ alloy-consensus = { workspace = true, features = ["crypto-backend", "serde-binco
 alloy-rlp.workspace = true
 alloy-trie.workspace = true
 
-[target.'cfg(target_os = "zkvm")'.dependencies]
+[target.'cfg(target_os = "openvm")'.dependencies]
 openvm-guest-mem.workspace = true
 
 [package.metadata.cargo-machete]
