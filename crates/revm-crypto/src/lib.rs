@@ -270,6 +270,9 @@ impl Crypto for OpenVmCrypto {
         mut recid: u8,
         msg_hash: &[u8; 32],
     ) -> Result<[u8; 32], PrecompileHalt> {
+        #[cfg(all(not(target_os = "zkvm"), feature = "native-ecrecover"))]
+        return revm::precompile::DefaultCrypto.secp256k1_ecrecover(sig_bytes, recid, msg_hash);
+
         let mut sig = Signature::from_slice(sig_bytes)
             .map_err(|_| PrecompileHalt::other("Invalid signature format"))?;
 
