@@ -42,7 +42,6 @@ use openvm_stark_sdk::{
         air_builders::symbolic::{SymbolicExpressionDag, SymbolicExpressionNode},
         codec::Encode,
         keygen::types::MultiStarkProvingKey,
-        p3_field::PrimeCharacteristicRing,
         SystemParams,
     },
 };
@@ -223,9 +222,9 @@ pub fn build_reth_workload(
     openvm_client_eth_elf: &[u8],
 ) -> Result<RethWorkload> {
     let exe = build_reth_exe(vm_config, openvm_client_eth_elf)?;
-    let encoded_stateless_input: Vec<F> = {
+    let encoded_stateless_input: Vec<u8> = {
         let words = openvm::serde::to_vec(stateless_input)?;
-        words.into_iter().flat_map(|w| w.to_le_bytes()).map(F::from_u8).collect()
+        words.into_iter().flat_map(|w| w.to_le_bytes()).collect()
     };
     let stdin = vec![encoded_stateless_input].into();
     Ok(RethWorkload { exe, stdin })
