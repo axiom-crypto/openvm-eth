@@ -46,3 +46,6 @@ hex = { workspace = true, features = ["alloc"] }
 default = ["use-intrinsics"]
 test-utils = []
 use-intrinsics = []          # When enabled, uses OpenVM intrinsic functions
+
+[package.metadata.cargo-shear]
+ignored = ["openvm-circuit"]

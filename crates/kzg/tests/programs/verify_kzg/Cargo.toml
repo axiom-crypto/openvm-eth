@@ -14,5 +14,8 @@ openvm-kzg.workspace = true
 [package.metadata.cargo-machete]
 ignored = ["openvm-algebra-guest", "openvm-ecc-guest"]
 
+[package.metadata.cargo-shear]
+ignored = ["openvm-algebra-guest", "openvm-ecc-guest"]
+
 [features]
 default = ["openvm-kzg/use-intrinsics"]

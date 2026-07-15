@@ -7481,7 +7481,6 @@ dependencies = [
  "alloy-trie 0.9.4",
  "bumpalo",
  "bytes",
- "hex-literal",
  "revm 40.0.3",
  "revm-primitives 24.0.1",
  "serde",
@@ -7675,13 +7674,11 @@ dependencies = [
 name = "openvm-reth-benchmark"
 version = "0.4.0"
 dependencies = [
- "alloy-primitives",
  "alloy-provider",
  "alloy-rpc-client",
  "alloy-transport",
  "alloy-transport-http",
  "bincode 2.0.1",
- "bitcode",
  "clap",
  "clap_builder",
  "dotenv",
@@ -7726,10 +7723,6 @@ version = "0.4.0"
 dependencies = [
  "alloy-consensus",
  "alloy-primitives",
- "ark-bls12-381",
- "ark-bn254",
- "ark-ec",
- "ark-ff 0.5.0",
  "aurora-engine-modexp",
  "k256 0.13.4 (git+https://github.com/openvm-org/openvm.git?branch=develop-v2.1.0)",
  "openvm-curve-utils",
