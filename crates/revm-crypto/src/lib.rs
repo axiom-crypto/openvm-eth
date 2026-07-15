@@ -267,32 +267,39 @@ impl Crypto for OpenVmCrypto {
     fn secp256k1_ecrecover(
         &self,
         sig_bytes: &[u8; 64],
-        mut recid: u8,
+        recid: u8,
         msg_hash: &[u8; 32],
     ) -> Result<[u8; 32], PrecompileHalt> {
-        let mut sig = Signature::from_slice(sig_bytes)
-            .map_err(|_| PrecompileHalt::other("Invalid signature format"))?;
+        #[cfg(not(target_os = "zkvm"))]
+        return revm::precompile::DefaultCrypto.secp256k1_ecrecover(sig_bytes, recid, msg_hash);
 
-        if let Some(sig_normalized) = sig.normalize_s() {
-            sig = sig_normalized;
-            recid ^= 1;
+        #[cfg(target_os = "zkvm")]
+        {
+            let mut recid = recid;
+            let mut sig = Signature::from_slice(sig_bytes)
+                .map_err(|_| PrecompileHalt::other("Invalid signature format"))?;
+
+            if let Some(sig_normalized) = sig.normalize_s() {
+                sig = sig_normalized;
+                recid ^= 1;
+            }
+
+            let recovery_id = RecoveryId::from_byte(recid)
+                .ok_or_else(|| PrecompileHalt::other("Invalid recovery ID"))?;
+
+            let recovered_key =
+                VerifyingKey::recover_from_prehash_noverify(msg_hash, &sig.to_bytes(), recovery_id)
+                    .map_err(|_| PrecompileHalt::other("Key recovery failed"))?;
+
+            let public_key = recovered_key.to_encoded_point(false);
+            let encoded_pubkey = &public_key.as_bytes()[1..65];
+
+            let pubkey_hash = keccak256(encoded_pubkey);
+            let mut address = [0u8; 32];
+            address[12..].copy_from_slice(&pubkey_hash[12..]);
+
+            Ok(address)
         }
-
-        let recovery_id = RecoveryId::from_byte(recid)
-            .ok_or_else(|| PrecompileHalt::other("Invalid recovery ID"))?;
-
-        let recovered_key =
-            VerifyingKey::recover_from_prehash_noverify(msg_hash, &sig.to_bytes(), recovery_id)
-                .map_err(|_| PrecompileHalt::other("Key recovery failed"))?;
-
-        let public_key = recovered_key.to_encoded_point(false);
-        let encoded_pubkey = &public_key.as_bytes()[1..65];
-
-        let pubkey_hash = keccak256(encoded_pubkey);
-        let mut address = [0u8; 32];
-        address[12..].copy_from_slice(&pubkey_hash[12..]);
-
-        Ok(address)
     }
 
     /// Custom secp256r1 signature verification with openvm optimization
@@ -390,9 +397,14 @@ pub fn install_openvm_crypto() -> Result<bool, Box<dyn std::error::Error>> {
     install_default_provider(Arc::new(OpenVmK256Provider))?;
 
     // Install OpenVM crypto for REVM precompiles
-    let installed = install_crypto(OpenVmCrypto);
+    let installed = install_openvm_revm_crypto();
 
     Ok(installed)
+}
+
+/// Installs only the OpenVM implementations used by REVM precompiles.
+pub fn install_openvm_revm_crypto() -> bool {
+    install_crypto(OpenVmCrypto)
 }
 
 // Helper functions for BN254 operations
