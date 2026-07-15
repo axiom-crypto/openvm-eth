@@ -682,37 +682,34 @@ jobs:
             echo "GPU_PEAK_MEMORY_MIB=0" >> $GITHUB_ENV
           elif [[ "${{ inputs.profiling || github.event.inputs.profiling }}" == "nsys" ]]; then
             nsys profile --trace=cuda,osrt,nvtx \
-             --sample=cpu \
-             --cpuctxsw=process-tree \
-             --cuda-memory-usage=true \
              --force-overwrite=true \
              -o reth.nsys-rep \
              ./run_benchmark.sh
-            echo "=== CUDA GPU Kernel Summary ==="
-            nsys stats --report cuda_gpu_kern_sum reth.nsys-rep
-            echo "=== CUDA Memory Time Summary ==="
-            nsys stats --report cuda_gpu_mem_time_sum reth.nsys-rep
-            echo "=== CUDA Memory Size Summary ==="
-            nsys stats --report cuda_gpu_mem_size_sum reth.nsys-rep
-            echo "=== NCU Top Kernel Analysis ==="
-            TOP_KERNEL=$(nsys stats --report cuda_gpu_kern_sum reth.nsys-rep 2>/dev/null | \
-              awk '/--------/{getline; print; exit}' | \
-              sed -E 's/.*::([a-zA-Z_][a-zA-Z0-9_]*)[<(].*/\1/; t; s/.*[[:space:]]([a-zA-Z_][a-zA-Z0-9_]*)[<(].*/\1/')
-            echo "Top kernel: $TOP_KERNEL"
+            # echo "=== CUDA GPU Kernel Summary ==="
+            # nsys stats --report cuda_gpu_kern_sum reth.nsys-rep
+            # echo "=== CUDA Memory Time Summary ==="
+            # nsys stats --report cuda_gpu_mem_time_sum reth.nsys-rep
+            # echo "=== CUDA Memory Size Summary ==="
+            # nsys stats --report cuda_gpu_mem_size_sum reth.nsys-rep
+            # echo "=== NCU Top Kernel Analysis ==="
+            # TOP_KERNEL=$(nsys stats --report cuda_gpu_kern_sum reth.nsys-rep 2>/dev/null | \
+            #   awk '/--------/{getline; print; exit}' | \
+            #   sed -E 's/.*::([a-zA-Z_][a-zA-Z0-9_]*)[<(].*/\1/; t; s/.*[[:space:]]([a-zA-Z_][a-zA-Z0-9_]*)[<(].*/\1/')
+            # echo "Top kernel: $TOP_KERNEL"
 
-            if [[ -n "$TOP_KERNEL" ]]; then
-              sudo env PATH=$PATH ncu --target-processes all \
-                --kernel-name "$TOP_KERNEL" \
-                -f -o reth.ncu-rep \
-                --launch-skip 4 \
-                --launch-count 1 \
-                --set full \
-                ./run_benchmark.sh
-              echo "=== NCU Kernel Report ==="
-              ncu -i reth.ncu-rep
-            else
-              echo "Warning: Could not extract top kernel name"
-            fi
+            # if [[ -n "$TOP_KERNEL" ]]; then
+            #   sudo env PATH=$PATH ncu --target-processes all \
+            #     --kernel-name "$TOP_KERNEL" \
+            #     -f -o reth.ncu-rep \
+            #     --launch-skip 4 \
+            #     --launch-count 1 \
+            #     --set full \
+            #     ./run_benchmark.sh
+            #   echo "=== NCU Kernel Report ==="
+            #   ncu -i reth.ncu-rep
+            # else
+            #   echo "Warning: Could not extract top kernel name"
+            # fi
             # nsys has its own memory tracking, set peak to 0
             echo "GPU_PEAK_MEMORY_MIB=0" >> $GITHUB_ENV
           else
