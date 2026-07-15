@@ -2,8 +2,10 @@
 members = [
   "bin/reth-benchmark",
   "bin/reth-verify",
-  "bin/static-verifier-tracegen",
-  "bin/static-verifier-tracegen-arithonly",
+  # "bin/static-verifier-tracegen",
+  # "bin/static-verifier-tracegen-arithonly",
+  # "bin/static-verifier-ir",
+  # "bin/bn254-perf",
   "crates/mpt",
   "crates/revm-crypto",
   "crates/stateless-executor",
@@ -136,7 +138,7 @@ openvm-algebra-guest = { git = "https://github.com/openvm-org/openvm.git", branc
 # openvm (host only)
 openvm-sdk = { git = "https://github.com/openvm-org/openvm.git", branch = "develop-v2.0.0-rc.3", default-features = false }
 openvm-build = { git = "https://github.com/openvm-org/openvm.git", branch = "develop-v2.0.0-rc.3", default-features = false }
-openvm-stark-sdk = { git = "https://github.com/openvm-org/stark-backend.git", branch = "develop-v2", default-features = false }
+openvm-stark-sdk = { git = "https://github.com/openvm-org/stark-backend.git", tag = "v2.0.0", default-features = false }
 openvm-transpiler = { path = "openvm/crates/toolchain/transpiler", default-features = false }
 openvm-static-verifier = { path = "openvm/crates/static-verifier", default-features = false }
 openvm-continuations = { path = "openvm/crates/continuations", default-features = false }

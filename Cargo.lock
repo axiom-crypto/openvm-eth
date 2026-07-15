@@ -2573,7 +2573,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "117725a109d387c937a1533ce01b450cbde6b88abceea8473c4d7a85853cda3c"
 dependencies = [
  "lazy_static",
- "windows-sys 0.59.0",
+ "windows-sys 0.48.0",
 ]
 
 [[package]]
@@ -2744,16 +2744,6 @@ name = "core_extensions_proc_macros"
 version = "1.5.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "533d38ecd2709b7608fb8e18e4504deb99e9a72879e6aa66373a76d8dc4259ea"
-
-[[package]]
-name = "coz"
-version = "0.1.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cef55b3fe2f5477d59e12bc792e8b3c95a25bd099eadcfae006ecea136de76e2"
-dependencies = [
- "libc",
- "once_cell",
-]
 
 [[package]]
 name = "cpufeatures"
@@ -4253,14 +4243,14 @@ dependencies = [
 
 [[package]]
 name = "halo2-axiom"
-version = "0.5.1"
+version = "0.5.3"
 dependencies = [
  "bincode 2.0.1",
  "blake2b_simd",
  "crossbeam",
  "ff 0.13.1",
  "group 0.13.0",
- "halo2curves-axiom 0.7.0",
+ "halo2curves-axiom 0.7.3",
  "itertools 0.11.0",
  "maybe-rayon",
  "pairing 0.23.0",
@@ -4290,7 +4280,7 @@ dependencies = [
  "git-version",
  "group 0.13.0",
  "halo2-axiom",
- "halo2curves-axiom 0.7.0",
+ "halo2curves-axiom 0.7.3",
  "itertools 0.11.0",
  "lazy_static",
  "libc",
@@ -4314,9 +4304,8 @@ dependencies = [
 
 [[package]]
 name = "halo2-base"
-version = "0.5.3"
+version = "0.5.4"
 dependencies = [
- "coz",
  "getset",
  "halo2-axiom",
  "halo2-axiom-gpu",
@@ -4337,7 +4326,7 @@ dependencies = [
 
 [[package]]
 name = "halo2-ecc"
-version = "0.5.3"
+version = "0.5.4"
 dependencies = [
  "halo2-base",
  "itertools 0.11.0",
@@ -4369,9 +4358,8 @@ dependencies = [
 
 [[package]]
 name = "halo2curves-axiom"
-version = "0.7.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dd8309e4638b4f1bcf6613d72265a84074d26034c35edc5d605b5688e580b8b8"
+version = "0.7.2"
+source = "git+https://github.com/axiom-crypto/halo2curves.git?tag=v0.7.2#3a65a710e27fe03711f6fb4fc0c4469ae351974a"
 dependencies = [
  "blake2b_simd",
  "digest 0.10.7",
@@ -4397,8 +4385,9 @@ dependencies = [
 
 [[package]]
 name = "halo2curves-axiom"
-version = "0.7.2"
-source = "git+https://github.com/axiom-crypto/halo2curves.git?tag=v0.7.2#3a65a710e27fe03711f6fb4fc0c4469ae351974a"
+version = "0.7.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "276d6c463e0e8e70c1a221baae62b670453f6ef851dd1c73f0764e5215fda64d"
 dependencies = [
  "blake2b_simd",
  "digest 0.10.7",
@@ -6391,7 +6380,7 @@ version = "0.7.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "680998035259dcfcafe653688bf2aa6d3e2dc05e98be6ab46afb089dc84f1df8"
 dependencies = [
- "proc-macro-crate 3.3.0",
+ "proc-macro-crate 1.3.1",
  "proc-macro2",
  "quote",
  "syn 2.0.102",
@@ -6867,7 +6856,7 @@ dependencies = [
 [[package]]
 name = "openvm-codec-derive"
 version = "2.0.0"
-source = "git+https://github.com/openvm-org/stark-backend.git?branch=develop-v2#f57f0f025e9b250a5bb6a56cb077548a5cb5f913"
+source = "git+https://github.com/openvm-org/stark-backend.git?tag=v2.0.0#16d60de724c21dcadfde7d8315a1db507e5832d7"
 dependencies = [
  "proc-macro-crate 1.3.1",
  "proc-macro2",
@@ -6908,7 +6897,7 @@ dependencies = [
 [[package]]
 name = "openvm-cpu-backend"
 version = "2.0.0"
-source = "git+https://github.com/openvm-org/stark-backend.git?branch=develop-v2#f57f0f025e9b250a5bb6a56cb077548a5cb5f913"
+source = "git+https://github.com/openvm-org/stark-backend.git?tag=v2.0.0#16d60de724c21dcadfde7d8315a1db507e5832d7"
 dependencies = [
  "cfg-if 1.0.1",
  "derive-new 0.7.0",
@@ -6933,7 +6922,7 @@ dependencies = [
 [[package]]
 name = "openvm-cuda-backend"
 version = "2.0.0"
-source = "git+https://github.com/openvm-org/stark-backend.git?branch=develop-v2#f57f0f025e9b250a5bb6a56cb077548a5cb5f913"
+source = "git+https://github.com/openvm-org/stark-backend.git?tag=v2.0.0#16d60de724c21dcadfde7d8315a1db507e5832d7"
 dependencies = [
  "derive-new 0.7.0",
  "getset",
@@ -6960,7 +6949,7 @@ dependencies = [
 [[package]]
 name = "openvm-cuda-builder"
 version = "2.0.0"
-source = "git+https://github.com/openvm-org/stark-backend.git?branch=develop-v2#f57f0f025e9b250a5bb6a56cb077548a5cb5f913"
+source = "git+https://github.com/openvm-org/stark-backend.git?tag=v2.0.0#16d60de724c21dcadfde7d8315a1db507e5832d7"
 dependencies = [
  "cc",
  "glob",
@@ -6969,7 +6958,7 @@ dependencies = [
 [[package]]
 name = "openvm-cuda-common"
 version = "2.0.0"
-source = "git+https://github.com/openvm-org/stark-backend.git?branch=develop-v2#f57f0f025e9b250a5bb6a56cb077548a5cb5f913"
+source = "git+https://github.com/openvm-org/stark-backend.git?tag=v2.0.0#16d60de724c21dcadfde7d8315a1db507e5832d7"
 dependencies = [
  "bytesize",
  "ctor",
@@ -6995,7 +6984,7 @@ dependencies = [
 
 [[package]]
 name = "openvm-custom-insn"
-version = "0.1.0"
+version = "2.0.0"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -7767,7 +7756,7 @@ dependencies = [
 [[package]]
 name = "openvm-stark-backend"
 version = "2.0.0"
-source = "git+https://github.com/openvm-org/stark-backend.git?branch=develop-v2#f57f0f025e9b250a5bb6a56cb077548a5cb5f913"
+source = "git+https://github.com/openvm-org/stark-backend.git?tag=v2.0.0#16d60de724c21dcadfde7d8315a1db507e5832d7"
 dependencies = [
  "cfg-if 1.0.1",
  "derivative",
@@ -7802,7 +7791,7 @@ dependencies = [
 [[package]]
 name = "openvm-stark-sdk"
 version = "2.0.0"
-source = "git+https://github.com/openvm-org/stark-backend.git?branch=develop-v2#f57f0f025e9b250a5bb6a56cb077548a5cb5f913"
+source = "git+https://github.com/openvm-org/stark-backend.git?tag=v2.0.0#16d60de724c21dcadfde7d8315a1db507e5832d7"
 dependencies = [
  "dashmap",
  "derive-new 0.7.0",
@@ -7901,6 +7890,7 @@ dependencies = [
  "openvm-stark-sdk",
  "openvm-verify-stark-host",
  "rand_chacha 0.3.1",
+ "rayon",
  "serde",
  "serde_json",
  "serde_with",
@@ -12394,7 +12384,7 @@ dependencies = [
  "security-framework 3.5.1",
  "security-framework-sys",
  "webpki-root-certs 1.0.5",
- "windows-sys 0.61.1",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -12955,7 +12945,7 @@ checksum = "1b6b67fb9a61334225b5b790716f609cd58395f895b3fe8b328786812a40bc3b"
 
 [[package]]
 name = "snark-verifier"
-version = "0.2.5"
+version = "0.2.6"
 dependencies = [
  "halo2-base",
  "halo2-ecc",
@@ -12975,7 +12965,7 @@ dependencies = [
 
 [[package]]
 name = "snark-verifier-sdk"
-version = "0.2.5"
+version = "0.2.6"
 dependencies = [
  "bincode 1.3.3",
  "ethereum-types",
@@ -13012,7 +13002,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3a766e1110788c36f4fa1c2b71b387a7815aa65f88ce0229841826633d93723e"
 dependencies = [
  "libc",
- "windows-sys 0.61.1",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -13064,46 +13054,6 @@ name = "stable_deref_trait"
 version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a8f112729512f8e442d81f95a8a7ddf2b7c6b8a1a6f509a95864142b30cab2d3"
-
-[[package]]
-name = "static-verifier-tracegen"
-version = "0.4.0"
-dependencies = [
- "coz",
- "eyre",
- "halo2-base",
- "metrics 0.23.1",
- "openvm",
- "openvm-continuations",
- "openvm-cuda-backend",
- "openvm-sdk",
- "openvm-stark-sdk",
- "openvm-static-verifier",
- "openvm-transpiler",
- "tracing",
-]
-
-[[package]]
-name = "static-verifier-tracegen-arithonly"
-version = "0.4.0"
-dependencies = [
- "coz",
- "eyre",
- "halo2-base",
- "itertools 0.14.0",
- "metrics 0.23.1",
- "num-bigint",
- "num-integer",
- "openvm",
- "openvm-continuations",
- "openvm-cuda-backend",
- "openvm-sdk",
- "openvm-stark-sdk",
- "openvm-static-verifier",
- "openvm-transpiler",
- "openvm-verify-stark-host",
- "tracing",
-]
 
 [[package]]
 name = "static_assertions"
@@ -14592,7 +14542,7 @@ version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
 dependencies = [
- "windows-sys 0.61.1",
+ "windows-sys 0.48.0",
 ]
 
 [[package]]
