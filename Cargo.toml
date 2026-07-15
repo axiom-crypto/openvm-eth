@@ -174,3 +174,6 @@ opt-level = 3
 [profile.bench-with-debug]
 inherits = "release"
 debug = 1
+
+[patch."https://github.com/axiom-crypto/halo2-gpu.git"]
+halo2-axiom-gpu = { git = "ssh://git@github.com/axiom-crypto/halo2-gpu.git", branch = "perf/create-proof-inrepo-levers" }
