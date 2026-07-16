@@ -114,14 +114,15 @@ jobs:
           name: ${{ needs.run-target-benchmark.outputs.metric_name }}
           path: ${{ needs.run-target-benchmark.outputs.metric_name }}
 
-      - name: Get openvm REV
-        id: get-openvm-rev
-        run: |
-          RESULT=$(cargo metadata --format-version=1 | jq -r '.packages[] | select(.name=="openvm-sdk") | .source | split("#") | .[1]')
-          echo "result=${RESULT}" >> "$GITHUB_OUTPUT"
-
       - name: Checkout openvm (for openvm-prof)
-        run: git clone --depth=1 https://github.com/openvm-org/openvm.git && cd openvm && git fetch --depth=1 origin ${{ steps.get-openvm-rev.outputs.result }} && git checkout ${{ steps.get-openvm-rev.outputs.result }}
+        env:
+          OPENVM_REV: ${{ needs.run-target-benchmark.outputs.openvm_rev }}
+        run: |
+          git init openvm
+          git -C openvm remote add origin https://github.com/openvm-org/openvm.git
+          git -C openvm fetch --depth=1 origin "$OPENVM_REV"
+          git -C openvm checkout --detach FETCH_HEAD
+          test "$(git -C openvm rev-parse HEAD)" = "$OPENVM_REV"
       - name: Build openvm-prof
         working-directory: openvm
         run: |

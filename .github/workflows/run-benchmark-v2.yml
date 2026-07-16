@@ -42,11 +42,21 @@ jobs:
         uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
           cache: false
+      - name: Validate OpenVM revision
+        id: openvm
+        env:
+          OPENVM_REV: ${{ inputs.openvm_version }}
+        run: |
+          if [[ ! "$OPENVM_REV" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::openvm_version must be a full 40-character lowercase commit SHA"
+            exit 1
+          fi
+          echo "rev=$OPENVM_REV" >> "$GITHUB_OUTPUT"
       - name: Cache openvm toolchain
         uses: actions/cache@v4
         with:
           path: ~/.openvm/toolchains
-          key: openvm-toolchain-openvm-1.94.0-${{ runner.os }}-${{ runner.arch }}
+          key: openvm-toolchain-${{ steps.openvm.outputs.rev }}-${{ runner.os }}-${{ runner.arch }}
       - name: Prepare input data
         run: |
           block_number="${{ inputs.block_number }}"
@@ -61,7 +71,7 @@ jobs:
 
             # Install OpenVM CLI
             echo "Installing OpenVM CLI..."
-            cargo +1.91.1 install --git https://github.com/openvm-org/openvm.git --branch develop-v2.1.0 --locked --force cargo-openvm
+            cargo +1.91.1 install --git https://github.com/openvm-org/openvm.git --rev "${{ steps.openvm.outputs.rev }}" --locked --force cargo-openvm
 
             # Install the openvm rust toolchain
             cargo openvm toolchain install

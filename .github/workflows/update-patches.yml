@@ -105,6 +105,9 @@ on:
       tag:
         description: "Tag"
         value: ${{ jobs.patch.outputs.tag }}
+      openvm_rev:
+        description: "Resolved OpenVM commit"
+        value: ${{ jobs.patch.outputs.openvm_rev }}
 
 jobs:
   patch:
@@ -115,9 +118,10 @@ jobs:
       branch_name: ${{ steps.create-branch.outputs.branch_name }}
       pr_number: ${{ steps.create-pr.outputs.pr_number }}
       tag: ${{ steps.set-tag.outputs.tag }}
+      openvm_rev: ${{ steps.resolve-openvm-rev.outputs.rev }}
     steps:
-      - name: Get default OPENVM_REV (if none provided)
-        id: get-openvm-rev
+      - name: Get OpenVM ref
+        id: get-openvm-ref
         env:
           OPENVM_REV: "${{ inputs.OPENVM_REV || github.event.inputs.OPENVM_REV }}"
         run: |
@@ -127,7 +131,18 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: "openvm-org/openvm"
-          ref: ${{ steps.get-openvm-rev.outputs.result }}
+          ref: ${{ steps.get-openvm-ref.outputs.result }}
+
+      - name: Resolve OpenVM revision
+        id: resolve-openvm-rev
+        run: |
+          OPENVM_REV=$(git rev-parse HEAD)
+          if [[ ! "$OPENVM_REV" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::failed to resolve OpenVM to a full commit SHA"
+            exit 1
+          fi
+          echo "rev=$OPENVM_REV" >> "$GITHUB_OUTPUT"
+          echo "Using OpenVM revision $OPENVM_REV"
 
       - name: Get STARK_BACKEND_REV from openvm
         id: get-stark-backend-rev
@@ -143,7 +158,7 @@ jobs:
       - name: Replace placeholders in configuration
         run: |
           STARK_BACKEND_REV="${{ steps.get-stark-backend-rev.outputs.result }}"
-          OPENVM_REV="${{ steps.get-openvm-rev.outputs.result }}"
+          OPENVM_REV="${{ steps.resolve-openvm-rev.outputs.rev }}"
 
           echo "Using STARK_BACKEND_REV=$STARK_BACKEND_REV"
           echo "Using OPENVM_REV=$OPENVM_REV"
@@ -218,11 +233,11 @@ jobs:
         with:
           source_branch: ${{ steps.create-branch.outputs.branch_name }}
           destination_branch: ${{ github.ref_name }}
-          pr_title: "Patch openvm to ${{ steps.get-openvm-rev.outputs.result }}"
+          pr_title: "Patch openvm to ${{ steps.resolve-openvm-rev.outputs.rev }}"
           pr_body: |
             This pull request updates .cargo/config.toml using:
             - STARK_BACKEND_REV = ${{ steps.get-stark-backend-rev.outputs.result }}
-            - OPENVM_REV        = ${{ steps.get-openvm-rev.outputs.result }}
+            - OPENVM_REV        = ${{ steps.resolve-openvm-rev.outputs.rev }}
           github_token: ${{ secrets.GITHUB_TOKEN }}
 
   run-benchmark:
@@ -234,6 +249,7 @@ jobs:
       instance_family: ${{ inputs.instance_family || github.event.inputs.instance_family || 'g7e.2xlarge' }}
       ref: ${{ needs.patch.outputs.branch_name }}
       tag: ${{ needs.patch.outputs.tag }}
+      openvm_rev: ${{ needs.patch.outputs.openvm_rev }}
       block_number: ${{ fromJSON(inputs.benchmark_block_number || github.event.inputs.benchmark_block_number || '24001988') }}
       profiling: none
     secrets: inherit
@@ -247,6 +263,7 @@ jobs:
       instance_family: ${{ inputs.instance_family || github.event.inputs.instance_family || 'm8g.24xlarge' }}
       ref: ${{ needs.patch.outputs.branch_name }}
       tag: ${{ needs.patch.outputs.tag }}
+      openvm_rev: ${{ needs.patch.outputs.openvm_rev }}
       block_number: ${{ fromJSON(inputs.benchmark_block_number || github.event.inputs.benchmark_block_number || '24001988') }}
       profiling: host
     secrets: inherit
@@ -260,6 +277,7 @@ jobs:
       instance_family: ${{ inputs.instance_family || github.event.inputs.instance_family || 'm8g.24xlarge' }}
       ref: ${{ needs.patch.outputs.branch_name }}
       tag: ${{ needs.patch.outputs.tag }}
+      openvm_rev: ${{ needs.patch.outputs.openvm_rev }}
       block_number: ${{ fromJSON(inputs.benchmark_block_number || github.event.inputs.benchmark_block_number || '24001988') }}
       profiling: guest
     secrets: inherit

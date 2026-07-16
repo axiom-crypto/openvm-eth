@@ -95,6 +95,10 @@ on:
         type: number
         required: false
         description: Number of proofs that internal verifier aggregates
+      openvm_rev:
+        type: string
+        required: false
+        description: Exact OpenVM commit SHA (defaults to the revision locked by this ref)
   workflow_call:
     inputs:
       ref:
@@ -172,6 +176,10 @@ on:
         required: false
         description: RPC input cache mode (use, refresh, disabled)
         default: use
+      openvm_rev:
+        type: string
+        required: false
+        description: Exact OpenVM commit SHA (defaults to the revision locked by this ref)
     secrets:
       GH_ACTIONS_DEPLOY_PRIVATE_KEY:
         required: true
@@ -187,9 +195,11 @@ on:
       num_segments:
         description: "Number of segments"
         value: ${{ jobs.run-reth.outputs.num_segments }}
+      openvm_rev:
+        description: "OpenVM commit used by the benchmark"
+        value: ${{ jobs.run-reth.outputs.openvm_rev }}
 
 env:
-  OPENVM_BRANCH: develop-v2.1.0
   S3_MD_PATH: s3://${{ vars.S3_WORKFLOW_DATA_BUCKET }}/benchmark/github/results
   S3_FIXTURE_PATH: s3://${{ vars.S3_PUBLIC_DATA_BUCKET }}/benchmark/github/fixtures
   S3_METRICS_PATH: s3://${{ vars.S3_WORKFLOW_DATA_BUCKET }}/benchmark/github/metrics
@@ -211,6 +221,7 @@ jobs:
       gpu_memory_svg_url: ${{ steps.set-metric-name.outputs.memory_svg_url }}
       gpu_peak_memory_mib: ${{ steps.report-gpu-memory.outputs.peak_memory_mib }}
       num_segments: ${{ steps.report-segments.outputs.num_segments }}
+      openvm_rev: ${{ steps.resolve-openvm-rev.outputs.rev }}
     steps:
       - uses: runs-on/action@v2
         with:
@@ -225,6 +236,41 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           cache-on-failure: true
+
+      - name: Load SSH key
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: |
+            ${{ secrets.GH_ACTIONS_DEPLOY_PRIVATE_KEY }}
+      - name: Ensure GitHub.com is a known host
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan github.com >> ~/.ssh/known_hosts
+
+      - name: Resolve OpenVM revision
+        id: resolve-openvm-rev
+        env:
+          REQUESTED_OPENVM_REV: ${{ inputs.openvm_rev || github.event.inputs.openvm_rev }}
+        run: |
+          if [ -n "$REQUESTED_OPENVM_REV" ]; then
+            OPENVM_REV="$REQUESTED_OPENVM_REV"
+          else
+            mapfile -t OPENVM_REVS < <(
+              cargo metadata --format-version=1 --locked |
+                jq -r '[.packages[] | select(.name == "openvm-sdk") | .source | split("#")[1]] | unique[]'
+            )
+            if [ "${#OPENVM_REVS[@]}" -ne 1 ]; then
+              echo "::error::expected one locked openvm-sdk revision, found ${#OPENVM_REVS[@]}"
+              exit 1
+            fi
+            OPENVM_REV="${OPENVM_REVS[0]}"
+          fi
+          if [[ ! "$OPENVM_REV" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::openvm_rev must resolve to a full 40-character lowercase commit SHA"
+            exit 1
+          fi
+          echo "rev=$OPENVM_REV" >> "$GITHUB_OUTPUT"
+          echo "Using OpenVM revision $OPENVM_REV"
 
       - name: Add workflow inputs to summary
         run: |
@@ -258,19 +304,15 @@ jobs:
           # depends on add_metadata util function and openvm-prof file naming
           GPU_MEMORY_SVG_URL="${S3_PUBLIC_URL_BASE}/charts/${CURRENT_SHA}/${METRIC_NAME}.memory.svg"
           echo "memory_svg_url=${GPU_MEMORY_SVG_URL}" >> $GITHUB_OUTPUT
-      - name: Load SSH key
-        uses: webfactory/ssh-agent@v0.9.0
-        with:
-          ssh-private-key: |
-            ${{ secrets.GH_ACTIONS_DEPLOY_PRIVATE_KEY }}
-      # needed only for patching
-      - name: Ensure GitHub.com is a known host
-        run: |
-          mkdir -p ~/.ssh
-          ssh-keyscan github.com >> ~/.ssh/known_hosts
-
       - name: Checkout openvm (for scripts)
-        run: git clone --depth=1 --branch="$OPENVM_BRANCH" https://github.com/openvm-org/openvm.git
+        env:
+          OPENVM_REV: ${{ steps.resolve-openvm-rev.outputs.rev }}
+        run: |
+          git init openvm
+          git -C openvm remote add origin https://github.com/openvm-org/openvm.git
+          git -C openvm fetch --depth=1 origin "$OPENVM_REV"
+          git -C openvm checkout --detach FETCH_HEAD
+          test "$(git -C openvm rev-parse HEAD)" = "$OPENVM_REV"
       - name: Build openvm-prof
         working-directory: openvm
         run: |
@@ -417,11 +459,11 @@ jobs:
         id: set-cache-keys
         run: |
           arch=$(uname -m)
-          # Use inputs.tag if defined, otherwise use current commit SHA
-          # Use inputs.tag if defined, otherwise use current commit SHA
+          # Use inputs.tag if defined, otherwise use current commit SHA.
           TAG="${{ inputs.tag || env.current_sha }}"
+          OPENVM_REV="${{ steps.resolve-openvm-rev.outputs.rev }}"
           GUEST_PROFILE=${{ steps.set-build-profiles.outputs.guest_profile }}
-          echo "elf_cache_key=elf-${TAG}-${arch}-${GUEST_PROFILE}" >> $GITHUB_OUTPUT
+          echo "elf_cache_key=elf-${TAG}-${OPENVM_REV}-${arch}-${GUEST_PROFILE}" >> $GITHUB_OUTPUT
           RUSTFLAGS_HASH=$(echo "${RUSTFLAGS}" | sha256sum | cut -d' ' -f1 | head -c8)
           JEMALLOC_CONF_HASH=$(echo "${JEMALLOC_SYS_WITH_MALLOC_CONF}" | sha256sum | cut -d' ' -f1 | head -c8)
           FEATURES_HASH=$(echo "${FEATURES}" | sha256sum | cut -d' ' -f1 | head -c8)
@@ -446,7 +488,7 @@ jobs:
         uses: runs-on/cache@v4
         with:
           path: ~/.openvm/toolchains
-          key: openvm-toolchain-openvm-1.94.0-${{ runner.os }}-${{ runner.arch }}
+          key: openvm-toolchain-${{ steps.resolve-openvm-rev.outputs.rev }}-${{ runner.os }}-${{ runner.arch }}
       - name: Install openvm rust toolchain
         if: steps.cache-guest-elf-restore.outputs.cache-hit != 'true'
         # skips download if restored from cache, just re-links into rustup

@@ -25,7 +25,6 @@ env:
   CARGO_TERM_COLOR: always
   CARGO_NET_GIT_FETCH_WITH_CLI: "true"
   OPENVM_FAST_TEST: "1"
-  OPENVM_BRANCH: develop-v2.1.0
 
 jobs:
   test:
@@ -42,11 +41,24 @@ jobs:
         with:
           cache-on-failure: true
       - uses: taiki-e/install-action@nextest
+      - name: Resolve OpenVM revision
+        id: openvm
+        run: |
+          mapfile -t OPENVM_REVS < <(
+            cargo metadata --format-version=1 --locked |
+              jq -r '[.packages[] | select(.name == "openvm-sdk") | .source | split("#")[1]] | unique[]'
+          )
+          if [ "${#OPENVM_REVS[@]}" -ne 1 ] || [[ ! "${OPENVM_REVS[0]}" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::expected exactly one full openvm-sdk commit SHA in Cargo.lock"
+            exit 1
+          fi
+          echo "rev=${OPENVM_REVS[0]}" >> "$GITHUB_OUTPUT"
+          echo "Using OpenVM revision ${OPENVM_REVS[0]}"
       - name: Restore openvm toolchain from cache
         uses: runs-on/cache@v4
         with:
           path: ~/.openvm/toolchains
-          key: openvm-toolchain-openvm-1.94.0-${{ runner.os }}-${{ runner.arch }}
+          key: openvm-toolchain-${{ steps.openvm.outputs.rev }}-${{ runner.os }}-${{ runner.arch }}
 
       # The KZG integration tests build a zkVM guest via the OpenVM SDK, which
       # compiles with OpenVM's named rustup toolchain.
@@ -54,7 +66,7 @@ jobs:
         run: |
           rustup install nightly-2026-01-18
           rustup component add rust-src --toolchain nightly-2026-01-18
-          cargo install --git https://github.com/openvm-org/openvm.git --branch "$OPENVM_BRANCH" --locked --force cargo-openvm
+          cargo install --git https://github.com/openvm-org/openvm.git --rev "${{ steps.openvm.outputs.rev }}" --locked --force cargo-openvm
           cargo openvm toolchain install
 
       - name: Run tests

@@ -77,6 +77,7 @@ jobs:
       instance_family: ${{ github.event.inputs.instance_family }}
       ref: ${{ needs.patch-target.outputs.branch_name }}
       tag: ${{ needs.patch-target.outputs.tag }}
+      openvm_rev: ${{ needs.patch-target.outputs.openvm_rev }}
       profiling: none
     secrets: inherit
 
@@ -91,6 +92,7 @@ jobs:
       instance_family: ${{ github.event.inputs.instance_family }}
       ref: ${{ needs.patch-target.outputs.branch_name }}
       tag: ${{ needs.patch-target.outputs.tag }}
+      openvm_rev: ${{ needs.patch-target.outputs.openvm_rev }}
       profiling: host
     secrets: inherit
 
@@ -105,6 +107,7 @@ jobs:
       instance_family: ${{ github.event.inputs.instance_family }}
       ref: ${{ needs.patch-target.outputs.branch_name }}
       tag: ${{ needs.patch-target.outputs.tag }}
+      openvm_rev: ${{ needs.patch-target.outputs.openvm_rev }}
       profiling: guest
     secrets: inherit
 
@@ -129,7 +132,14 @@ jobs:
           path: ${{ needs.run-target-benchmark.outputs.metric_name }}
 
       - name: Checkout openvm (for openvm-prof)
-        run: git clone --depth=1 https://github.com/openvm-org/openvm.git
+        env:
+          OPENVM_REV: ${{ needs.run-target-benchmark.outputs.openvm_rev }}
+        run: |
+          git init openvm
+          git -C openvm remote add origin https://github.com/openvm-org/openvm.git
+          git -C openvm fetch --depth=1 origin "$OPENVM_REV"
+          git -C openvm checkout --detach FETCH_HEAD
+          test "$(git -C openvm rev-parse HEAD)" = "$OPENVM_REV"
       - name: Build openvm-prof
         working-directory: openvm
         run: |
