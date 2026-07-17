@@ -18,8 +18,8 @@
 #   --num-children-internal <N>
 #   --segment-max-memory <N>
 #   --cuda              Force CUDA acceleration (auto-detected if nvidia-smi available)
-#   --exec-mode <MODE>  Select the OpenVM execution backend: interpreter | tco | aot | rvr.
-#                       Defaults to rvr. aot is not supported on arm64.
+#   --exec-mode <MODE>  Select the OpenVM execution backend: interpreter | tco | rvr.
+#                       Defaults to rvr.
 #                       rvr requires clang-22 and lld on PATH.
 #   --perf              Run with perf + samply host profiling and upload to Firefox Profiler
 #   --nsys              Run with nsys profiling and output summary stats
@@ -143,11 +143,11 @@ while [[ $# -gt 0 ]]; do
             ;;
         --exec-mode)
             case "${2:-}" in
-                interpreter|tco|aot|rvr)
+                interpreter|tco|rvr)
                     EXEC_MODE="$2"
                     ;;
                 *)
-                    echo "Error: --exec-mode requires one of: interpreter, tco, aot, rvr (got '${2:-}')" >&2
+                    echo "Error: --exec-mode requires one of: interpreter, tco, rvr (got '${2:-}')" >&2
                     exit 1
                     ;;
             esac
@@ -302,10 +302,6 @@ arm64|aarch64)
     RUSTFLAGS="-Ctarget-cpu=native"
     if [ -z "$EXEC_MODE" ]; then
         EXEC_MODE="rvr"
-    elif [ "$EXEC_MODE" = "aot" ]; then
-        # aot enables halo2curves-axiom/asm which is x86_64-only
-        echo "Error: --exec-mode aot is not supported on arm64" >&2
-        exit 1
     fi
     ;;
 x86_64|amd64)
@@ -326,13 +322,6 @@ case "$EXEC_MODE" in
     tco)
         FEATURES="$FEATURES,tco"
         ;;
-    aot)
-        # aot enables halo2curves-axiom/asm which is x86_64-only
-        FEATURES="$FEATURES,aot"
-        if [ "$MODE" = "prove-evm" ]; then
-            FEATURES="$FEATURES,halo2-asm"
-        fi
-        ;;
     rvr)
         FEATURES="$FEATURES,rvr"
         missing=()
@@ -340,7 +329,7 @@ case "$EXEC_MODE" in
         command -v lld      >/dev/null 2>&1 || missing+=("lld")
         if [ "${#missing[@]}" -gt 0 ]; then
             echo "Error: --exec-mode rvr requires the following tools on PATH: ${missing[*]}" >&2
-            echo "       Install them or rerun with --exec-mode interpreter (or --exec-mode aot on x86_64)." >&2
+            echo "       Install them or rerun with --exec-mode interpreter." >&2
             exit 1
         fi
         ;;
