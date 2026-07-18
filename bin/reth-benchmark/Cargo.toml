@@ -48,12 +48,12 @@ reth-ethereum-primitives.workspace = true
 # This allows us to not update revm and openvm-kzg each time we change openvm-sdk
 openvm-stark-sdk = { git = "https://github.com/openvm-org/stark-backend.git", tag = "v2.0.0", default-features = false }
 openvm-cuda-backend = { git = "https://github.com/openvm-org/stark-backend.git", tag = "v2.0.0", default-features = false, optional = true }
-openvm-transpiler = { git = "https://github.com/openvm-org/openvm.git", branch = "develop-v2.1.0", default-features = false }
+openvm-transpiler = { git = "https://github.com/openvm-org/openvm.git", branch = "codex/rvr-guest-call-stack-profiler", default-features = false }
 openvm.workspace = true
-openvm-circuit = { git = "https://github.com/openvm-org/openvm.git", branch = "develop-v2.1.0", default-features = false }
-openvm-verify-stark-host = { git = "https://github.com/openvm-org/openvm.git", branch = "develop-v2.1.0", default-features = false }
-openvm-sdk = { git = "https://github.com/openvm-org/openvm.git", branch = "develop-v2.1.0", default-features = false }
-openvm-sdk-config = { git = "https://github.com/openvm-org/openvm.git", branch = "develop-v2.1.0", default-features = false }
+openvm-circuit = { git = "https://github.com/openvm-org/openvm.git", branch = "codex/rvr-guest-call-stack-profiler", default-features = false }
+openvm-verify-stark-host = { git = "https://github.com/openvm-org/openvm.git", branch = "codex/rvr-guest-call-stack-profiler", default-features = false }
+openvm-sdk = { git = "https://github.com/openvm-org/openvm.git", branch = "codex/rvr-guest-call-stack-profiler", default-features = false }
+openvm-sdk-config = { git = "https://github.com/openvm-org/openvm.git", branch = "codex/rvr-guest-call-stack-profiler", default-features = false }
 
 # halo2
 halo2-axiom = { git = "https://github.com/axiom-crypto/halo2.git", tag = "v0.5.2", default-features = false, optional = true }

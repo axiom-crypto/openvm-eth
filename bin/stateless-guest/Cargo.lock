@@ -2125,7 +2125,7 @@ dependencies = [
 [[package]]
 name = "k256"
 version = "0.13.4"
-source = "git+https://github.com/openvm-org/openvm.git?branch=develop-v2.1.0#4268b8c5eb9d0818419b20fb9edf56d357c829cf"
+source = "git+https://github.com/openvm-org/openvm.git?branch=codex%2Frvr-guest-call-stack-profiler#806467198de33fa2dcda4331d203337e15124872"
 dependencies = [
  "ecdsa",
  "elliptic-curve",
@@ -2450,7 +2450,7 @@ dependencies = [
 [[package]]
 name = "openvm"
 version = "2.0.0"
-source = "git+https://github.com/openvm-org/openvm.git?branch=develop-v2.1.0#4268b8c5eb9d0818419b20fb9edf56d357c829cf"
+source = "git+https://github.com/openvm-org/openvm.git?branch=codex%2Frvr-guest-call-stack-profiler#806467198de33fa2dcda4331d203337e15124872"
 dependencies = [
  "bytemuck",
  "getrandom 0.2.17",
@@ -2465,7 +2465,7 @@ dependencies = [
 [[package]]
 name = "openvm-algebra-complex-macros"
 version = "2.0.0"
-source = "git+https://github.com/openvm-org/openvm.git?branch=develop-v2.1.0#4268b8c5eb9d0818419b20fb9edf56d357c829cf"
+source = "git+https://github.com/openvm-org/openvm.git?branch=codex%2Frvr-guest-call-stack-profiler#806467198de33fa2dcda4331d203337e15124872"
 dependencies = [
  "openvm-macros-common",
  "quote",
@@ -2475,7 +2475,7 @@ dependencies = [
 [[package]]
 name = "openvm-algebra-guest"
 version = "2.0.0"
-source = "git+https://github.com/openvm-org/openvm.git?branch=develop-v2.1.0#4268b8c5eb9d0818419b20fb9edf56d357c829cf"
+source = "git+https://github.com/openvm-org/openvm.git?branch=codex%2Frvr-guest-call-stack-profiler#806467198de33fa2dcda4331d203337e15124872"
 dependencies = [
  "halo2curves-axiom",
  "num-bigint",
@@ -2491,7 +2491,7 @@ dependencies = [
 [[package]]
 name = "openvm-algebra-moduli-macros"
 version = "2.0.0"
-source = "git+https://github.com/openvm-org/openvm.git?branch=develop-v2.1.0#4268b8c5eb9d0818419b20fb9edf56d357c829cf"
+source = "git+https://github.com/openvm-org/openvm.git?branch=codex%2Frvr-guest-call-stack-profiler#806467198de33fa2dcda4331d203337e15124872"
 dependencies = [
  "num-bigint",
  "num-prime",
@@ -2522,7 +2522,7 @@ dependencies = [
 [[package]]
 name = "openvm-custom-insn"
 version = "0.1.0"
-source = "git+https://github.com/openvm-org/openvm.git?branch=develop-v2.1.0#4268b8c5eb9d0818419b20fb9edf56d357c829cf"
+source = "git+https://github.com/openvm-org/openvm.git?branch=codex%2Frvr-guest-call-stack-profiler#806467198de33fa2dcda4331d203337e15124872"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -2532,7 +2532,7 @@ dependencies = [
 [[package]]
 name = "openvm-ecc-guest"
 version = "2.0.0"
-source = "git+https://github.com/openvm-org/openvm.git?branch=develop-v2.1.0#4268b8c5eb9d0818419b20fb9edf56d357c829cf"
+source = "git+https://github.com/openvm-org/openvm.git?branch=codex%2Frvr-guest-call-stack-profiler#806467198de33fa2dcda4331d203337e15124872"
 dependencies = [
  "ecdsa",
  "elliptic-curve",
@@ -2551,7 +2551,7 @@ dependencies = [
 [[package]]
 name = "openvm-ecc-sw-macros"
 version = "2.0.0"
-source = "git+https://github.com/openvm-org/openvm.git?branch=develop-v2.1.0#4268b8c5eb9d0818419b20fb9edf56d357c829cf"
+source = "git+https://github.com/openvm-org/openvm.git?branch=codex%2Frvr-guest-call-stack-profiler#806467198de33fa2dcda4331d203337e15124872"
 dependencies = [
  "openvm-macros-common",
  "quote",
@@ -2565,7 +2565,7 @@ version = "0.4.0"
 [[package]]
 name = "openvm-keccak256"
 version = "2.0.0"
-source = "git+https://github.com/openvm-org/openvm.git?branch=develop-v2.1.0#4268b8c5eb9d0818419b20fb9edf56d357c829cf"
+source = "git+https://github.com/openvm-org/openvm.git?branch=codex%2Frvr-guest-call-stack-profiler#806467198de33fa2dcda4331d203337e15124872"
 dependencies = [
  "openvm-keccak256-guest",
  "spin 0.10.1",
@@ -2575,7 +2575,7 @@ dependencies = [
 [[package]]
 name = "openvm-keccak256-guest"
 version = "2.0.0"
-source = "git+https://github.com/openvm-org/openvm.git?branch=develop-v2.1.0#4268b8c5eb9d0818419b20fb9edf56d357c829cf"
+source = "git+https://github.com/openvm-org/openvm.git?branch=codex%2Frvr-guest-call-stack-profiler#806467198de33fa2dcda4331d203337e15124872"
 dependencies = [
  "openvm-platform",
 ]
@@ -2599,7 +2599,7 @@ dependencies = [
 [[package]]
 name = "openvm-macros-common"
 version = "2.0.0"
-source = "git+https://github.com/openvm-org/openvm.git?branch=develop-v2.1.0#4268b8c5eb9d0818419b20fb9edf56d357c829cf"
+source = "git+https://github.com/openvm-org/openvm.git?branch=codex%2Frvr-guest-call-stack-profiler#806467198de33fa2dcda4331d203337e15124872"
 dependencies = [
  "syn 2.0.118",
 ]
@@ -2622,7 +2622,7 @@ dependencies = [
 [[package]]
 name = "openvm-pairing"
 version = "2.0.0"
-source = "git+https://github.com/openvm-org/openvm.git?branch=develop-v2.1.0#4268b8c5eb9d0818419b20fb9edf56d357c829cf"
+source = "git+https://github.com/openvm-org/openvm.git?branch=codex%2Frvr-guest-call-stack-profiler#806467198de33fa2dcda4331d203337e15124872"
 dependencies = [
  "group",
  "hex-literal",
@@ -2645,7 +2645,7 @@ dependencies = [
 [[package]]
 name = "openvm-pairing-guest"
 version = "2.0.0"
-source = "git+https://github.com/openvm-org/openvm.git?branch=develop-v2.1.0#4268b8c5eb9d0818419b20fb9edf56d357c829cf"
+source = "git+https://github.com/openvm-org/openvm.git?branch=codex%2Frvr-guest-call-stack-profiler#806467198de33fa2dcda4331d203337e15124872"
 dependencies = [
  "hex-literal",
  "itertools 0.14.0",
@@ -2664,7 +2664,7 @@ dependencies = [
 [[package]]
 name = "openvm-platform"
 version = "2.0.0"
-source = "git+https://github.com/openvm-org/openvm.git?branch=develop-v2.1.0#4268b8c5eb9d0818419b20fb9edf56d357c829cf"
+source = "git+https://github.com/openvm-org/openvm.git?branch=codex%2Frvr-guest-call-stack-profiler#806467198de33fa2dcda4331d203337e15124872"
 dependencies = [
  "critical-section",
  "embedded-alloc",
@@ -2680,14 +2680,14 @@ dependencies = [
  "alloy-consensus",
  "alloy-primitives",
  "aurora-engine-modexp",
- "k256 0.13.4 (git+https://github.com/openvm-org/openvm.git?branch=develop-v2.1.0)",
+ "k256 0.13.4 (git+https://github.com/openvm-org/openvm.git?branch=codex%2Frvr-guest-call-stack-profiler)",
  "openvm-curve-utils",
  "openvm-ecc-guest",
  "openvm-keccak256",
  "openvm-kzg",
  "openvm-pairing",
  "openvm-sha2",
- "p256 0.13.2 (git+https://github.com/openvm-org/openvm.git?branch=develop-v2.1.0)",
+ "p256 0.13.2 (git+https://github.com/openvm-org/openvm.git?branch=codex%2Frvr-guest-call-stack-profiler)",
  "revm",
  "revm-primitives",
 ]
@@ -2695,7 +2695,7 @@ dependencies = [
 [[package]]
 name = "openvm-riscv-guest"
 version = "2.0.0"
-source = "git+https://github.com/openvm-org/openvm.git?branch=develop-v2.1.0#4268b8c5eb9d0818419b20fb9edf56d357c829cf"
+source = "git+https://github.com/openvm-org/openvm.git?branch=codex%2Frvr-guest-call-stack-profiler#806467198de33fa2dcda4331d203337e15124872"
 dependencies = [
  "openvm-custom-insn",
  "strum_macros 0.26.4",
@@ -2704,7 +2704,7 @@ dependencies = [
 [[package]]
 name = "openvm-sha2"
 version = "2.0.0"
-source = "git+https://github.com/openvm-org/openvm.git?branch=develop-v2.1.0#4268b8c5eb9d0818419b20fb9edf56d357c829cf"
+source = "git+https://github.com/openvm-org/openvm.git?branch=codex%2Frvr-guest-call-stack-profiler#806467198de33fa2dcda4331d203337e15124872"
 dependencies = [
  "openvm-sha2-guest",
  "sha2",
@@ -2713,7 +2713,7 @@ dependencies = [
 [[package]]
 name = "openvm-sha2-guest"
 version = "2.0.0"
-source = "git+https://github.com/openvm-org/openvm.git?branch=develop-v2.1.0#4268b8c5eb9d0818419b20fb9edf56d357c829cf"
+source = "git+https://github.com/openvm-org/openvm.git?branch=codex%2Frvr-guest-call-stack-profiler#806467198de33fa2dcda4331d203337e15124872"
 dependencies = [
  "openvm-platform",
 ]
@@ -2772,7 +2772,7 @@ dependencies = [
 [[package]]
 name = "p256"
 version = "0.13.2"
-source = "git+https://github.com/openvm-org/openvm.git?branch=develop-v2.1.0#4268b8c5eb9d0818419b20fb9edf56d357c829cf"
+source = "git+https://github.com/openvm-org/openvm.git?branch=codex%2Frvr-guest-call-stack-profiler#806467198de33fa2dcda4331d203337e15124872"
 dependencies = [
  "ecdsa",
  "elliptic-curve",
