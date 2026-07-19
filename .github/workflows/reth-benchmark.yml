@@ -823,11 +823,24 @@ jobs:
 
           source openvm/ci/scripts/utils.sh
 
-          add_metadata $MD_PATH \
-            ${{ inputs.instance_family || github.event.inputs.instance_family }} \
-            ${{ inputs.memory_allocator || github.event.inputs.memory_allocator || 'jemalloc' }} \
-            $COMMIT_URL \
-            $BENCHMARK_WORKFLOW_URL
+          if [[ "${S3_PUBLIC_UPLOAD_ENABLED}" == "true" ]]; then
+            add_metadata $MD_PATH \
+              ${{ inputs.instance_family || github.event.inputs.instance_family }} \
+              ${{ inputs.memory_allocator || github.event.inputs.memory_allocator || 'jemalloc' }} \
+              $COMMIT_URL \
+              $BENCHMARK_WORKFLOW_URL
+          else
+            {
+              echo ""
+              echo "Commit: ${COMMIT_URL}"
+              echo ""
+              echo "Instance Type: ${{ inputs.instance_family || github.event.inputs.instance_family }}"
+              echo ""
+              echo "Memory Allocator: ${{ inputs.memory_allocator || github.event.inputs.memory_allocator || 'jemalloc' }}"
+              echo ""
+              echo "[Benchmark Workflow](${BENCHMARK_WORKFLOW_URL})"
+            } >> "$MD_PATH"
+          fi
 
           # Add GPU peak memory to the markdown if available
           if [[ -n "${GPU_PEAK_MEMORY_MIB}" && "${GPU_PEAK_MEMORY_MIB}" != "0" ]]; then
@@ -902,6 +915,7 @@ jobs:
 
       - name: Upload metric artifacts
         id: upload-metric-artifact
+        if: ${{ always() }}
         uses: actions/upload-artifact@v4
         with:
           name: ${{ steps.set-metric-name.outputs.name }}
