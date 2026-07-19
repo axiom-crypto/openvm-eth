@@ -189,6 +189,9 @@ on:
 
 env:
   OPENVM_BRANCH: develop-v2.1.0
+  S3_FIXTURE_READ_ENABLED: ${{ vars.S3_PUBLIC_DATA_BUCKET != '' }}
+  S3_PUBLIC_UPLOAD_ENABLED: ${{ vars.S3_PUBLIC_DATA_BUCKET != '' && vars.S3_REGION != '' }}
+  S3_WORKFLOW_UPLOAD_ENABLED: ${{ vars.S3_WORKFLOW_DATA_BUCKET != '' }}
   S3_MD_PATH: s3://${{ vars.S3_WORKFLOW_DATA_BUCKET }}/benchmark/github/results
   S3_FIXTURE_PATH: s3://${{ vars.S3_PUBLIC_DATA_BUCKET }}/benchmark/github/fixtures
   S3_METRICS_PATH: s3://${{ vars.S3_WORKFLOW_DATA_BUCKET }}/benchmark/github/metrics
@@ -203,6 +206,8 @@ env:
 jobs:
   run-reth:
     name: Run Reth benchmark
+    permissions:
+      contents: write
     runs-on:
       - runs-on=${{ github.run_id }}/family=${{ inputs.instance_family || github.event.inputs.instance_family }}/volume=80gb/tag=bench-reth-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}/extras=s3-cache/spot=false/image=${{ startsWith(github.event.inputs.instance_family || inputs.instance_family, 'g') && 'ubuntu24-gpu-x64' || contains(github.event.inputs.instance_family || inputs.instance_family, 'g.') && 'ubuntu24-full-arm64' || 'ubuntu24-full-x64' }}
     outputs:
@@ -238,6 +243,12 @@ jobs:
         run: |
           echo '${{ toJSON(inputs || github.event.inputs) }}'
 
+      - name: Report S3-disabled mode
+        if: ${{ env.S3_PUBLIC_UPLOAD_ENABLED != 'true' && env.S3_WORKFLOW_UPLOAD_ENABLED != 'true' }}
+        run: |
+          echo "S3 uploads disabled; using GitHub artifacts and gh-pages."
+          echo "S3 uploads disabled; using GitHub artifacts and gh-pages." >> "$GITHUB_STEP_SUMMARY"
+
       - name: Get current commit hash
         run: |
           echo "current_sha=$(git rev-parse HEAD)" >> $GITHUB_ENV
@@ -255,7 +266,10 @@ jobs:
           echo "METRIC_PATH=${METRIC_PATH}" >> $GITHUB_ENV
           echo "name=${METRIC_NAME}" >> $GITHUB_OUTPUT
           # depends on add_metadata util function and openvm-prof file naming
-          GPU_MEMORY_SVG_URL="${S3_PUBLIC_URL_BASE}/charts/${CURRENT_SHA}/${METRIC_NAME}.memory.svg"
+          GPU_MEMORY_SVG_URL=""
+          if [[ "${S3_PUBLIC_UPLOAD_ENABLED}" == "true" ]]; then
+            GPU_MEMORY_SVG_URL="${S3_PUBLIC_URL_BASE}/charts/${CURRENT_SHA}/${METRIC_NAME}.memory.svg"
+          fi
           echo "memory_svg_url=${GPU_MEMORY_SVG_URL}" >> $GITHUB_OUTPUT
       - name: Load SSH key
         uses: webfactory/ssh-agent@v0.9.0
@@ -278,7 +292,9 @@ jobs:
       - name: Install architecture specific tools
         run: |
           source openvm/ci/scripts/utils.sh
-          install_s5cmd
+          if [[ "${S3_FIXTURE_READ_ENABLED}" == "true" || "${S3_PUBLIC_UPLOAD_ENABLED}" == "true" || "${S3_WORKFLOW_UPLOAD_ENABLED}" == "true" ]]; then
+            install_s5cmd
+          fi
           sudo apt update && sudo apt install -y gnuplot
           sudo apt install -y linux-tools-common linux-tools-generic linux-tools-$(uname -r) || \
             sudo apt install -y linux-tools-aws linux-cloud-tools-aws || true
@@ -494,8 +510,20 @@ jobs:
             echo ""
           } >> "$GITHUB_STEP_SUMMARY"
 
-          # Publish the raw report + soundcalc config to the public bucket (the workflow metrics
-          # bucket isn't web-accessible) and link them in the summary so they're viewable.
+      - name: Upload soundness artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.set-metric-name.outputs.name }}-soundness
+          path: |
+            soundness.json
+            openvm2.toml
+          retention-days: 1
+
+      - name: Publish soundness report
+        if: ${{ env.S3_PUBLIC_UPLOAD_ENABLED == 'true' }}
+        run: |
+          # The workflow metrics bucket isn't web-accessible, so publish this report to the
+          # public bucket when external publication is available.
           S3_BASE="${{ env.S3_PUBLIC_PATH_BASE }}/soundness/${METRIC_NAME}"
           URL_BASE="${{ env.S3_PUBLIC_URL_BASE }}/soundness/${METRIC_NAME}"
           s5cmd cp soundness.json "${S3_BASE}.soundness.json"
@@ -506,6 +534,7 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Path to soundness result
+        if: ${{ env.S3_PUBLIC_UPLOAD_ENABLED == 'true' }}
         run: echo "${{ env.S3_PUBLIC_URL_BASE }}/soundness/${METRIC_NAME}.soundness.json"
 
       - name: Restore RPC input cache from S3
@@ -525,11 +554,19 @@ jobs:
           echo "mode=${RPC_INPUT_CACHE_MODE}" >> "$GITHUB_OUTPUT"
           echo "cache_file=${CACHE_FILE}" >> "$GITHUB_OUTPUT"
           echo "s3_cache_file=${S3_CACHE_FILE}" >> "$GITHUB_OUTPUT"
+          echo "s3-available=${S3_FIXTURE_READ_ENABLED}" >> "$GITHUB_OUTPUT"
 
           if [[ "${RPC_INPUT_CACHE_MODE}" == "disabled" ]]; then
             echo "RPC input cache disabled"
             echo "cache-hit=false" >> "$GITHUB_OUTPUT"
             echo "RPC input cache: disabled" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          if [[ "${S3_FIXTURE_READ_ENABLED}" != "true" ]]; then
+            echo "S3 fixture cache unavailable; continuing with RPC"
+            echo "cache-hit=false" >> "$GITHUB_OUTPUT"
+            echo "RPC input cache: unavailable; using RPC" >> "$GITHUB_STEP_SUMMARY"
             exit 0
           fi
 
@@ -713,7 +750,7 @@ jobs:
           fi
 
       - name: Save RPC input cache to S3
-        if: ${{ success() && steps.restore-rpc-input-cache.outputs.mode != 'disabled' && steps.restore-rpc-input-cache.outputs.cache-hit != 'true' }}
+        if: ${{ success() && env.S3_PUBLIC_UPLOAD_ENABLED == 'true' && steps.restore-rpc-input-cache.outputs.s3-available == 'true' && steps.restore-rpc-input-cache.outputs.mode != 'disabled' && steps.restore-rpc-input-cache.outputs.cache-hit != 'true' }}
         run: |
           CACHE_FILE="${{ steps.restore-rpc-input-cache.outputs.cache_file }}"
           S3_CACHE_FILE="${{ steps.restore-rpc-input-cache.outputs.s3_cache_file }}"
@@ -766,13 +803,18 @@ jobs:
           retention-days: 1
 
       - name: Upload Benchmark Metrics
+        if: ${{ env.S3_WORKFLOW_UPLOAD_ENABLED == 'true' }}
         run: s5cmd cp ${METRIC_PATH} ${{ env.S3_METRICS_PATH }}/${METRIC_NAME}.json
 
       - name: Generate markdown
         run: |
           openvm-prof --json-paths $METRIC_PATH --num-devices 16 --proofs-per-device 1
           MD_PATH=${METRIC_PATH%.json}.md
+          DETAILED_MD_PATH=${MD_PATH%.md}.detailed.md
+          GPU_MEMORY_SVG_PATH=${MD_PATH%.md}.memory.svg
           echo "MD_PATH=${MD_PATH}" >> $GITHUB_ENV
+          echo "DETAILED_MD_PATH=${DETAILED_MD_PATH}" >> $GITHUB_ENV
+          echo "GPU_MEMORY_SVG_PATH=${GPU_MEMORY_SVG_PATH}" >> $GITHUB_ENV
 
       - name: Add benchmark metadata to markdown
         run: |
@@ -824,6 +866,9 @@ jobs:
           echo "Saved profile: $SAMPLY_PROFILE_PATH/profile.json.gz"
           echo "SAMPLY_PROFILE_PATH=${SAMPLY_PROFILE_PATH}" >> $GITHUB_ENV
 
+      - name: Publish samply profile
+        if: ${{ (inputs.profiling == 'host' || github.event.inputs.profiling == 'host') && env.S3_PUBLIC_UPLOAD_ENABLED == 'true' }}
+        run: |
           s5cmd cp $SAMPLY_PROFILE_PATH/profile.json.gz ${{ env.S3_SAMPLY_PROFILE_PATH }}/${METRIC_NAME}/profile.json.gz
 
           FIREFOX_PROFILER_URL=$(python3 "$GITHUB_WORKSPACE/scripts/upload_firefox_profile.py" "$SAMPLY_PROFILE_PATH/profile.json.gz") || true
@@ -846,18 +891,14 @@ jobs:
           retention-days: 1
 
       - name: Upload markdown
+        if: ${{ env.S3_WORKFLOW_UPLOAD_ENABLED == 'true' }}
         run: |
           S3_MD_PATH="${{ env.S3_MD_PATH }}/${METRIC_NAME}.md"
           s5cmd cp $MD_PATH $S3_MD_PATH
 
-          DETAILED_MD_PATH=${MD_PATH%.md}.detailed.md
           s5cmd cp $DETAILED_MD_PATH "${{ env.S3_MD_PATH }}/${METRIC_NAME}.detailed.md"
 
-          GPU_MEMORY_SVG_PATH=${MD_PATH%.md}.memory.svg
-
           echo "S3_MD_PATH=${S3_MD_PATH}" >> $GITHUB_ENV
-          echo "DETAILED_MD_PATH=${DETAILED_MD_PATH}" >> $GITHUB_ENV
-          echo "GPU_MEMORY_SVG_PATH=${GPU_MEMORY_SVG_PATH}" >> $GITHUB_ENV
 
       - name: Upload metric artifacts
         id: upload-metric-artifact
@@ -866,6 +907,7 @@ jobs:
           name: ${{ steps.set-metric-name.outputs.name }}
           path: |
             ${{ env.METRIC_PATH }}
+            ${{ env.MD_PATH }}
             ${{ env.DETAILED_MD_PATH }}
             ${{ env.GPU_MEMORY_SVG_PATH }}
           if-no-files-found: warn
@@ -876,10 +918,29 @@ jobs:
         run: sccache --show-stats || true
 
       ### Update gh-pages
-      - uses: actions/checkout@v4
+      - name: Check for gh-pages branch
+        id: check-gh-pages
+        run: |
+          if git ls-remote --exit-code --heads origin gh-pages > /dev/null; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "ref=gh-pages" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            echo "ref=${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Checkout gh-pages
+        uses: actions/checkout@v4
         with:
-          ref: gh-pages
+          ref: ${{ steps.check-gh-pages.outputs.ref }}
           path: gh-pages
+
+      - name: Initialize gh-pages branch
+        if: ${{ steps.check-gh-pages.outputs.exists != 'true' }}
+        working-directory: gh-pages
+        run: |
+          git checkout --orphan gh-pages
+          git rm -rf .
 
       - name: Set up git
         working-directory: gh-pages
@@ -888,6 +949,8 @@ jobs:
           git config user.name "github-actions[bot]"
 
       - name: Commit to gh-pages branch
+        id: publish-gh-pages
+        continue-on-error: true
         working-directory: gh-pages
         env:
           REF_NAME: ${{ github.head_ref || github.ref }}
@@ -895,7 +958,7 @@ jobs:
           GH_PAGES_PATH="benchmarks-dispatch/${REF_NAME}"
           echo "GH_PAGES_PATH=${GH_PAGES_PATH}" >> $GITHUB_ENV
           mkdir -p ${GH_PAGES_PATH}
-          s5cmd cp $S3_MD_PATH "${GH_PAGES_PATH}/${METRIC_NAME}.md"
+          cp "$GITHUB_WORKSPACE/$MD_PATH" "${GH_PAGES_PATH}/${METRIC_NAME}.md"
 
           git add ${GH_PAGES_PATH}/${METRIC_NAME}.md
           git commit --allow-empty -m "Update benchmark result at ${GH_PAGES_PATH}/${METRIC_NAME}.md"
@@ -905,9 +968,10 @@ jobs:
           SUCCESS=false
           while [ $ATTEMPT -lt $MAX_RETRIES ]; do
               echo "Attempt $((ATTEMPT + 1)) to push of $MAX_RETRIES..."
-              git fetch origin gh-pages
-              git merge origin/gh-pages --no-edit
-              if git push origin gh-pages; then
+              if git fetch origin gh-pages; then
+                  git merge origin/gh-pages --no-edit
+              fi
+              if git push origin HEAD:gh-pages; then
                   SUCCESS=true
                   break
               else
@@ -922,6 +986,7 @@ jobs:
           fi
 
       - name: Update summary with results
+        if: ${{ steps.publish-gh-pages.outcome == 'success' }}
         working-directory: gh-pages
         run: |
           RESULT_URL="https://github.com/${{ github.repository }}/blob/gh-pages/${GH_PAGES_PATH}/${METRIC_NAME}.md"
@@ -931,6 +996,7 @@ jobs:
           cat "${GH_PAGES_PATH}/${METRIC_NAME}.md" >> $GITHUB_STEP_SUMMARY
 
       - name: Path to result
+        if: ${{ steps.publish-gh-pages.outcome == 'success' }}
         working-directory: gh-pages
         run: |
           echo "https://github.com/${{ github.repository }}/blob/gh-pages/${GH_PAGES_PATH}/${METRIC_NAME}.md"
