@@ -4,6 +4,11 @@ run-name: "Reth Benchmark (block ${{ inputs.block_number || github.event.inputs.
 on:
   workflow_dispatch:
     inputs:
+      openvm_ref:
+        type: string
+        required: false
+        description: OpenVM branch, tag, or commit used for benchmark tooling
+        default: develop-v2.1.0
       instance_family:
         type: string
         required: false
@@ -96,6 +101,11 @@ on:
         description: Number of proofs that internal verifier aggregates
   workflow_call:
     inputs:
+      openvm_ref:
+        type: string
+        required: false
+        description: OpenVM branch, tag, or commit used for benchmark tooling
+        default: develop-v2.1.0
       ref:
         type: string
         required: false
@@ -188,7 +198,6 @@ on:
         value: ${{ jobs.run-reth.outputs.num_segments }}
 
 env:
-  OPENVM_BRANCH: develop-v2.1.0
   S3_FIXTURE_READ_ENABLED: ${{ vars.S3_PUBLIC_DATA_BUCKET != '' }}
   S3_PUBLIC_UPLOAD_ENABLED: ${{ vars.S3_PUBLIC_DATA_BUCKET != '' && vars.S3_REGION != '' }}
   S3_WORKFLOW_UPLOAD_ENABLED: ${{ vars.S3_WORKFLOW_DATA_BUCKET != '' }}
@@ -212,7 +221,7 @@ jobs:
       - runs-on=${{ github.run_id }}/family=${{ inputs.instance_family || github.event.inputs.instance_family }}/volume=80gb/tag=bench-reth-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}/extras=s3-cache/spot=false/image=${{ startsWith(github.event.inputs.instance_family || inputs.instance_family, 'g') && 'ubuntu24-gpu-x64' || contains(github.event.inputs.instance_family || inputs.instance_family, 'g.') && 'ubuntu24-full-arm64' || 'ubuntu24-full-x64' }}
     outputs:
       metric_name: ${{ steps.set-metric-name.outputs.name }}
-      gpu_memory_svg_url: ${{ steps.set-metric-name.outputs.memory_svg_url }}
+      gpu_memory_svg_url: ${{ steps.publish-benchmark-assets.outputs.memory_svg_url }}
       gpu_peak_memory_mib: ${{ steps.report-gpu-memory.outputs.peak_memory_mib }}
       num_segments: ${{ steps.report-segments.outputs.num_segments }}
     steps:
@@ -252,8 +261,6 @@ jobs:
       - name: Get current commit hash
         run: |
           echo "current_sha=$(git rev-parse HEAD)" >> $GITHUB_ENV
-          # for add_metadata function
-          echo "CURRENT_SHA=$(git rev-parse HEAD)" >> $GITHUB_ENV
 
       - name: Set metric name
         id: set-metric-name
@@ -265,12 +272,6 @@ jobs:
           METRIC_PATH=".bench_metrics/${METRIC_NAME}.json"
           echo "METRIC_PATH=${METRIC_PATH}" >> $GITHUB_ENV
           echo "name=${METRIC_NAME}" >> $GITHUB_OUTPUT
-          # depends on add_metadata util function and openvm-prof file naming
-          GPU_MEMORY_SVG_URL=""
-          if [[ "${S3_PUBLIC_UPLOAD_ENABLED}" == "true" ]]; then
-            GPU_MEMORY_SVG_URL="${S3_PUBLIC_URL_BASE}/charts/${CURRENT_SHA}/${METRIC_NAME}.memory.svg"
-          fi
-          echo "memory_svg_url=${GPU_MEMORY_SVG_URL}" >> $GITHUB_OUTPUT
       - name: Load SSH key
         uses: webfactory/ssh-agent@v0.9.0
         with:
@@ -283,18 +284,28 @@ jobs:
           ssh-keyscan github.com >> ~/.ssh/known_hosts
 
       - name: Checkout openvm (for scripts)
-        run: git clone --depth=1 --branch="$OPENVM_BRANCH" https://github.com/openvm-org/openvm.git
+        env:
+          OPENVM_REF: ${{ inputs.openvm_ref || github.event.inputs.openvm_ref || 'develop-v2.1.0' }}
+        run: |
+          git init openvm
+          git -C openvm remote add origin https://github.com/openvm-org/openvm.git
+          git -C openvm fetch --depth=1 origin "$OPENVM_REF"
+          git -C openvm checkout --detach FETCH_HEAD
+          echo "OpenVM tooling revision: $(git -C openvm rev-parse HEAD)"
       - name: Build openvm-prof
         working-directory: openvm
         run: |
           cargo build -p openvm-prof
           echo "${{ github.workspace }}/openvm/target/debug" >> $GITHUB_PATH
-      - name: Install architecture specific tools
+      - name: Install OpenVM Rust source component
+        run: bash openvm/ci/scripts/install-openvm-rust-src.sh
+
+      - name: Install s5cmd
+        if: ${{ env.S3_FIXTURE_READ_ENABLED == 'true' || env.S3_PUBLIC_UPLOAD_ENABLED == 'true' || env.S3_WORKFLOW_UPLOAD_ENABLED == 'true' }}
+        run: bash openvm/ci/scripts/install-s5cmd.sh
+
+      - name: Install system profiling tools
         run: |
-          source openvm/ci/scripts/utils.sh
-          if [[ "${S3_FIXTURE_READ_ENABLED}" == "true" || "${S3_PUBLIC_UPLOAD_ENABLED}" == "true" || "${S3_WORKFLOW_UPLOAD_ENABLED}" == "true" ]]; then
-            install_s5cmd
-          fi
           sudo apt update && sudo apt install -y gnuplot
           sudo apt install -y linux-tools-common linux-tools-generic linux-tools-$(uname -r) || \
             sudo apt install -y linux-tools-aws linux-cloud-tools-aws || true
@@ -521,6 +532,7 @@ jobs:
 
       - name: Publish soundness report
         if: ${{ env.S3_PUBLIC_UPLOAD_ENABLED == 'true' }}
+        continue-on-error: true
         run: |
           # The workflow metrics bucket isn't web-accessible, so publish this report to the
           # public bucket when external publication is available.
@@ -751,6 +763,7 @@ jobs:
 
       - name: Save RPC input cache to S3
         if: ${{ success() && env.S3_PUBLIC_UPLOAD_ENABLED == 'true' && steps.restore-rpc-input-cache.outputs.s3-available == 'true' && steps.restore-rpc-input-cache.outputs.mode != 'disabled' && steps.restore-rpc-input-cache.outputs.cache-hit != 'true' }}
+        continue-on-error: true
         run: |
           CACHE_FILE="${{ steps.restore-rpc-input-cache.outputs.cache_file }}"
           S3_CACHE_FILE="${{ steps.restore-rpc-input-cache.outputs.s3_cache_file }}"
@@ -804,6 +817,7 @@ jobs:
 
       - name: Upload Benchmark Metrics
         if: ${{ env.S3_WORKFLOW_UPLOAD_ENABLED == 'true' }}
+        continue-on-error: true
         run: s5cmd cp ${METRIC_PATH} ${{ env.S3_METRICS_PATH }}/${METRIC_NAME}.json
 
       - name: Generate markdown
@@ -816,37 +830,43 @@ jobs:
           echo "DETAILED_MD_PATH=${DETAILED_MD_PATH}" >> $GITHUB_ENV
           echo "GPU_MEMORY_SVG_PATH=${GPU_MEMORY_SVG_PATH}" >> $GITHUB_ENV
 
+      - name: Publish benchmark assets
+        id: publish-benchmark-assets
+        if: ${{ env.S3_PUBLIC_UPLOAD_ENABLED == 'true' }}
+        continue-on-error: true
+        run: |
+          if [[ ! -f "$GPU_MEMORY_SVG_PATH" ]]; then
+            echo "No memory SVG was generated"
+            exit 0
+          fi
+
+          filename=$(basename "$GPU_MEMORY_SVG_PATH")
+          s5cmd cp "$GPU_MEMORY_SVG_PATH" "${S3_PUBLIC_PATH_BASE}/charts/${current_sha}/${filename}"
+          echo "memory_svg_url=${S3_PUBLIC_URL_BASE}/charts/${current_sha}/${filename}" >> "$GITHUB_OUTPUT"
+
       - name: Add benchmark metadata to markdown
+        env:
+          INSTANCE_TYPE: ${{ inputs.instance_family || github.event.inputs.instance_family }}
+          MEMORY_ALLOCATOR: ${{ inputs.memory_allocator || github.event.inputs.memory_allocator || 'jemalloc' }}
+          MEMORY_SVG_URL: ${{ steps.publish-benchmark-assets.outputs.memory_svg_url }}
         run: |
           COMMIT_URL=https://github.com/${{ github.repository }}/commit/${current_sha}
           BENCHMARK_WORKFLOW_URL=https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
-
-          source openvm/ci/scripts/utils.sh
-
-          if [[ "${S3_PUBLIC_UPLOAD_ENABLED}" == "true" ]]; then
-            add_metadata $MD_PATH \
-              ${{ inputs.instance_family || github.event.inputs.instance_family }} \
-              ${{ inputs.memory_allocator || github.event.inputs.memory_allocator || 'jemalloc' }} \
-              $COMMIT_URL \
-              $BENCHMARK_WORKFLOW_URL
-          else
-            {
-              echo ""
-              echo "Commit: ${COMMIT_URL}"
-              echo ""
-              echo "Instance Type: ${{ inputs.instance_family || github.event.inputs.instance_family }}"
-              echo ""
-              echo "Memory Allocator: ${{ inputs.memory_allocator || github.event.inputs.memory_allocator || 'jemalloc' }}"
-              echo ""
-              echo "[Benchmark Workflow](${BENCHMARK_WORKFLOW_URL})"
-            } >> "$MD_PATH"
+          metadata_args=(
+            --markdown "$MD_PATH"
+            --instance-type "$INSTANCE_TYPE"
+            --memory-allocator "$MEMORY_ALLOCATOR"
+            --commit-url "$COMMIT_URL"
+            --workflow-url "$BENCHMARK_WORKFLOW_URL"
+          )
+          if [[ -n "$MEMORY_SVG_URL" ]]; then
+            metadata_args+=(--memory-svg-url "$MEMORY_SVG_URL")
           fi
-
-          # Add GPU peak memory to the markdown if available
           if [[ -n "${GPU_PEAK_MEMORY_MIB}" && "${GPU_PEAK_MEMORY_MIB}" != "0" ]]; then
-            echo "" >> $MD_PATH
-            echo "**Peak GPU Memory (nvidia-smi):** $(awk "BEGIN{printf \"%.2f\",${GPU_PEAK_MEMORY_MIB}/1024}") GB" >> $MD_PATH
+            gpu_peak_memory_gib=$(awk "BEGIN{printf \"%.2f\",${GPU_PEAK_MEMORY_MIB}/1024}")
+            metadata_args+=(--peak-gpu-memory-gib "$gpu_peak_memory_gib")
           fi
+          bash openvm/ci/scripts/append-benchmark-metadata.sh "${metadata_args[@]}"
 
       - name: Generate circuit flamegraphs
         if: ${{ (inputs.profiling || github.event.inputs.profiling) == 'guest' }}
@@ -865,6 +885,7 @@ jobs:
         with:
           name: ${{ steps.set-metric-name.outputs.name }}-circuit-flamegraphs
           path: .bench_metrics/flamegraphs/*.svg
+          include-hidden-files: true
           retention-days: 3
 
       - name: Generate samply profile artifacts
@@ -881,6 +902,7 @@ jobs:
 
       - name: Publish samply profile
         if: ${{ (inputs.profiling == 'host' || github.event.inputs.profiling == 'host') && env.S3_PUBLIC_UPLOAD_ENABLED == 'true' }}
+        continue-on-error: true
         run: |
           s5cmd cp $SAMPLY_PROFILE_PATH/profile.json.gz ${{ env.S3_SAMPLY_PROFILE_PATH }}/${METRIC_NAME}/profile.json.gz
 
@@ -905,6 +927,7 @@ jobs:
 
       - name: Upload markdown
         if: ${{ env.S3_WORKFLOW_UPLOAD_ENABLED == 'true' }}
+        continue-on-error: true
         run: |
           S3_MD_PATH="${{ env.S3_MD_PATH }}/${METRIC_NAME}.md"
           s5cmd cp $MD_PATH $S3_MD_PATH
@@ -924,6 +947,7 @@ jobs:
             ${{ env.MD_PATH }}
             ${{ env.DETAILED_MD_PATH }}
             ${{ env.GPU_MEMORY_SVG_PATH }}
+          include-hidden-files: true
           if-no-files-found: warn
           retention-days: 1
 
@@ -940,7 +964,7 @@ jobs:
             echo "ref=gh-pages" >> "$GITHUB_OUTPUT"
           else
             echo "exists=false" >> "$GITHUB_OUTPUT"
-            echo "ref=${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
+            echo "ref=${{ github.event.repository.default_branch }}" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Checkout gh-pages
@@ -970,12 +994,16 @@ jobs:
           REF_NAME: ${{ github.head_ref || github.ref }}
         run: |
           GH_PAGES_PATH="benchmarks-dispatch/${REF_NAME}"
-          echo "GH_PAGES_PATH=${GH_PAGES_PATH}" >> $GITHUB_ENV
-          mkdir -p ${GH_PAGES_PATH}
-          cp "$GITHUB_WORKSPACE/$MD_PATH" "${GH_PAGES_PATH}/${METRIC_NAME}.md"
+          echo "GH_PAGES_PATH=${GH_PAGES_PATH}" >> "$GITHUB_ENV"
+          mkdir -p "$GH_PAGES_PATH"
+          cp "$GITHUB_WORKSPACE/$MD_PATH" "$GH_PAGES_PATH/${METRIC_NAME}.md"
+          cp "$GITHUB_WORKSPACE/$DETAILED_MD_PATH" "$GH_PAGES_PATH/${METRIC_NAME}.detailed.md"
+          if [[ -f "$GITHUB_WORKSPACE/$GPU_MEMORY_SVG_PATH" ]]; then
+            cp "$GITHUB_WORKSPACE/$GPU_MEMORY_SVG_PATH" "$GH_PAGES_PATH/${METRIC_NAME}.memory.svg"
+          fi
 
-          git add ${GH_PAGES_PATH}/${METRIC_NAME}.md
-          git commit --allow-empty -m "Update benchmark result at ${GH_PAGES_PATH}/${METRIC_NAME}.md"
+          git add "$GH_PAGES_PATH"
+          git commit --allow-empty -m "Update benchmark result bundle at ${GH_PAGES_PATH}/${METRIC_NAME}"
           MAX_RETRIES=10
           RETRY_DELAY=5
           ATTEMPT=0
@@ -983,7 +1011,7 @@ jobs:
           while [ $ATTEMPT -lt $MAX_RETRIES ]; do
               echo "Attempt $((ATTEMPT + 1)) to push of $MAX_RETRIES..."
               if git fetch origin gh-pages; then
-                  git merge origin/gh-pages --no-edit
+                  git merge origin/gh-pages --no-edit --allow-unrelated-histories
               fi
               if git push origin HEAD:gh-pages; then
                   SUCCESS=true
@@ -1004,10 +1032,12 @@ jobs:
         working-directory: gh-pages
         run: |
           RESULT_URL="https://github.com/${{ github.repository }}/blob/gh-pages/${GH_PAGES_PATH}/${METRIC_NAME}.md"
-          echo "### Results" >> $GITHUB_STEP_SUMMARY
-          echo "[${METRIC_NAME}](${RESULT_URL})" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          cat "${GH_PAGES_PATH}/${METRIC_NAME}.md" >> $GITHUB_STEP_SUMMARY
+          MEMORY_SVG_URL="https://github.com/${{ github.repository }}/blob/gh-pages/${GH_PAGES_PATH}/${METRIC_NAME}.memory.svg?raw=1"
+          echo "### Results" >> "$GITHUB_STEP_SUMMARY"
+          echo "[${METRIC_NAME}](${RESULT_URL})" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          sed "s|](${METRIC_NAME}.memory.svg)|](${MEMORY_SVG_URL})|g" \
+            "${GH_PAGES_PATH}/${METRIC_NAME}.md" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Path to result
         if: ${{ steps.publish-gh-pages.outcome == 'success' }}
