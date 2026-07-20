@@ -113,12 +113,46 @@ fn decode_rlp_item<'a>(buf: &mut &'a [u8]) -> Result<(&'a [u8], &'a [u8]), Error
         *buf = &item_start[1..];
         return Ok((&item_start[..1], &item_start[1..1]));
     }
+    if item_start.first() == Some(&(alloy_rlp::EMPTY_STRING_CODE + 32)) {
+        let item = item_start.get(..33).ok_or(alloy_rlp::Error::InputTooShort)?;
+        *buf = &item_start[33..];
+        return Ok((item, &item[1..]));
+    }
 
     let alloy_rlp::Header { payload_length, .. } = alloy_rlp::Header::decode(buf)?;
     // SAFETY: the header was decoded, so the item contains its declared payload.
     let payload = unsafe { advance_unchecked(buf, payload_length) };
     let item_length = item_start.len() - buf.len();
     Ok((&item_start[..item_length], payload))
+}
+
+/// Decodes an MPT node header, specializing the canonical list headers used by almost every
+/// resolved node. The generic decoder remains the fallback for strings and uncommon long lists.
+#[inline(always)]
+fn decode_node_header(buf: &mut &[u8]) -> Result<alloy_rlp::Header, Error> {
+    let input = *buf;
+    match input.first().copied() {
+        Some(code @ alloy_rlp::EMPTY_LIST_CODE..=0xf7) => {
+            let payload_length = usize::from(code - alloy_rlp::EMPTY_LIST_CODE);
+            if input.len() < payload_length + 1 {
+                return Err(alloy_rlp::Error::InputTooShort.into());
+            }
+            *buf = &input[1..];
+            Ok(alloy_rlp::Header { list: true, payload_length })
+        }
+        Some(0xf8) => {
+            let payload_length = usize::from(*input.get(1).ok_or(alloy_rlp::Error::InputTooShort)?);
+            if payload_length < 56 {
+                return Err(alloy_rlp::Error::NonCanonicalSize.into());
+            }
+            if input.len() < payload_length + 2 {
+                return Err(alloy_rlp::Error::InputTooShort.into());
+            }
+            *buf = &input[2..];
+            Ok(alloy_rlp::Header { list: true, payload_length })
+        }
+        _ => alloy_rlp::Header::decode(buf).map_err(Into::into),
+    }
 }
 
 /// Whether `slice` is the RLP encoding of an empty node reference: a single `EMPTY_STRING_CODE`
@@ -287,7 +321,7 @@ impl<'a> Mpt<'a> {
         }
 
         let rlp_node_header_start = *bytes;
-        let alloy_rlp::Header { list, payload_length } = alloy_rlp::Header::decode(bytes)?;
+        let alloy_rlp::Header { list, payload_length } = decode_node_header(bytes)?;
 
         // SAFETY: we already decoded the header, so we know the payload length.
         let mut payload = unsafe { advance_unchecked(bytes, payload_length) };
