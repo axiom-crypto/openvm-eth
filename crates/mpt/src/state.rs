@@ -52,8 +52,9 @@ impl<'a> EthereumState<'a> {
                 continue;
             };
 
+            let bump = self.bump;
             let storage_trie =
-                self.storage_tries.entry(hashed_address).or_insert(Mpt::new(self.bump));
+                self.storage_tries.entry(hashed_address).or_insert_with(|| Mpt::new(bump));
 
             if account.status.was_destroyed() {
                 *storage_trie = Mpt::new(self.bump);

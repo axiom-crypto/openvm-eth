@@ -23,9 +23,6 @@ use crate::{
 /// OpenVM memory alignment word size.
 const MIN_ALIGN: usize = 4;
 
-/// Initial capacity of [`MptTrie`]'s `rlp_scratch`.
-const RLP_SCRATCH_INIT_CAPACITY: usize = 600;
-
 /// Sentinel index representing the null node when decoding and in internal references.
 /// In a default MPT, `nodes[0]` starts as `Null`, but the root may later be changed to a
 /// non-null node (e.g. `Digest`) for convenience. `NULL_NODE_ID` is still used by the decoder
@@ -85,13 +82,7 @@ impl<'a> Mpt<'a> {
         nodes.push(NodeData::Null);
         cached_references.push(Cell::new(None));
 
-        Self {
-            nodes,
-            rlp_scratch: RefCell::new(Vec::with_capacity(RLP_SCRATCH_INIT_CAPACITY)),
-            cached_references,
-            bump,
-            root_id: 0,
-        }
+        Self { nodes, rlp_scratch: RefCell::new(Vec::new()), cached_references, bump, root_id: 0 }
     }
 }
 
@@ -440,6 +431,9 @@ impl<'a> Mpt<'a> {
                 } else {
                     let mut scratch = self.rlp_scratch.borrow_mut();
                     scratch.clear();
+                    if scratch.capacity() < rlp_length {
+                        scratch.reserve(rlp_length);
+                    }
 
                     self.encode_with_payload_len(node_id, payload_length, &mut *scratch);
                     debug_assert_eq!(scratch.len(), rlp_length);
