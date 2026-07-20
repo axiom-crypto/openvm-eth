@@ -156,10 +156,10 @@ impl Crypto for OpenVmCrypto {
             let g1 = read_bn_g1_point(g1_bytes)?;
             let g2 = read_bn_g2_point(g2_bytes)?;
 
-            let (g1_x, g1_y) = g1.into_coords();
+            let (g1_x, g1_y, _) = g1.normalize().into_coords();
             let g1 = AffinePoint::new(g1_x, g1_y);
 
-            let (g2_x, g2_y) = g2.into_coords();
+            let (g2_x, g2_y, _) = g2.normalize().into_coords();
             let g2 = AffinePoint::new(g2_x, g2_y);
 
             g1_points.push(g1);
@@ -257,8 +257,8 @@ impl Crypto for OpenVmCrypto {
             let g1 = read_bls_g1_point(g1_bytes)?;
             let g2 = read_bls_g2_point(g2_bytes)?;
 
-            let (g1_x, g1_y) = g1.into_coords();
-            let (g2_x, g2_y) = g2.into_coords();
+            let (g1_x, g1_y, _) = g1.normalize().into_coords();
+            let (g2_x, g2_y, _) = g2.normalize().into_coords();
 
             g1_points.push(AffinePoint::new(g1_x, g1_y));
             g2_points.push(AffinePoint::new(g2_x, g2_y));
