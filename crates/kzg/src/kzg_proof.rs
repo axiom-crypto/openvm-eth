@@ -140,7 +140,10 @@ fn pairings_verify(
         AffinePoint::new(x, y)
     });
     let g1_points = [-p0, q0];
-    let g2_points = [p1, q1].map(Into::into);
+    let g2_points = [p1, q1].map(|p| {
+        let (x, y, _) = p.normalize().into_coords();
+        AffinePoint::new(x, y)
+    });
 
     Bls12_381::pairing_check(&g1_points, &g2_points).is_ok()
 }
