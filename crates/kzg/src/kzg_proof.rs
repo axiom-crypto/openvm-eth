@@ -79,7 +79,9 @@ impl KzgProof {
         let table = CachedMulTable::<Bls12_381_G2>::new_with_prime_order(&[G2_AFFINE_GENERATOR], 4);
         let g2_z = table.windowed_mul(&[z]);
 
-        let x_minus_z = openvm_kzg_g2_point - g2_z;
+        // `g2_z` is an MSM result (projective, z != 1), so the difference is projective;
+        // normalize once here so `pairings_verify` can skip re-normalizing.
+        let x_minus_z = (openvm_kzg_g2_point - g2_z).normalize();
 
         // We use the fact that Bls12_381G1Affine::GENERATOR has prime order.
         let table = CachedMulTable::<Bls12_381_G1>::new_with_prime_order(
@@ -88,7 +90,8 @@ impl KzgProof {
         );
         let g1_y = table.windowed_mul(&[y]);
 
-        let p_minus_y = commitment - g1_y;
+        // `g1_y` is an MSM result (projective, z != 1); normalize the difference once here.
+        let p_minus_y = (commitment - g1_y).normalize();
 
         let success = pairings_verify(p_minus_y, G2_AFFINE_GENERATOR.clone(), proof, x_minus_z);
         Ok(success)
@@ -127,6 +130,9 @@ impl KzgProof {
 }
 
 /// Verifies the pairing of two G1 and two G2 points are equivalent using the multi-miller loop.
+///
+/// All inputs must be in affine form (`z == 1`); this function does not normalize. Callers passing
+/// a projective point (e.g. an un-normalized MSM/`Sub` result) must `.normalize()` it first.
 fn pairings_verify(
     p0: Bls12_381G1Affine,
     p1: Bls12_381G2Affine,
@@ -135,13 +141,15 @@ fn pairings_verify(
 ) -> bool {
     use openvm_pairing::{bls12_381::Bls12_381, PairingCheck};
 
+    // All four inputs are affine (z = 1): the two computed points are normalized by the caller,
+    // and the generator/proof come from `from_xy`. Extract coords without re-normalizing.
     let [p0, q0] = [p0, q0].map(|p| {
-        let (x, y, _) = p.normalize().into_coords();
+        let (x, y, _) = p.into_coords();
         AffinePoint::new(x, y)
     });
     let g1_points = [-p0, q0];
     let g2_points = [p1, q1].map(|p| {
-        let (x, y, _) = p.normalize().into_coords();
+        let (x, y, _) = p.into_coords();
         AffinePoint::new(x, y)
     });
 
