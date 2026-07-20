@@ -232,6 +232,24 @@ fn test_serde_keccak_trie() -> Result<(), Error> {
     Ok(())
 }
 
+#[cfg(feature = "host")]
+#[test]
+fn test_serde_digest_root() -> Result<(), Error> {
+    let bump = bumpalo::Bump::new();
+    let digest = bump.alloc_slice_copy(&[0xabu8; 32]);
+    let mut trie = Mpt::new(&bump);
+    let root_id = trie.add_node(NodeData::Digest(digest), None);
+    trie.set_root_id(root_id);
+
+    let encoded = trie.encode_trie();
+    let mut encoded_slice = encoded.as_slice();
+    let recovered_trie = Mpt::decode_trie(&bump, &mut encoded_slice, trie.num_nodes())?;
+
+    assert!(encoded_slice.is_empty());
+    assert_eq!(recovered_trie.hash(), B256::from_slice(digest));
+    Ok(())
+}
+
 /// Test that deleting a key that would cause branch collapse fails if sibling is unresolved Digest.
 /// This tests the soundness fix: we must not assume an unresolved Digest is a Branch node.
 #[test]
