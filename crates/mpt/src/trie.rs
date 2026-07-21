@@ -257,28 +257,7 @@ impl<'a> Mpt<'a> {
         let capacity = num_nodes + (num_nodes / 2);
         let mut trie = Self::with_capacity(bump, capacity);
 
-        // construct the expected root reference
-        let root_ref = {
-            let mut buf = *bytes;
-            let rlp_node_header_start = buf;
-            let alloy_rlp::Header { list, payload_length } = alloy_rlp::Header::decode(&mut buf)?;
-            // SAFETY: we already decoded the header, so we know the payload length.
-            let payload = unsafe { advance_unchecked(&mut buf, payload_length) };
-            let rlp_node_length = rlp_node_header_start.len() - buf.len();
-
-            let rlp_node = &rlp_node_header_start[..rlp_node_length];
-            if rlp_node.len() < 32 {
-                NodeRef::Bytes(rlp_node)
-            } else if !list {
-                NodeRef::Digest(payload)
-            } else {
-                let digest = keccak256(rlp_node);
-                let digest_slice = bump.alloc_slice_copy(digest.as_slice());
-                NodeRef::Digest(digest_slice)
-            }
-        };
-
-        let root_id = trie.decode_trie_internal(bytes, root_ref)?;
+        let root_id = trie.decode_trie_internal(bytes, None)?;
         trie.root_id = root_id;
 
         Ok(trie)
@@ -287,7 +266,7 @@ impl<'a> Mpt<'a> {
     fn decode_trie_internal(
         &mut self,
         bytes: &mut &'a [u8],
-        expected_node_ref: NodeRef<'a>,
+        expected_node_ref: Option<NodeRef<'a>>,
     ) -> Result<NodeId, Error> {
         // Unresolved nodes are encoded as a 32-byte RLP string followed by three alignment bytes.
         // They are common at the witness boundary and have a fixed representation, so avoid the
@@ -298,8 +277,10 @@ impl<'a> Mpt<'a> {
             let encoded = unsafe { advance_unchecked(bytes, 33) };
             unsafe { advance_unchecked(bytes, 3) };
             let digest = &encoded[1..];
-            if !bytes_eq(digest, expected_node_ref.as_slice()) {
-                return Err(Error::NodeRefMismatch);
+            if let Some(expected_node_ref) = expected_node_ref {
+                if !bytes_eq(digest, expected_node_ref.as_slice()) {
+                    return Err(Error::NodeRefMismatch);
+                }
             }
             return Ok(self.add_node(NodeData::Digest(digest), Some(NodeRef::Digest(digest))));
         }
@@ -317,24 +298,35 @@ impl<'a> Mpt<'a> {
         // SAFETY: we expect the padding. See the `encode_trie_internal` function.
         unsafe { advance_unchecked(bytes, padding_len) };
 
-        // calculate node's reference and ensure it matches the `expected_node_ref` from parent.
+        // Calculate the node's reference and, for non-root nodes, ensure it matches the reference
+        // embedded in the parent.
         let node_ref = {
             if rlp_node_length < 32 {
-                if !bytes_eq(rlp_node, expected_node_ref.as_slice()) {
-                    return Err(Error::NodeRefMismatch);
+                let node_ref = NodeRef::Bytes(rlp_node);
+                if let Some(expected_node_ref) = expected_node_ref {
+                    if !bytes_eq(node_ref.as_slice(), expected_node_ref.as_slice()) {
+                        return Err(Error::NodeRefMismatch);
+                    }
                 }
-                NodeRef::Bytes(rlp_node)
+                node_ref
             } else if payload_length == 32 && !list {
-                if !bytes_eq(payload, expected_node_ref.as_slice()) {
-                    return Err(Error::NodeRefMismatch);
+                let node_ref = NodeRef::Digest(payload);
+                if let Some(expected_node_ref) = expected_node_ref {
+                    if !bytes_eq(node_ref.as_slice(), expected_node_ref.as_slice()) {
+                        return Err(Error::NodeRefMismatch);
+                    }
                 }
-                expected_node_ref
+                node_ref
             } else {
                 let digest = keccak256(rlp_node);
-                if !bytes_eq(digest.as_slice(), expected_node_ref.as_slice()) {
-                    return Err(Error::NodeRefMismatch);
+                if let Some(expected_node_ref) = expected_node_ref {
+                    if !bytes_eq(digest.as_slice(), expected_node_ref.as_slice()) {
+                        return Err(Error::NodeRefMismatch);
+                    }
+                    expected_node_ref
+                } else {
+                    NodeRef::Digest(self.bump.alloc_slice_copy(&digest))
                 }
-                expected_node_ref
             }
         };
 
@@ -359,7 +351,7 @@ impl<'a> Mpt<'a> {
             if (prefix & (2 << 4)) == 0 {
                 // extension node
                 let ext_node_expected_ref = NodeRef::from_rlp_slice(item1);
-                let ext_node_id = self.decode_trie_internal(bytes, ext_node_expected_ref)?;
+                let ext_node_id = self.decode_trie_internal(bytes, Some(ext_node_expected_ref))?;
                 let node_data = NodeData::Extension(path, ext_node_id);
                 return Ok(self.add_node(node_data, Some(node_ref)));
             } else {
@@ -375,7 +367,9 @@ impl<'a> Mpt<'a> {
                 None
             } else {
                 let child0_expected_node_ref = NodeRef::from_rlp_slice(item0);
-                Some(branch_child_id(self.decode_trie_internal(bytes, child0_expected_node_ref)?))
+                Some(branch_child_id(
+                    self.decode_trie_internal(bytes, Some(child0_expected_node_ref))?,
+                ))
             }
         };
 
@@ -384,7 +378,9 @@ impl<'a> Mpt<'a> {
                 None
             } else {
                 let child1_expected_node_ref = NodeRef::from_rlp_slice(item1);
-                Some(branch_child_id(self.decode_trie_internal(bytes, child1_expected_node_ref)?))
+                Some(branch_child_id(
+                    self.decode_trie_internal(bytes, Some(child1_expected_node_ref))?,
+                ))
             }
         };
 
@@ -415,7 +411,7 @@ impl<'a> Mpt<'a> {
                 } else {
                     let child_expected_node_ref = NodeRef::from_rlp_slice(item);
                     Some(branch_child_id(
-                        self.decode_trie_internal(bytes, child_expected_node_ref)?,
+                        self.decode_trie_internal(bytes, Some(child_expected_node_ref))?,
                     ))
                 }
             });
