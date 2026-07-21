@@ -14,9 +14,12 @@ use openvm_ecc_guest::{
     weierstrass::{CachedMulTable, IntrinsicCurve, WeierstrassPoint},
     AffinePoint, CyclicGroup, Group,
 };
-use openvm_pairing::bls12_381::{
-    Bls12_381 as Bls12_381_G1, Fp, Fp2, G1Affine as Bls12_381G1Affine,
-    G2Affine as Bls12_381G2Affine, Scalar as Bls12_381Scalar,
+use openvm_pairing::{
+    bls12_381::{
+        Bls12_381 as Bls12_381_G1, Fp, Fp2, G1Affine as Bls12_381G1Affine,
+        G2Affine as Bls12_381G2Affine, Scalar as Bls12_381Scalar,
+    },
+    projective_to_affine,
 };
 
 const G2_AFFINE_GENERATOR: Bls12_381G2Affine = Bls12_381G2Affine::new(
@@ -135,15 +138,9 @@ fn pairings_verify(
 ) -> bool {
     use openvm_pairing::{bls12_381::Bls12_381, PairingCheck};
 
-    let [p0, q0] = [p0, q0].map(|p| {
-        let (x, y, _) = p.normalize().into_coords();
-        AffinePoint::new(x, y)
-    });
+    let [p0, q0] = [p0, q0].map(projective_to_affine);
     let g1_points = [-p0, q0];
-    let g2_points = [p1, q1].map(|p| {
-        let (x, y, _) = p.normalize().into_coords();
-        AffinePoint::new(x, y)
-    });
+    let g2_points = [p1, q1].map(projective_to_affine);
 
     Bls12_381::pairing_check(&g1_points, &g2_points).is_ok()
 }

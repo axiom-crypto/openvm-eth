@@ -40,14 +40,25 @@ fn scalar_mul<P: WeierstrassPoint, const CHECK_SETUP: bool>(
     base: &P,
     scalar: impl AsRef<[u64]>,
 ) -> P {
+    if CHECK_SETUP {
+        P::set_up_once();
+    }
+
     let mut result = P::IDENTITY;
-    let mut temp = base.clone();
-    for limb in scalar.as_ref() {
-        for bit_idx in 0..64u32 {
-            if (limb >> bit_idx) & 1 == 1 {
-                result.add_assign_impl::<CHECK_SETUP>(&temp);
+    let mut started = false;
+    for limb in scalar.as_ref().iter().rev() {
+        for bit_idx in (0..64u32).rev() {
+            if started {
+                result.double_assign_impl::<false>();
             }
-            temp.double_assign_impl::<CHECK_SETUP>();
+            if (limb >> bit_idx) & 1 == 1 {
+                if started {
+                    result.add_assign_impl::<false>(base);
+                } else {
+                    result = base.clone();
+                    started = true;
+                }
+            }
         }
     }
     result
@@ -120,6 +131,10 @@ mod impl_bn {
     /// Implements section 4.3 of https://eprint.iacr.org/2022/352.pdf to check `[6x²]P == ψ(P)`.
     impl super::SubgroupCheck for bn::G2Affine {
         fn is_in_correct_subgroup(&self) -> bool {
+            if <Self as openvm_ecc_guest::Group>::is_identity(self) {
+                return true;
+            }
+
             // 1. Compute [6x²]P using double-and-add.
             //
             // `CHECK_SETUP=false` since `set_up_once` is a no-op, given that bn254::G2Affine is
@@ -133,11 +148,11 @@ mod impl_bn {
             let endomorphism_point = {
                 let psi_x = self.x().frobenius_map(1) * P_POWER_ENDOMORPHISM_COEFF_0;
                 let psi_y = self.y().frobenius_map(1) * P_POWER_ENDOMORPHISM_COEFF_1;
+                let psi_z = self.z().frobenius_map(1);
                 // SAFETY: ψ maps the BN254 G2 twist curve to itself, so applying it to `self`
                 // (already on the curve by precondition of this trait) yields a point on the
-                // curve. The identity is not produced because the Frobenius image of a
-                // non-identity coordinate pair is non-zero.
-                unsafe { Self::from_xy_unchecked(psi_x, psi_y) }
+                // curve. Applying Frobenius to `z` preserves the projective representative.
+                unsafe { Self::from_xyz_unchecked(psi_x, psi_y, psi_z) }
             };
 
             x_times_point.eq(&endomorphism_point)
@@ -233,6 +248,14 @@ mod impl_bn {
             let g2 =
                 unsafe { bn::G2Affine::from_xy(x, y) }.expect("G2 generator should be on curve");
             assert!(g2.is_in_correct_subgroup());
+            assert!(openvm_ecc_guest::Group::double(&g2).is_in_correct_subgroup());
+
+            let scale = bn::Fp::from_u32(7);
+            let scale = bn::Fp2::new(scale, bn::Fp::ZERO);
+            let scaled = unsafe {
+                bn::G2Affine::from_xyz_unchecked(g2.x() * &scale, g2.y() * &scale, g2.z() * &scale)
+            };
+            assert!(scaled.is_in_correct_subgroup());
         }
 
         #[test]
@@ -317,6 +340,10 @@ mod impl_bls {
     /// Implements section 6 of https://eprint.iacr.org/2021/1130.
     impl super::SubgroupCheck for bls::G1Affine {
         fn is_in_correct_subgroup(&self) -> bool {
+            if self.is_identity() {
+                return true;
+            }
+
             // 1. Compute [x]P using double-and-add.
             //
             // `CHECK_SETUP=true` given that bls12_381::G1Affine is implemented via [`sw_declare`]
@@ -353,6 +380,10 @@ mod impl_bls {
     /// Implements section 4 of https://eprint.iacr.org/2021/1130.
     impl super::SubgroupCheck for bls::G2Affine {
         fn is_in_correct_subgroup(&self) -> bool {
+            if self.is_identity() {
+                return true;
+            }
+
             // 1. Compute -[x]P using double-and-add (X is negative).
             let x_times_point = super::scalar_mul::<_, true>(self, X).neg();
 
@@ -363,11 +394,11 @@ mod impl_bls {
                 let psi_x_c1 = P_POWER_ENDOMORPHISM_COEFF_0.c1 * tmp_x.c0;
                 let psi_x = bls::Fp2::new(psi_x_c0, psi_x_c1);
                 let psi_y = self.y().frobenius_map(1) * P_POWER_ENDOMORPHISM_COEFF_1;
+                let psi_z = self.z().frobenius_map(1);
                 // SAFETY: ψ maps the BLS12-381 G2 twist curve to itself, so applying it to
                 // `self` (already on the curve by precondition of this trait) yields a point
-                // on the curve. The identity is not produced because the Frobenius image of a
-                // non-identity coordinate pair is non-zero.
-                unsafe { Self::from_xy_unchecked(psi_x, psi_y) }
+                // on the curve. Applying Frobenius to `z` preserves the projective representative.
+                unsafe { Self::from_xyz_unchecked(psi_x, psi_y, psi_z) }
             };
 
             x_times_point.eq(&endomorphism_point)
@@ -464,6 +495,14 @@ mod impl_bls {
             let g2 =
                 unsafe { bls::G2Affine::from_xy(x, y) }.expect("G2 generator should be on curve");
             assert!(g2.is_in_correct_subgroup());
+            assert!(g2.double().is_in_correct_subgroup());
+
+            let scale = bls::Fp::from_u32(7);
+            let scale = bls::Fp2::new(scale, bls::Fp::ZERO);
+            let scaled = unsafe {
+                bls::G2Affine::from_xyz_unchecked(g2.x() * &scale, g2.y() * &scale, g2.z() * &scale)
+            };
+            assert!(scaled.is_in_correct_subgroup());
         }
 
         #[test]
