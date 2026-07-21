@@ -103,9 +103,8 @@ unsafe fn advance_unchecked<'a>(buf: &mut &'a [u8], cnt: usize) -> &'a [u8] {
     bytes
 }
 
-/// Decodes and advances past one RLP item, returning its full encoding and payload.
-/// Empty strings dominate sparse branch children, so handle their single-byte encoding without
-/// entering the generic RLP header decoder.
+/// Decodes and advances past one RLP item, returning its full encoding and payload. Common
+/// single-byte headers are handled directly, with the generic decoder as a fallback.
 #[inline(always)]
 fn decode_rlp_item<'a>(buf: &mut &'a [u8]) -> Result<(&'a [u8], &'a [u8]), Error> {
     let item_start = *buf;
@@ -118,6 +117,16 @@ fn decode_rlp_item<'a>(buf: &mut &'a [u8]) -> Result<(&'a [u8], &'a [u8]), Error
         *buf = &item_start[33..];
         return Ok((item, &item[1..]));
     }
+    if let Some(code @ 0x81..=0xb7) = item_start.first().copied() {
+        let payload_length = usize::from(code - alloy_rlp::EMPTY_STRING_CODE);
+        let item = item_start.get(..payload_length + 1).ok_or(alloy_rlp::Error::InputTooShort)?;
+        let payload = &item[1..];
+        if payload_length == 1 && payload[0] < alloy_rlp::EMPTY_STRING_CODE {
+            return Err(alloy_rlp::Error::NonCanonicalSingleByte.into());
+        }
+        *buf = &item_start[payload_length + 1..];
+        return Ok((item, payload));
+    }
 
     let alloy_rlp::Header { payload_length, .. } = alloy_rlp::Header::decode(buf)?;
     // SAFETY: the header was decoded, so the item contains its declared payload.
@@ -126,8 +135,8 @@ fn decode_rlp_item<'a>(buf: &mut &'a [u8]) -> Result<(&'a [u8], &'a [u8]), Error
     Ok((&item_start[..item_length], payload))
 }
 
-/// Decodes an MPT node header, specializing the canonical list headers used by almost every
-/// resolved node. The generic decoder remains the fallback for strings and uncommon long lists.
+/// Decodes an MPT node header, specializing the canonical list headers used by resolved nodes.
+/// The generic decoder remains the fallback for strings and larger lists.
 #[inline(always)]
 fn decode_node_header(buf: &mut &[u8]) -> Result<alloy_rlp::Header, Error> {
     let input = *buf;
@@ -149,6 +158,19 @@ fn decode_node_header(buf: &mut &[u8]) -> Result<alloy_rlp::Header, Error> {
                 return Err(alloy_rlp::Error::InputTooShort.into());
             }
             *buf = &input[2..];
+            Ok(alloy_rlp::Header { list: true, payload_length })
+        }
+        Some(0xf9) => {
+            let high = *input.get(1).ok_or(alloy_rlp::Error::InputTooShort)?;
+            let low = *input.get(2).ok_or(alloy_rlp::Error::InputTooShort)?;
+            if high == 0 {
+                return Err(alloy_rlp::Error::LeadingZero.into());
+            }
+            let payload_length = (usize::from(high) << 8) | usize::from(low);
+            if input.len() < payload_length + 3 {
+                return Err(alloy_rlp::Error::InputTooShort.into());
+            }
+            *buf = &input[3..];
             Ok(alloy_rlp::Header { list: true, payload_length })
         }
         _ => alloy_rlp::Header::decode(buf).map_err(Into::into),
