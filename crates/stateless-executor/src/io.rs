@@ -7,6 +7,7 @@ use alloy_rlp::{Decodable, Encodable};
 use alloy_trie::{TrieAccount, EMPTY_ROOT_HASH};
 use bumpalo::Bump;
 use itertools::Itertools;
+use openvm_guest_keccak::keccak256;
 use openvm_mpt::{EthereumState, EthereumStateBytes, Mpt};
 use reth_ethereum_primitives::Block;
 use reth_evm::execute::ProviderError;
@@ -14,7 +15,7 @@ use revm::{
     state::{AccountInfo, Bytecode},
     DatabaseRef,
 };
-use revm_primitives::{keccak256, map::DefaultHashBuilder, Address, HashMap, B256, U256};
+use revm_primitives::{map::DefaultHashBuilder, Address, HashMap, B256, U256};
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 
@@ -318,7 +319,7 @@ impl<'a, 'b> WitnessDb<'a, 'b> {
             }
         }
 
-        let hashed_address = keccak256(address);
+        let hashed_address = B256::new(keccak256(address.as_slice()));
         self.hashed_address_cache.set(Some((address, hashed_address)));
         hashed_address
     }
@@ -386,7 +387,7 @@ impl DatabaseRef for WitnessDb<'_, '_> {
             ProviderError::TrieWitnessError(format!("storage trie for {address} not found"))
         })?;
 
-        let hashed_slot = keccak256(index.to_be_bytes::<32>());
+        let hashed_slot = B256::new(keccak256(&index.to_be_bytes::<32>()));
         let storage_value = storage_trie
             .get_rlp::<U256>(hashed_slot.as_slice())
             .map_err(trie_error_to_provider_error)?

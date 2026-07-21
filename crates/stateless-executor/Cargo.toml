@@ -40,6 +40,7 @@ alloy-primitives = { workspace = true, features = ["map-foldhash"] }
 alloy-consensus = { workspace = true, features = ["crypto-backend", "serde-bincode-compat"] }
 alloy-rlp.workspace = true
 alloy-trie.workspace = true
+openvm-guest-keccak.workspace = true
 
 [target.'cfg(target_os = "openvm")'.dependencies]
 openvm-guest-mem.workspace = true

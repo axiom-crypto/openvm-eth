@@ -1,0 +1,20 @@
+[package]
+name = "openvm-guest-keccak"
+description = "Keccak-256 sponge tuned for the OpenVM guest target"
+version.workspace = true
+edition.workspace = true
+homepage.workspace = true
+repository.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+bytes.workspace = true
+
+[target.'cfg(target_os = "openvm")'.dependencies]
+openvm-keccak256-guest.workspace = true
+openvm-platform.workspace = true
+
+[target.'cfg(not(target_os = "openvm"))'.dependencies]
+tiny-keccak.workspace = true
