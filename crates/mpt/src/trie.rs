@@ -17,8 +17,19 @@ use crate::{
     node::{BranchChildId, BranchChildren, NodeData, NodeId, NodeRef},
 };
 
-/// OpenVM memory alignment word size.
-const MIN_ALIGN: usize = 4;
+/// Alignment required by the Keccak XORIN instruction's zero-copy path.
+const MIN_ALIGN: usize = 8;
+
+const EMPTY_TRIE_ENCODING: [u8; MIN_ALIGN] = {
+    let mut encoding = [0; MIN_ALIGN];
+    encoding[0] = alloy_rlp::EMPTY_STRING_CODE;
+    encoding
+};
+
+#[inline(always)]
+const fn alignment_padding_len(encoded_length: usize) -> usize {
+    (MIN_ALIGN - (encoded_length % MIN_ALIGN)) % MIN_ALIGN
+}
 
 /// Sentinel index representing the null node when decoding and in internal references.
 /// In a default MPT, `nodes[0]` starts as `Null`, but the root may later be changed to a
@@ -213,7 +224,7 @@ impl<'a> Mpt<'a> {
         // This let us to avoid memcpy operations when calculating keccak(rlp_encoded) during
         // decoding.
         let rlp_length = payload_length + alloy_rlp::length_of_length(payload_length);
-        let padding_len = (MIN_ALIGN - (rlp_length % MIN_ALIGN)) % MIN_ALIGN;
+        let padding_len = alignment_padding_len(rlp_length);
         for _ in 0..padding_len {
             out.put_u8(0);
         }
@@ -237,7 +248,7 @@ impl<'a> Mpt<'a> {
         bytes: &mut &'a [u8],
         num_nodes: usize,
     ) -> Result<Self, Error> {
-        if bytes == &[alloy_rlp::EMPTY_STRING_CODE, 0, 0, 0] {
+        if bytes == &EMPTY_TRIE_ENCODING {
             return Ok(Self::new(bump));
         }
 
@@ -289,14 +300,14 @@ impl<'a> Mpt<'a> {
         bytes: &mut &'a [u8],
         expected_node_ref: NodeRef<'a>,
     ) -> Result<NodeId, Error> {
-        // Unresolved nodes are encoded as a 32-byte RLP string followed by three alignment bytes.
+        // Unresolved nodes are encoded as a 32-byte RLP string followed by alignment padding.
         // They are common at the witness boundary and have a fixed representation, so avoid the
         // generic header decoder and the general node-kind dispatch.
         if bytes.first() == Some(&(alloy_rlp::EMPTY_STRING_CODE + 32)) {
             // SAFETY: as elsewhere in this decoder, the witness encoding is expected to contain
             // the declared RLP payload and its alignment padding.
             let encoded = unsafe { advance_unchecked(bytes, 33) };
-            unsafe { advance_unchecked(bytes, 3) };
+            unsafe { advance_unchecked(bytes, alignment_padding_len(33)) };
             let digest = &encoded[1..];
             if !bytes_eq(digest, expected_node_ref.as_slice()) {
                 return Err(Error::NodeRefMismatch);
@@ -313,7 +324,7 @@ impl<'a> Mpt<'a> {
 
         let rlp_node = &rlp_node_header_start[..rlp_node_length];
 
-        let padding_len = (MIN_ALIGN - (rlp_node_length % MIN_ALIGN)) % MIN_ALIGN;
+        let padding_len = alignment_padding_len(rlp_node_length);
         // SAFETY: we expect the padding. See the `encode_trie_internal` function.
         unsafe { advance_unchecked(bytes, padding_len) };
 
