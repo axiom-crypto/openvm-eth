@@ -456,6 +456,14 @@ fn read_bn_g2_point(input: &[u8]) -> Result<bn::G2Affine, PrecompileHalt> {
 
 #[inline]
 fn encode_bn_g1_point(point: bn::G1Affine) -> [u8; BN_G1_LEN] {
+    // EC-op results are projective (z != 1); the point at infinity encodes as all-zero.
+    if point.is_identity() {
+        return [0u8; BN_G1_LEN];
+    }
+    // Normalize to affine (x/z, y/z) before serializing — the raw projective x,y are NOT the
+    // affine coordinates.
+    let point = point.normalize();
+
     let mut output = [0u8; BN_G1_LEN];
 
     let x_bytes: &[u8] = point.x().as_le_bytes();
@@ -561,6 +569,8 @@ fn encode_bls_g1_point(point: &bls::G1Affine) -> [u8; BLS_G1_LEN] {
     if point.is_identity() {
         return [0u8; BLS_G1_LEN];
     }
+    // Normalize to affine before serializing — EC-op results are projective (z != 1).
+    let point = point.normalize();
 
     let mut output = [0u8; BLS_G1_LEN];
     let x_bytes: &[u8] = point.x().as_le_bytes();
@@ -577,6 +587,8 @@ fn encode_bls_g2_point(point: &bls::G2Affine) -> [u8; BLS_G2_LEN] {
     if point.is_identity() {
         return [0u8; BLS_G2_LEN];
     }
+    // Normalize to affine before serializing — EC-op results are projective (z != 1).
+    let point = point.normalize();
 
     let mut output = [0u8; BLS_G2_LEN];
     let x = point.x();
