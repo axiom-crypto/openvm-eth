@@ -16,7 +16,7 @@ use alloy_primitives::Address;
 use openvm_ecc_guest::{
     algebra::IntMod,
     weierstrass::{IntrinsicCurve, WeierstrassPoint},
-    AffinePoint, Group,
+    Group,
 };
 use openvm_k256::ecdsa::{signature::hazmat::PrehashVerifier, RecoveryId, Signature, VerifyingKey};
 use openvm_keccak256::keccak256;
@@ -24,7 +24,7 @@ use openvm_kzg::{Bytes32, Bytes48, KzgProof};
 use openvm_pairing::{
     bls12_381::{self as bls, Bls12_381},
     bn254::{self as bn, Bn254},
-    PairingCheck,
+    projective_to_affine, PairingCheck,
 };
 use revm::{
     install_crypto,
@@ -156,14 +156,8 @@ impl Crypto for OpenVmCrypto {
             let g1 = read_bn_g1_point(g1_bytes)?;
             let g2 = read_bn_g2_point(g2_bytes)?;
 
-            let (g1_x, g1_y, _) = g1.normalize().into_coords();
-            let g1 = AffinePoint::new(g1_x, g1_y);
-
-            let (g2_x, g2_y, _) = g2.normalize().into_coords();
-            let g2 = AffinePoint::new(g2_x, g2_y);
-
-            g1_points.push(g1);
-            g2_points.push(g2);
+            g1_points.push(projective_to_affine(g1));
+            g2_points.push(projective_to_affine(g2));
         }
 
         let pairing_result = Bn254::pairing_check(&g1_points, &g2_points).is_ok();
@@ -257,11 +251,8 @@ impl Crypto for OpenVmCrypto {
             let g1 = read_bls_g1_point(g1_bytes)?;
             let g2 = read_bls_g2_point(g2_bytes)?;
 
-            let (g1_x, g1_y, _) = g1.normalize().into_coords();
-            let (g2_x, g2_y, _) = g2.normalize().into_coords();
-
-            g1_points.push(AffinePoint::new(g1_x, g1_y));
-            g2_points.push(AffinePoint::new(g2_x, g2_y));
+            g1_points.push(projective_to_affine(g1));
+            g2_points.push(projective_to_affine(g2));
         }
 
         let pairing_result = Bls12_381::pairing_check(&g1_points, &g2_points).is_ok();
@@ -609,6 +600,32 @@ fn encode_bls_g2_point(point: &bls::G2Affine) -> [u8; BLS_G2_LEN] {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use openvm_ecc_guest::CyclicGroup;
+
+    #[test]
+    fn pairing_identity_inputs_map_to_affine_infinity() {
+        let bn_g1 = [0u8; BN_G1_LEN];
+        let bn_g2 = [0u8; BN_G2_LEN];
+        assert!(OpenVmCrypto.bn254_pairing_check(&[(&bn_g1, &bn_g2)]).unwrap());
+
+        let bls_g1 = ([0u8; BLS_FP_LEN], [0u8; BLS_FP_LEN]);
+        let bls_g2 = ([0u8; BLS_FP_LEN], [0u8; BLS_FP_LEN], [0u8; BLS_FP_LEN], [0u8; BLS_FP_LEN]);
+        assert!(OpenVmCrypto.bls12_381_pairing_check(&[(bls_g1, bls_g2)]).unwrap());
+    }
+
+    #[test]
+    fn inverse_sums_serialize_as_infinity() {
+        let bn_generator = bn::G1Affine::GENERATOR;
+        let bn_identity = bn_generator.clone() + -bn_generator;
+        assert_eq!(encode_bn_g1_point(bn_identity), [0u8; BN_G1_LEN]);
+
+        let bls_generator = bls::G1Affine::GENERATOR;
+        let bls_identity = bls_generator.clone() + -bls_generator;
+        assert_eq!(encode_bls_g1_point(&bls_identity), [0u8; BLS_G1_LEN]);
+
+        let bls_g2_identity = <bls::G2Affine as Group>::IDENTITY;
+        assert_eq!(encode_bls_g2_point(&bls_g2_identity), [0u8; BLS_G2_LEN]);
+    }
 
     /// Runs `secp256r1_verify_signature` on a 160-byte P256VERIFY input (msg || sig || pk).
     fn p256_verify_input(input_hex: &str) -> bool {

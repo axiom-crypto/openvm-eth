@@ -108,24 +108,24 @@ alloy-rpc-client = { version = "=2.0.5", default-features = false }
 alloy-rpc-types = { version = "=2.0.5", default-features = false }
 alloy-rpc-types-debug = { version = "=2.0.5", default-features = false }
 alloy-transport = { version = "=2.0.5", default-features = false }
-openvm = { git = "https://github.com/openvm-org/openvm.git", branch = "develop-v2.1.0", default-features = false }
-openvm-circuit = { git = "https://github.com/openvm-org/openvm.git", branch = "develop-v2.1.0", default-features = false }
-openvm-verify-stark-host = { git = "https://github.com/openvm-org/openvm.git", branch = "develop-v2.1.0", default-features = false }
-openvm-ecc-guest = { git = "https://github.com/openvm-org/openvm.git", branch = "develop-v2.1.0", default-features = false }
-openvm-keccak256 = { git = "https://github.com/openvm-org/openvm.git", branch = "develop-v2.1.0", default-features = false }
-openvm-pairing = { git = "https://github.com/openvm-org/openvm.git", branch = "develop-v2.1.0", default-features = false, features = [
+openvm = { git = "https://github.com/openvm-org/openvm.git", branch = "fix/projective-affine-api", default-features = false }
+openvm-circuit = { git = "https://github.com/openvm-org/openvm.git", branch = "fix/projective-affine-api", default-features = false }
+openvm-verify-stark-host = { git = "https://github.com/openvm-org/openvm.git", branch = "fix/projective-affine-api", default-features = false }
+openvm-ecc-guest = { git = "https://github.com/openvm-org/openvm.git", branch = "fix/projective-affine-api", default-features = false }
+openvm-keccak256 = { git = "https://github.com/openvm-org/openvm.git", branch = "fix/projective-affine-api", default-features = false }
+openvm-pairing = { git = "https://github.com/openvm-org/openvm.git", branch = "fix/projective-affine-api", default-features = false, features = [
     "bn254",
     "bls12_381",
 ] }
-openvm-sha2 = { git = "https://github.com/openvm-org/openvm.git", branch = "develop-v2.1.0", default-features = false }
-openvm-k256 = { git = "https://github.com/openvm-org/openvm.git", package = "k256", branch = "develop-v2.1.0" }
-openvm-p256 = { git = "https://github.com/openvm-org/openvm.git", package = "p256", branch = "develop-v2.1.0" }
-openvm-algebra-guest = { git = "https://github.com/openvm-org/openvm.git", branch = "develop-v2.1.0", default-features = false }
+openvm-sha2 = { git = "https://github.com/openvm-org/openvm.git", branch = "fix/projective-affine-api", default-features = false }
+openvm-k256 = { git = "https://github.com/openvm-org/openvm.git", package = "k256", branch = "fix/projective-affine-api" }
+openvm-p256 = { git = "https://github.com/openvm-org/openvm.git", package = "p256", branch = "fix/projective-affine-api" }
+openvm-algebra-guest = { git = "https://github.com/openvm-org/openvm.git", branch = "fix/projective-affine-api", default-features = false }
 
 # openvm (host only)
-openvm-sdk = { git = "https://github.com/openvm-org/openvm.git", branch = "develop-v2.1.0", default-features = false }
-openvm-sdk-config = { git = "https://github.com/openvm-org/openvm.git", branch = "develop-v2.1.0", default-features = false }
-openvm-build = { git = "https://github.com/openvm-org/openvm.git", branch = "develop-v2.1.0", default-features = false }
+openvm-sdk = { git = "https://github.com/openvm-org/openvm.git", branch = "fix/projective-affine-api", default-features = false }
+openvm-sdk-config = { git = "https://github.com/openvm-org/openvm.git", branch = "fix/projective-affine-api", default-features = false }
+openvm-build = { git = "https://github.com/openvm-org/openvm.git", branch = "fix/projective-affine-api", default-features = false }
 openvm-stark-sdk = { git = "https://github.com/openvm-org/stark-backend.git", tag = "v2.0.0", default-features = false }
 
 # crates/kzg
