@@ -56,7 +56,7 @@ pub mod serde_bincode_compat {
         {
             let mut bytes = Vec::with_capacity(source.length());
             source.encode(&mut bytes);
-            bytes.serialize(serializer)
+            serde_with::Bytes::serialize_as(&bytes, serializer)
         }
     }
 
@@ -65,7 +65,7 @@ pub mod serde_bincode_compat {
         where
             D: Deserializer<'de>,
         {
-            let bytes = Vec::<u8>::deserialize(deserializer)?;
+            let bytes: Vec<u8> = serde_with::Bytes::deserialize_as(deserializer)?;
             let mut buf = bytes.as_slice();
             let block = <super::Block as Decodable>::decode(&mut buf).map_err(D::Error::custom)?;
             if !buf.is_empty() {
