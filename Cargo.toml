@@ -6,6 +6,7 @@ members = [
     "crates/revm-crypto",
     "crates/stateless-executor",
     "crates/guest-mem",
+    "crates/guest-keccak",
     "crates/chainspec",
     "crates/stateless-witness",
     "crates/mpt-tools",
@@ -48,6 +49,7 @@ toml = "0.9.2"
 smallvec = "1.13"
 bumpalo = { version = "3.19.0", default-features = false, features = ["collections"] }
 bytes = { version = "1", default-features = false }
+tiny-keccak = { version = "2.0", features = ["keccak"] }
 itertools = { version = "0.14", default-features = false }
 actix-web = "4"
 reqwest = "0.12.20"
@@ -63,6 +65,7 @@ openvm-kzg = { path = "./crates/kzg", default-features = false }
 openvm-mpt = { path = "./crates/mpt" }
 openvm-revm-crypto = { path = "./crates/revm-crypto" }
 openvm-guest-mem = { path = "./crates/guest-mem" }
+openvm-guest-keccak = { path = "./crates/guest-keccak" }
 openvm-stateless-executor = { path = "./crates/stateless-executor" }
 openvm-chainspec = { path = "./crates/chainspec" }
 # workspace (host only)
@@ -113,6 +116,8 @@ openvm-circuit = { git = "https://github.com/openvm-org/openvm.git", branch = "d
 openvm-verify-stark-host = { git = "https://github.com/openvm-org/openvm.git", branch = "develop-v2.1.0", default-features = false }
 openvm-ecc-guest = { git = "https://github.com/openvm-org/openvm.git", branch = "develop-v2.1.0", default-features = false }
 openvm-keccak256 = { git = "https://github.com/openvm-org/openvm.git", branch = "develop-v2.1.0", default-features = false }
+openvm-keccak256-guest = { git = "https://github.com/openvm-org/openvm.git", branch = "develop-v2.1.0", default-features = false }
+openvm-platform = { git = "https://github.com/openvm-org/openvm.git", branch = "develop-v2.1.0", default-features = false }
 openvm-pairing = { git = "https://github.com/openvm-org/openvm.git", branch = "develop-v2.1.0", default-features = false, features = [
     "bn254",
     "bls12_381",

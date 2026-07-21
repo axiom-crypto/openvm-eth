@@ -1,14 +1,11 @@
 use alloc::vec::Vec;
-use core::{
-    alloc::Layout,
-    cell::{Cell, RefCell},
-    mem::MaybeUninit,
-};
+use core::{alloc::Layout, cell::Cell, mem::MaybeUninit};
 
 use alloy_rlp::Encodable;
 use bumpalo::Bump;
 use bytes::Buf;
-use revm_primitives::{keccak256, B256};
+use openvm_guest_keccak::{keccak256, Keccak256Sponge};
+use revm_primitives::B256;
 use smallvec::SmallVec;
 
 use crate::{
@@ -22,9 +19,6 @@ use crate::{
 
 /// OpenVM memory alignment word size.
 const MIN_ALIGN: usize = 4;
-
-/// Initial capacity of [`MptTrie`]'s `rlp_scratch`.
-const RLP_SCRATCH_INIT_CAPACITY: usize = 600;
 
 /// Sentinel index representing the null node when decoding and in internal references.
 /// In a default MPT, `nodes[0]` starts as `Null`, but the root may later be changed to a
@@ -62,10 +56,6 @@ pub struct Mpt<'a> {
     /// Cache. Hashing/encoding often needs "what would this node look like in its parent"
     cached_references: Vec<Cell<Option<NodeRef<'a>>>>,
 
-    /// Scratch buffer used only for RLP encoding when a node's full RLP exceeds 32 bytes and we
-    /// need to compute its keccak hash. Keeping it here avoids repeated allocations.
-    rlp_scratch: RefCell<Vec<u8>>,
-
     /// Bump allocation area.
     bump: &'a Bump,
 }
@@ -85,13 +75,7 @@ impl<'a> Mpt<'a> {
         nodes.push(NodeData::Null);
         cached_references.push(Cell::new(None));
 
-        Self {
-            nodes,
-            rlp_scratch: RefCell::new(Vec::with_capacity(RLP_SCRATCH_INIT_CAPACITY)),
-            cached_references,
-            bump,
-            root_id: 0,
-        }
+        Self { nodes, cached_references, bump, root_id: 0 }
     }
 }
 
@@ -472,18 +456,14 @@ impl<'a> Mpt<'a> {
 
                     NodeRef::Bytes(encoded.into_inner().into_bump_slice())
                 } else {
-                    let mut scratch = self.rlp_scratch.borrow_mut();
-                    scratch.clear();
+                    // Stream the RLP encoding straight into the hash, so the node bytes are
+                    // never materialized in a scratch buffer.
+                    let mut sponge = Keccak256Sponge::new();
+                    self.encode_with_payload_len(node_id, payload_length, &mut sponge);
+                    debug_assert_eq!(sponge.absorbed_len(), rlp_length);
 
-                    self.encode_with_payload_len(node_id, payload_length, &mut *scratch);
-                    debug_assert_eq!(scratch.len(), rlp_length);
-
-                    let digest = keccak256(&*scratch);
-                    // [shayanh]: This copy could have been avoided if we had allocated keccak's output
-                    // in the bump area from the beginning. This needs to have a
-                    // separate keccak implementation. Since I wanted to stick
-                    // to alloy's keccak, I didn't create a new one.
-                    let digest_slice = self.bump.alloc_slice_copy(digest.as_slice());
+                    let digest = sponge.finalize();
+                    let digest_slice = self.bump.alloc_slice_copy(&digest);
                     NodeRef::Digest(digest_slice)
                 }
             }
@@ -607,7 +587,7 @@ impl<'a> Mpt<'a> {
                 };
                 match node_ref {
                     NodeRef::Digest(digest) => B256::from_slice(digest),
-                    NodeRef::Bytes(bytes) => keccak256(bytes),
+                    NodeRef::Bytes(bytes) => B256::new(keccak256(bytes)),
                 }
             }
         }

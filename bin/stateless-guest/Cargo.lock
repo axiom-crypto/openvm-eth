@@ -2559,6 +2559,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "openvm-guest-keccak"
+version = "0.4.0"
+dependencies = [
+ "bytes",
+ "openvm-keccak256-guest",
+ "openvm-platform",
+ "tiny-keccak",
+]
+
+[[package]]
 name = "openvm-guest-mem"
 version = "0.4.0"
 
@@ -2612,6 +2622,7 @@ dependencies = [
  "alloy-trie",
  "bumpalo",
  "bytes",
+ "openvm-guest-keccak",
  "revm",
  "revm-primitives",
  "serde",
@@ -2729,6 +2740,7 @@ dependencies = [
  "bumpalo",
  "itertools 0.14.0",
  "openvm-chainspec",
+ "openvm-guest-keccak",
  "openvm-guest-mem",
  "openvm-mpt",
  "openvm-revm-crypto",
