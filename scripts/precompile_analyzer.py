@@ -11,7 +11,8 @@ was called, and the transactions that called them most. Needs an RPC endpoint wi
 the `debug` namespace enabled.
 
 RPC endpoints are read from .env as RPC_1, RPC_2, … and tried in order until one
-serves the trace (override with --rpc). Run --check to see which support tracing.
+serves the trace (override with --rpc); public trace-capable fallbacks are tried
+last. Run --check to see which support tracing.
 
 Run it directly (uv installs the dependencies on first use):
     ./precompile_analyzer.py <block_number>
@@ -44,6 +45,8 @@ from rich.console import Console
 
 # Endpoint used when no --rpc and no RPC_N in the environment or .env.
 DEFAULT_RPC_URL = "http://localhost:8545"
+# Public trace-capable endpoints, tried after the configured ones.
+FALLBACK_RPCS = ["https://eth.drpc.org"]
 DEFAULT_TOP_K = 5
 
 # .env at the repository root (one level above scripts/).
@@ -101,17 +104,21 @@ def print_table(columns: list[tuple[str, int, str]], rows: list[tuple]) -> None:
 
 
 def resolve_rpcs(explicit: list[str] | None) -> list[tuple[str, str]]:
-    """(label, url) endpoints to try in order: explicit --rpc, else RPC_1, RPC_2, … , else default.
+    """(label, url) endpoints to try in order: explicit --rpc, else RPC_1, RPC_2, … , else
+    default — always followed by the public fallbacks.
 
     Labels are safe to print; URLs hold secrets and must not be logged.
     """
     if explicit:
-        return [(f"RPC #{i}", url) for i, url in enumerate(explicit, 1)]
-    values = {**dotenv_values(ENV_PATH), **os.environ}
-    keys = sorted((k for k in values if re.fullmatch(r"RPC_\d+", k)),
-                  key=lambda k: int(k.split("_")[1]))
-    pairs = [(k, values[k]) for k in keys if values[k]]
-    return pairs or [("default", DEFAULT_RPC_URL)]
+        pairs = [(f"RPC #{i}", url) for i, url in enumerate(explicit, 1)]
+    else:
+        values = {**dotenv_values(ENV_PATH), **os.environ}
+        keys = sorted((k for k in values if re.fullmatch(r"RPC_\d+", k)),
+                      key=lambda k: int(k.split("_")[1]))
+        pairs = [(k, values[k]) for k in keys if values[k]] or [("default", DEFAULT_RPC_URL)]
+    urls = {url for _, url in pairs}
+    pairs += [(f"fallback ({url})", url) for url in FALLBACK_RPCS if url not in urls]
+    return pairs
 
 
 def redact(text) -> str:
@@ -142,6 +149,13 @@ def is_transient(exc: BaseException) -> bool:
 def rpc_call(client: httpx.Client, method: str, params: list) -> dict:
     """Make a JSON-RPC call, retrying transient errors with exponential backoff."""
     resp = client.post("", json={"jsonrpc": "2.0", "method": method, "params": params, "id": 1})
+    if 400 <= resp.status_code < 500:
+        try:
+            error = resp.json()["error"]
+        except (ValueError, KeyError):
+            error = None
+        if error:
+            raise RuntimeError(f"RPC error: {error}")
     resp.raise_for_status()
     result = resp.json()
     if "error" in result:
