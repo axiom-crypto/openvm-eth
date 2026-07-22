@@ -10,21 +10,26 @@ edition = "2021"
 openvm-stateless-executor = { path = "../../crates/stateless-executor", default-features = false }
 
 # openvm
-openvm = { git = "https://github.com/openvm-org/openvm.git", branch = "main", features = [
-    "std",
-] }
-openvm-algebra-guest = { git = "https://github.com/openvm-org/openvm.git", branch = "main", optional = true }
-openvm-ecc-guest = { git = "https://github.com/openvm-org/openvm.git", branch = "main", optional = true }
+openvm = { git = "https://github.com/openvm-org/openvm.git", branch = "develop-v2.1.0", default-features = false, features = ["getrandom-unsupported"] }
+openvm-algebra-guest = { git = "https://github.com/openvm-org/openvm.git", branch = "develop-v2.1.0", optional = true }
+openvm-ecc-guest = { git = "https://github.com/openvm-org/openvm.git", branch = "develop-v2.1.0", optional = true }
 
 # Enable std feature for host builds (provides critical-section implementation)
-[target.'cfg(not(target_os = "zkvm"))'.dependencies]
+[target.'cfg(not(any(target_os = "none", target_os = "openvm")))'.dependencies]
 openvm-stateless-executor = { path = "../../crates/stateless-executor", default-features = false, features = ["std"] }
 
 [package.metadata.cargo-machete]
 ignored = ["openvm-algebra-guest", "openvm-ecc-guest"]
 
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = [
+    'cfg(openvm_intrinsics)',
+    'cfg(target_os, values("openvm"))',
+] }
+
 [features]
 default = ["extensions"]
+std = ["openvm/std", "openvm-stateless-executor/std"]
 extensions = [
     "openvm-stateless-executor/openvm",
     "dep:openvm-algebra-guest",

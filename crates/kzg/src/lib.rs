@@ -1,4 +1,4 @@
-#![cfg_attr(target_os = "zkvm", no_std)]
+#![cfg_attr(any(openvm_intrinsics, target_os = "openvm"), no_std)]
 
 extern crate alloc;
 

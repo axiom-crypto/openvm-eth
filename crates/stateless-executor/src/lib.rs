@@ -1,8 +1,13 @@
+#![cfg_attr(not(feature = "std"), no_std)]
+
+extern crate alloc;
+
 pub mod error;
 /// Client program input data types.
 pub mod io;
 
-use std::{fmt::Debug, sync::Arc};
+use alloc::{sync::Arc, vec, vec::Vec};
+use core::fmt::Debug;
 
 use alloy_consensus::{proofs::calculate_receipt_root, Header, TxReceipt};
 use alloy_primitives::Bloom;
@@ -19,7 +24,7 @@ use bumpalo::Bump;
 
 // Links the guest's optimized `memcmp`/`bcmp` overrides into every binary
 // that executes blocks inside the zkVM.
-#[cfg(target_os = "zkvm")]
+#[cfg(target_os = "openvm")]
 use openvm_guest_mem as _;
 
 use crate::{
@@ -56,7 +61,6 @@ impl StatelessExecutor {
         // Install OpenVM crypto optimizations
         #[cfg(feature = "openvm")]
         {
-            println!("Installing OpenVM crypto optimizations");
             openvm_revm_crypto::install_openvm_crypto()
                 .expect("failed to install OpenVM crypto provider");
         }

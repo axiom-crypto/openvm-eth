@@ -1,4 +1,6 @@
-use std::{
+use alloc::vec::Vec;
+use core::{
+    alloc::Layout,
     cell::{Cell, RefCell},
     mem::MaybeUninit,
 };
@@ -6,7 +8,7 @@ use std::{
 use alloy_rlp::Encodable;
 use bumpalo::Bump;
 use bytes::Buf;
-use revm_primitives::{hex, keccak256, B256};
+use revm_primitives::{keccak256, B256};
 use smallvec::SmallVec;
 
 use crate::{
@@ -115,7 +117,7 @@ fn is_null_ref(slice: &[u8]) -> bool {
 /// an inline loop.
 #[inline(always)]
 fn bytes_eq(a: &[u8], b: &[u8]) -> bool {
-    a.len() == b.len() && std::iter::zip(a, b).all(|(x, y)| x == y)
+    a.len() == b.len() && core::iter::zip(a, b).all(|(x, y)| x == y)
 }
 
 /// Writes an RLP header with the given base code (`EMPTY_LIST_CODE` for lists,
@@ -350,7 +352,7 @@ impl<'a> Mpt<'a> {
         let childs = unsafe {
             &mut *self
                 .bump
-                .alloc_layout(std::alloc::Layout::new::<[Cell<Option<NodeId>>; 16]>())
+                .alloc_layout(Layout::new::<[Cell<Option<NodeId>>; 16]>())
                 .cast::<[MaybeUninit<Option<NodeId>>; 16]>()
                 .as_ptr()
         };
@@ -1050,12 +1052,14 @@ impl<'a> Mpt<'a> {
     }
 }
 
+#[cfg(feature = "std")]
 impl Mpt<'_> {
     pub fn print_trie(&self) {
         self.print_trie_internal(self.root_id, 0);
     }
 
     fn print_trie_internal(&self, node_id: NodeId, depth: usize) {
+        use revm_primitives::hex;
         let indent = "  ".repeat(depth);
         match &self.nodes[node_id as usize] {
             NodeData::Null => {

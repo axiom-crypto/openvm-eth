@@ -1,4 +1,5 @@
-use std::iter::once;
+use alloc::{format, string::ToString, vec::Vec};
+use core::iter::once;
 
 use crate::error::StatelessExecutorError;
 use alloy_consensus::Header;

@@ -41,7 +41,6 @@ fn load_stark_final_proof(path: &PathBuf) -> Result<VmStarkProof> {
     let proof_bytes = fs::read(path)
         .wrap_err_with(|| format!("Failed to read STARK final proof {}", path.display()))?;
     let proof_bytes = decode_persisted_final_proof_bytes(path, proof_bytes)?;
-
     VmStarkProof::decode_from_bytes(&proof_bytes)
         .wrap_err_with(|| format!("Failed to decode STARK final proof {}", path.display()))
 }

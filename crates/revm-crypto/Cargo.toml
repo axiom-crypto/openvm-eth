@@ -20,7 +20,7 @@ alloy-consensus = { workspace = true, features = ["crypto-backend"] }
 # OpenVM dependencies for optimized crypto (only needed when running in zkvm)
 openvm-curve-utils = { workspace = true, features = ["bn254", "bls12_381"] }
 openvm-ecc-guest = { workspace = true }
-openvm-sha2 = { workspace = true, features = ["import_sha2"] }
+openvm-sha2 = { workspace = true }
 openvm-pairing = { workspace = true, features = ["bn254", "bls12_381"] }
 openvm-k256 = { workspace = true }
 openvm-p256 = { workspace = true }
@@ -28,16 +28,17 @@ openvm-kzg = { workspace = true, features = ["use-intrinsics"] }
 openvm-keccak256 = { workspace = true }
 aurora-engine-modexp = { version = "1.2.0", default-features = false }
 
-[dev-dependencies]
-# arkworks-rs
-ark-ff = "0.5"
-ark-bn254 = "0.5"
-ark-bls12-381 = "0.5"
-ark-ec = "0.5"
-
-[target.'cfg(target_os = "zkvm")'.dependencies]
+[target.'cfg(all(target_arch = "riscv64", any(target_os = "none", target_os = "openvm")))'.dependencies]
 revm-primitives = { workspace = true, features = ["hashbrown"] }
 alloy-primitives = { workspace = true, features = ["native-keccak"] }
 
-[target.'cfg(not(target_os = "zkvm"))'.dependencies]
+[target.'cfg(not(any(target_os = "none", target_os = "openvm")))'.dependencies]
+openvm-sha2 = { workspace = true, features = ["import_sha2"] }
 openvm-keccak256 = { workspace = true, features = ["tiny_keccak"] }
+
+[features]
+default = []
+std = []
+
+[package.metadata.cargo-shear]
+ignored = ["revm-primitives"]

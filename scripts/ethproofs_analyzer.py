@@ -1,51 +1,87 @@
-#!/usr/bin/env python3
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.10"
+# dependencies = ["httpx", "hishel", "rich", "tenacity"]
+# ///
 """
 Fetches data from ethproofs.org API and analyzes proving times.
 
 Finds top K blocks by:
 - Gas used
-- Proving time (max, median, avg, min across provers)
+- Proving time (max, median, avg, min across that block's provers)
+- How far a single prover (default OpenVM 2.0 / Axiom) trails the fastest prover
+
+Run it directly (uv installs the dependencies on first use):
+    ./ethproofs_analyzer.py ...        # via the uv shebang
+    uv run ethproofs_analyzer.py ...   # equivalent
+
+Common recipes:
+    # Blocks where OpenVM trailed the fastest prover by the most, over the last day / week:
+    ./ethproofs_analyzer.py --last 1d --compare --top-k 20
+    ./ethproofs_analyzer.py --last 1w --compare --top-k 20
+
+    # Blocks that were hardest for EVERY prover (even the leader was slow), last day / week:
+    ./ethproofs_analyzer.py --last 1d --metric min --top-k 20
+    ./ethproofs_analyzer.py --last 1w --metric min --top-k 20
+
+    # Compare a different prover against the field:
+    ./ethproofs_analyzer.py --last 1w --compare --compare-zkvm pico --top-k 20
+
+    # Follow up on a slow block — inspect its precompile load (needs an RPC with `debug`):
+    ./precompile_analyzer.py <block_number>
 
 Usage:
-    python3 ethproofs_analyzer.py                         # Fetch 1 page (100 blocks), show all metrics
-    python3 ethproofs_analyzer.py --pages 5               # Fetch 5 pages (500 blocks)
-    python3 ethproofs_analyzer.py --pages 10 --size 50    # Fetch 10 pages of 50 blocks each
-    python3 ethproofs_analyzer.py --file data.json        # Load from file
-    python3 ethproofs_analyzer.py --top-k 5               # Show top 5 blocks per metric
-    python3 ethproofs_analyzer.py --metric median         # Show only median proving time
-    python3 ethproofs_analyzer.py --metric gas            # Show only gas used
-    python3 ethproofs_analyzer.py --cluster axiom         # Only proofs from the Axiom cluster (substring)
-    python3 ethproofs_analyzer.py --zkvm openvm2          # Only proofs from the OpenVM 2.0 zkVM
-    python3 ethproofs_analyzer.py --list-provers          # Print distinct provers seen in the data
+    ./ethproofs_analyzer.py                  # last 100 blocks, all metrics
+    ./ethproofs_analyzer.py --last 6h        # last 6 hours (also: 30m, 1d, 1w, 45s)
+    ./ethproofs_analyzer.py --last 500       # last 500 blocks
+    ./ethproofs_analyzer.py --file data.json # Load from a JSON file
+    ./ethproofs_analyzer.py --top-k 5        # Show top 5 blocks per metric
+    ./ethproofs_analyzer.py --metric median  # Show only median proving time
+    ./ethproofs_analyzer.py --metric min     # Blocks where even the fastest prover was slow
+    ./ethproofs_analyzer.py --metric gas     # Show only gas used
+    ./ethproofs_analyzer.py --cluster axiom  # Only proofs from the Axiom cluster
+    ./ethproofs_analyzer.py --zkvm openvm2   # Only proofs from the OpenVM 2.0 zkVM
+    ./ethproofs_analyzer.py --list-provers   # Print distinct provers in the data
+    ./ethproofs_analyzer.py --compare        # Where OpenVM was slowest, absolute & vs fastest
+    ./ethproofs_analyzer.py --no-cache       # Bypass the local page cache
+
+Cached responses live in scripts/.cache (1h TTL); reruns serve from there.
 """
 
 import argparse
 import json
+import os
+import statistics
 import sys
-import urllib.parse
-import urllib.request
+from datetime import datetime, timedelta
+
+import hishel
+import hishel.httpx
+import httpx
+import tenacity
+from rich.console import Console
+from rich.progress import Progress
 
 API_URL = "https://ethproofs.org/api/blocks"
 
-# Table column widths
-COL_RANK = 4
-COL_BLOCK = 10
-COL_GAS = 14
-COL_TXS = 5
-COL_TIME = 13
-COL_TIMESTAMP = 19
+# Directory of cached API responses, reused across runs within CACHE_TTL.
+CACHE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".cache")
+CACHE_TTL = 3600  # seconds a cached response stays fresh
 
-# Table headers and separators
-GAS_TABLE_HEADER = f"| {'Rank':>{COL_RANK}} | {'Block':<{COL_BLOCK}} | {'Gas':>{COL_GAS}} | {'Txs':>{COL_TXS}} | {'Timestamp':<{COL_TIMESTAMP}} |"
-GAS_TABLE_SEP = f"|{'-' * (COL_RANK + 2)}|{'-' * (COL_BLOCK + 2)}|{'-' * (COL_GAS + 2)}|{'-' * (COL_TXS + 2)}|{'-' * (COL_TIMESTAMP + 2)}|"
-TIME_TABLE_SEP = f"|{'-' * (COL_RANK + 2)}|{'-' * (COL_BLOCK + 2)}|{'-' * (COL_TIME + 2)}|{'-' * (COL_GAS + 2)}|{'-' * (COL_TXS + 2)}|"
+# Duration suffixes accepted by --last (e.g. "6h", "1w"), in seconds.
+UNITS = {"s": 1, "m": 60, "h": 3600, "d": 86400, "w": 604800}
+
+# Column widths (chars).
+COL_RANK, COL_BLOCK, COL_GAS, COL_TXS = 4, 10, 14, 5
+COL_TIME, COL_TIMESTAMP, COL_RATIO, COL_ZKVM = 13, 19, 8, 18
+ABS_BLOCK, ABS_TARGET_TIME, ABS_CLOSEST_TIME, ABS_CLOSEST_ZKVM = range(4)
+REL_BLOCK, REL_TARGET_TIME, REL_FASTEST_TIME, REL_FASTEST_ZKVM, REL_SLOWDOWN = range(5)
+
+# Statistics available as proving-time metrics, keyed by their CLI name.
+STATS = {"min": min, "max": max, "median": statistics.median, "avg": statistics.mean}
 
 
-def fmt_timestamp(ts: str | None) -> str:
-    """Format timestamp without timezone."""
-    if ts and len(ts) > 19:
-        return ts[:19]  # Keep only YYYY-MM-DD HH:MM:SS
-    return ts or "N/A"
+# --- Formatting -------------------------------------------------------------
 
 
 def fmt_time(ms: float) -> str:
@@ -54,60 +90,203 @@ def fmt_time(ms: float) -> str:
 
 
 def fmt_gas(gas: int | None) -> str:
-    """Format gas with commas."""
+    """Format gas with thousands separators."""
     return f"{gas:,}" if gas else "N/A"
 
 
-def time_table_header(label: str) -> str:
-    """Generate header row for proving time tables."""
-    col = f"Time ({label})"
-    return f"| {'Rank':>{COL_RANK}} | {'Block':<{COL_BLOCK}} | {col:<{COL_TIME}} | {'Gas':>{COL_GAS}} | {'Txs':>{COL_TXS}} |"
+def fmt_timestamp(ts: str | None) -> str:
+    """Trim a timestamp to YYYY-MM-DD HH:MM:SS."""
+    return ts[:19] if ts else "N/A"
 
 
-def fetch_blocks(
-    page_index: int = 0, page_size: int = 100, machine_type: str = "multi"
-) -> dict:
-    """Fetch a single page of blocks from the ethproofs API."""
-    params = urllib.parse.urlencode(
-        {"page_index": page_index, "page_size": page_size, "machine_type": machine_type}
+def parse_ts(ts: str | None) -> datetime | None:
+    """Parse a block timestamp (e.g. '2026-06-20 21:58:23' or ISO 'T' form)."""
+    if not ts:
+        return None
+    try:
+        return datetime.strptime(ts.replace("T", " ")[:19], "%Y-%m-%d %H:%M:%S")
+    except ValueError:
+        return None
+
+
+def print_table(columns: list[tuple[str, int, str]], rows: list[tuple]) -> None:
+    """Print a markdown table.
+
+    columns: (header, width, align) per column, align being '<' or '>'.
+    rows:    row tuples whose cells line up positionally with columns.
+    """
+    cell = lambda value, width, align: f"{value:{align}{width}}"
+    print("| " + " | ".join(cell(h, w, a) for h, w, a in columns) + " |")
+    print("|" + "|".join("-" * (w + 2) for _, w, _ in columns) + "|")
+    for row in rows:
+        print("| " + " | ".join(cell(v, w, a) for v, (_, w, a) in zip(row, columns)) + " |")
+
+
+def comparison_time_columns(target_zkvm: str, relationship: str) -> list[tuple[str, int, str]]:
+    """Consistent target/competitor columns for comparison tables."""
+    return [
+        (f"{target_zkvm} Time", COL_TIME, "<"),
+        (f"{relationship} Other", COL_TIME, "<"),
+        (f"{relationship} zkVM", COL_ZKVM, "<"),
+    ]
+
+
+def comparison_time_cells(
+    target_time: float,
+    other_time: float | None,
+    other_zkvm: str | None,
+) -> tuple[str, str, str]:
+    """Format the shared target/competitor cells, including missing competitors."""
+    return (
+        fmt_time(target_time),
+        fmt_time(other_time) if other_time is not None else "N/A",
+        other_zkvm or "N/A",
     )
-    url = f"{API_URL}?{params}"
-
-    with urllib.request.urlopen(url, timeout=30) as response:
-        return json.loads(response.read().decode())
 
 
-def fetch_multiple_pages(
-    num_pages: int = 1, page_size: int = 100, machine_type: str = "multi"
+# --- Data access ------------------------------------------------------------
+
+
+def proof_prover_info(proof: dict) -> tuple[str | None, str | None, str | None, int | None]:
+    """Extract (cluster_name, zkvm_slug, zkvm_name, num_gpus) from a proof."""
+    cv = proof.get("cluster_version") or {}
+    cluster = cv.get("cluster") or {}
+    zkvm = (cv.get("zkvm_version") or {}).get("zkvm") or {}
+    return cluster.get("name"), zkvm.get("slug"), zkvm.get("name"), cluster.get("num_gpus")
+
+
+def proof_zkvm_label(proof: dict) -> str:
+    """Short label for the zkVM that produced a proof."""
+    _, zkvm_slug, zkvm_name, _ = proof_prover_info(proof)
+    return zkvm_slug or zkvm_name or "N/A"
+
+
+def proof_matches(proof: dict, cluster: str | None, zkvm: str | None) -> bool:
+    """True if the proof's cluster/zkvm contain the given text (case-insensitive)."""
+    cluster_name, zkvm_slug, zkvm_name, _ = proof_prover_info(proof)
+    if cluster and (not cluster_name or cluster.lower() not in cluster_name.lower()):
+        return False
+    if zkvm:
+        z = zkvm.lower()
+        if not ((zkvm_slug and z in zkvm_slug.lower()) or (zkvm_name and z in zkvm_name.lower())):
+            return False
+    return True
+
+
+def proving_times(proofs) -> list[float]:
+    """Completed proving times (ms) from an iterable of proofs."""
+    return [p["proving_time"] for p in proofs if p.get("proving_time") is not None]
+
+
+# --- Fetching / loading -----------------------------------------------------
+
+
+def parse_last(spec: str) -> tuple[str, float]:
+    """Parse a --last value into ('seconds', n) for durations or ('blocks', n) for counts.
+
+    Durations end in a unit (s/m/h/d/w), e.g. '6h' or '1w'; a bare number means blocks.
+    """
+    spec = spec.strip().lower()
+    if spec and spec[-1] in UNITS:
+        return "seconds", float(spec[:-1]) * UNITS[spec[-1]]
+    return "blocks", int(spec)
+
+
+class CacheEverything(hishel.BaseFilter):
+    """Filter matching every request and response, so pages cache regardless of HTTP headers."""
+
+    def needs_body(self) -> bool:
+        return False
+
+    def apply(self, item, body) -> bool:
+        return True
+
+
+def make_client(ttl: float) -> httpx.Client:
+    """An HTTP client whose responses are cached on disk for ttl seconds (0 disables caching)."""
+    if not ttl:
+        return httpx.Client(timeout=30)
+    os.makedirs(CACHE_DIR, exist_ok=True)
+    storage = hishel.SyncSqliteStorage(
+        database_path=os.path.join(CACHE_DIR, "pages.db"), default_ttl=ttl
+    )
+    policy = hishel.FilterPolicy(
+        request_filters=[CacheEverything()], response_filters=[CacheEverything()]
+    )
+    return hishel.httpx.SyncCacheClient(storage=storage, policy=policy, timeout=30)
+
+
+def is_transient(exc: BaseException) -> bool:
+    """True for errors worth retrying: timeouts, connection drops, and 5xx responses."""
+    if isinstance(exc, httpx.TransportError):
+        return True
+    if isinstance(exc, httpx.HTTPStatusError):
+        return exc.response.status_code >= 500
+    return False
+
+
+@tenacity.retry(
+    retry=tenacity.retry_if_exception(is_transient),
+    wait=tenacity.wait_exponential(multiplier=0.5, max=5),
+    stop=tenacity.stop_after_attempt(4),
+    reraise=True,
+)
+def fetch_blocks(client: httpx.Client, page_index: int, page_size: int, machine_type: str) -> dict:
+    """Fetch one page of blocks, retrying transient errors with exponential backoff."""
+    resp = client.get(
+        API_URL,
+        params={"page_index": page_index, "page_size": page_size, "machine_type": machine_type},
+    )
+    resp.raise_for_status()
+    return resp.json()
+
+
+def fetch_window(
+    client: httpx.Client, mode: str, amount: float, page_size: int,
+    machine_type: str, max_pages: int = 4000,
 ) -> dict:
-    """Fetch multiple pages and combine results."""
-    all_rows = []
+    """Page through blocks (newest first) until `amount` blocks or seconds are covered.
 
-    for page_idx in range(num_pages):
-        # Show progress on same line
-        print(f"\r  Fetching page {page_idx + 1}/{num_pages}...", end="", flush=True)
-        try:
-            data = fetch_blocks(
-                page_index=page_idx, page_size=page_size, machine_type=machine_type
-            )
-            rows = data.get("rows", [])
-            all_rows.extend(rows)
-
-            # Stop if we got fewer blocks than requested (no more data)
-            if len(rows) < page_size:
-                print(
-                    f"\r  Fetched {len(all_rows):,} blocks ({page_idx + 1} pages, reached end of data)"
-                )
+    mode='blocks' keeps the most recent `amount` blocks; mode='seconds' keeps blocks
+    within `amount` seconds of the newest block.
+    """
+    rows, anchor, cutoff, page, warning = [], None, None, 0, None
+    total = int(amount)
+    with Progress(console=Console(stderr=True), transient=True) as progress:
+        task = progress.add_task("Fetching blocks", total=total)
+        for page in range(max_pages):
+            try:
+                page_rows = fetch_blocks(client, page, page_size, machine_type).get("rows", [])
+            except httpx.HTTPError as e:
+                warning = f"stopped at page {page + 1} after a failed request ({e})"
                 break
-        except Exception as e:
-            print(f"\r  Error on page {page_idx + 1}: {e}")
-            break
-    else:
-        print(
-            f"\r  Fetched {len(all_rows):,} blocks ({num_pages} pages)                    "
-        )
+            if not page_rows:
+                break
+            rows.extend(page_rows)
 
-    return {"rows": all_rows}
+            if mode == "blocks":
+                progress.update(task, completed=min(len(rows), total))
+                if len(rows) >= amount or len(page_rows) < page_size:
+                    break
+            else:
+                times = [t for t in (parse_ts(b.get("timestamp")) for b in page_rows) if t]
+                if times:
+                    if anchor is None:
+                        anchor = max(times)
+                        cutoff = anchor - timedelta(seconds=amount)
+                    progress.update(task, completed=min(int((anchor - min(times)).total_seconds()), total))
+                if len(page_rows) < page_size or (cutoff and times and min(times) < cutoff):
+                    break
+
+    if mode == "blocks":
+        rows = rows[:total]
+    elif cutoff is not None:
+        rows = [b for b in rows if (parse_ts(b.get("timestamp")) or cutoff) >= cutoff]
+    if warning:
+        print(f"  Warning: {warning}; keeping {len(rows):,} blocks fetched so far.")
+        print("  Tip: a smaller --size (e.g. 200) often avoids large-page server errors.")
+    print(f"  Fetched {len(rows):,} blocks ({page + 1} pages)")
+    return {"rows": rows}
 
 
 def load_from_file(filepath: str) -> dict:
@@ -116,39 +295,13 @@ def load_from_file(filepath: str) -> dict:
         return json.load(f)
 
 
-def proof_prover_info(proof: dict) -> tuple[str | None, str | None, str | None, int | None]:
-    """Extract (cluster_name, zkvm_slug, zkvm_name, num_gpus) from a proof."""
-    cv = proof.get("cluster_version") or {}
-    cluster = cv.get("cluster") or {}
-    zkvm = (cv.get("zkvm_version") or {}).get("zkvm") or {}
-    return (
-        cluster.get("name"),
-        zkvm.get("slug"),
-        zkvm.get("name"),
-        cluster.get("num_gpus"),
-    )
-
-
-def proof_matches(proof: dict, cluster_filter: str | None, zkvm_filter: str | None) -> bool:
-    """Return True if the proof's cluster/zkvm matches the filters (substring, case-insensitive)."""
-    cluster_name, zkvm_slug, zkvm_name, _ = proof_prover_info(proof)
-    if cluster_filter:
-        if not cluster_name or cluster_filter.lower() not in cluster_name.lower():
-            return False
-    if zkvm_filter:
-        zf = zkvm_filter.lower()
-        slug_match = zkvm_slug and zf in zkvm_slug.lower()
-        name_match = zkvm_name and zf in zkvm_name.lower()
-        if not (slug_match or name_match):
-            return False
-    return True
+# --- Analyses ---------------------------------------------------------------
 
 
 def list_provers(data: dict) -> None:
-    """Print distinct (zkvm, cluster, num_gpus) combinations present in the data."""
-    rows = data.get("rows", [])
+    """Print distinct (zkvm, slug, cluster, num_gpus) combinations and their counts."""
     seen: dict[tuple, int] = {}
-    for block in rows:
+    for block in data.get("rows", []):
         for p in block.get("proofs", []):
             cluster_name, zkvm_slug, zkvm_name, num_gpus = proof_prover_info(p)
             key = (zkvm_name, zkvm_slug, cluster_name, num_gpus)
@@ -159,14 +312,18 @@ def list_provers(data: dict) -> None:
         return
 
     print("## Provers seen\n")
-    print(f"| {'zkVM':<20} | {'slug':<12} | {'Cluster':<32} | {'GPUs':>4} | {'Proofs':>7} |")
-    print(f"|{'-' * 22}|{'-' * 14}|{'-' * 34}|{'-' * 6}|{'-' * 9}|")
-    for (zkvm_name, zkvm_slug, cluster_name, num_gpus), count in sorted(
-        seen.items(), key=lambda kv: (-kv[1], kv[0][0] or "", kv[0][2] or "")
-    ):
-        print(
-            f"| {(zkvm_name or 'N/A'):<20} | {(zkvm_slug or 'N/A'):<12} | {(cluster_name or 'N/A'):<32} | {(num_gpus if num_gpus is not None else 'N/A'):>4} | {count:>7} |"
+    rows = [
+        (zkvm_name or "N/A", slug or "N/A", cluster or "N/A",
+         num_gpus if num_gpus is not None else "N/A", count)
+        for (zkvm_name, slug, cluster, num_gpus), count in sorted(
+            seen.items(), key=lambda kv: (-kv[1], kv[0][0] or "", kv[0][2] or "")
         )
+    ]
+    print_table(
+        [("zkVM", 20, "<"), ("slug", 12, "<"), ("Cluster", 32, "<"),
+         ("GPUs", 4, ">"), ("Proofs", 7, ">")],
+        rows,
+    )
 
 
 def analyze_blocks(
@@ -176,284 +333,228 @@ def analyze_blocks(
     cluster_filter: str | None = None,
     zkvm_filter: str | None = None,
 ) -> None:
-    """Analyze blocks to find max gas used and proving time statistics."""
+    """Show top blocks by gas used and by proving-time statistics across provers."""
     rows = data.get("rows", [])
-
     if not rows:
         print("No blocks found in the response.")
         return
 
     filter_active = bool(cluster_filter or zkvm_filter)
 
-    # Track blocks with gas for sorting
-    blocks_with_gas_list = []
-    blocks_with_gas = 0
-
-    # For each block, calculate stats across its provers
-    block_stats = []
-
+    # Select blocks (those with a matching proof, when a filter is active) and the
+    # proving times of the proofs that count toward their stats.
+    selected = []  # (block, times)
     for block in rows:
-        gas_used = block.get("gas_used")
         proofs = block.get("proofs", [])
+        if filter_active:
+            proofs = [p for p in proofs if proof_matches(p, cluster_filter, zkvm_filter)]
+            if not proofs:
+                continue
+        selected.append((block, proving_times(proofs)))
 
-        # Apply prover filter: only count proofs (and gas) from blocks where at
-        # least one proof matches the filter.
-        matching_proofs = [
-            p for p in proofs if proof_matches(p, cluster_filter, zkvm_filter)
-        ]
-        if filter_active and not matching_proofs:
-            continue
-
-        if gas_used is not None:
-            blocks_with_gas += 1
-            blocks_with_gas_list.append((block, gas_used))
-
-        proofs_for_stats = matching_proofs if filter_active else proofs
-        proving_times = [
-            p.get("proving_time")
-            for p in proofs_for_stats
-            if p.get("proving_time") is not None
-        ]
-
-        if proving_times:
-            sorted_times = sorted(proving_times)
-            n = len(sorted_times)
-
-            block_min = sorted_times[0]
-            block_max = sorted_times[-1]
-            block_avg = sum(sorted_times) / n
-            if n % 2 == 0:
-                block_median = (sorted_times[n // 2 - 1] + sorted_times[n // 2]) / 2
-            else:
-                block_median = sorted_times[n // 2]
-
-            block_stats.append(
-                (block, block_median, block_avg, block_max, block_min, proving_times)
-            )
-
-    # Sort and get top K for each metric
-    top_gas = sorted(blocks_with_gas_list, key=lambda x: x[1], reverse=True)[:top_k]
-    top_median = sorted(block_stats, key=lambda x: x[1], reverse=True)[:top_k]
-    top_avg = sorted(block_stats, key=lambda x: x[2], reverse=True)[:top_k]
-    top_max = sorted(block_stats, key=lambda x: x[3], reverse=True)[:top_k]
-    top_min = sorted(block_stats, key=lambda x: x[4], reverse=True)[:top_k]
-
-    total_proofs = sum(len(entry[5]) for entry in block_stats)
+    with_gas = [(b, b["gas_used"]) for b, _ in selected if b.get("gas_used") is not None]
+    timed = [(b, t) for b, t in selected if t]
+    total_proofs = sum(len(t) for _, t in timed)
 
     if filter_active:
-        parts = []
-        if cluster_filter:
-            parts.append(f"cluster~'{cluster_filter}'")
-        if zkvm_filter:
-            parts.append(f"zkvm~'{zkvm_filter}'")
+        parts = ([f"cluster~'{cluster_filter}'"] if cluster_filter else []) + (
+            [f"zkvm~'{zkvm_filter}'"] if zkvm_filter else []
+        )
         print(f"**Filter:** {', '.join(parts)}")
-        print(
-            f"Fetched {len(rows):,} blocks, {len(block_stats):,} match filter "
-            f"({blocks_with_gas:,} with gas, {total_proofs:,} matching proofs)\n"
-        )
+        print(f"Fetched {len(rows):,} blocks, {len(selected):,} match filter "
+              f"({len(with_gas):,} with gas, {total_proofs:,} matching proofs)\n")
     else:
-        print(
-            f"Fetched {len(rows):,} blocks ({blocks_with_gas:,} with gas, {total_proofs:,} proofs)\n"
-        )
+        print(f"Fetched {len(rows):,} blocks "
+              f"({len(with_gas):,} with gas, {total_proofs:,} proofs)\n")
 
-    # Max gas section
     if metric in ("all", "gas"):
         print(f"## Top {top_k} by Gas Used\n")
-        if top_gas:
-            print(GAS_TABLE_HEADER)
-            print(GAS_TABLE_SEP)
-            for rank, (block, gas) in enumerate(top_gas, 1):
-                print(
-                    f"| {rank:>{COL_RANK}} | {block.get('block_number'):<{COL_BLOCK}} | {fmt_gas(gas):>{COL_GAS}} | {block.get('transaction_count'):>{COL_TXS}} | {fmt_timestamp(block.get('timestamp')):<{COL_TIMESTAMP}} |"
-                )
+        if with_gas:
+            top = sorted(with_gas, key=lambda bg: bg[1], reverse=True)[:top_k]
+            print_table(
+                [("Rank", COL_RANK, ">"), ("Block", COL_BLOCK, "<"), ("Gas", COL_GAS, ">"),
+                 ("Txs", COL_TXS, ">"), ("Timestamp", COL_TIMESTAMP, "<")],
+                [(rank, b.get("block_number"), fmt_gas(gas),
+                  b.get("transaction_count") or "N/A", fmt_timestamp(b.get("timestamp")))
+                 for rank, (b, gas) in enumerate(top, 1)],
+            )
         else:
             print("No blocks with gas data found")
 
-    # Proving time sections
-    if not block_stats and metric in ("all", "max", "median", "avg", "min"):
+    time_metrics = [m for m in STATS if metric in ("all", m)]
+    if time_metrics and not timed:
         print("\nNo proofs with proving time data found")
         return
 
-    if metric in ("all", "max"):
-        print(f"\n## Top {top_k} by MAX Proving Time\n")
-        print(time_table_header("Max"))
-        print(TIME_TABLE_SEP)
-        for rank, entry in enumerate(top_max, 1):
-            block, _, _, time_ms, _, _ = entry
-            bn = block.get("block_number")
-            gas = block.get("gas_used")
-            txs = block.get("transaction_count") or "N/A"
-            print(
-                f"| {rank:>{COL_RANK}} | {bn:<{COL_BLOCK}} | {fmt_time(time_ms):<{COL_TIME}} | {fmt_gas(gas):>{COL_GAS}} | {txs:>{COL_TXS}} |"
-            )
+    for name in time_metrics:
+        stat = STATS[name]
+        top = sorted(timed, key=lambda bt: stat(bt[1]), reverse=True)[:top_k]
+        print(f"\n## Top {top_k} by {name.upper()} Proving Time\n")
+        print_table(
+            [("Rank", COL_RANK, ">"), ("Block", COL_BLOCK, "<"),
+             (f"Time ({name})", COL_TIME, "<"), ("Gas", COL_GAS, ">"), ("Txs", COL_TXS, ">")],
+            [(rank, b.get("block_number"), fmt_time(stat(t)), fmt_gas(b.get("gas_used")),
+              b.get("transaction_count") or "N/A")
+             for rank, (b, t) in enumerate(top, 1)],
+        )
 
-    if metric in ("all", "median"):
-        print(f"\n## Top {top_k} by MEDIAN Proving Time\n")
-        print(time_table_header("Median"))
-        print(TIME_TABLE_SEP)
-        for rank, entry in enumerate(top_median, 1):
-            block, time_ms, _, _, _, _ = entry
-            bn = block.get("block_number")
-            gas = block.get("gas_used")
-            txs = block.get("transaction_count") or "N/A"
-            print(
-                f"| {rank:>{COL_RANK}} | {bn:<{COL_BLOCK}} | {fmt_time(time_ms):<{COL_TIME}} | {fmt_gas(gas):>{COL_GAS}} | {txs:>{COL_TXS}} |"
-            )
 
-    if metric in ("all", "avg"):
-        print(f"\n## Top {top_k} by AVG Proving Time\n")
-        print(time_table_header("Avg"))
-        print(TIME_TABLE_SEP)
-        for rank, entry in enumerate(top_avg, 1):
-            block, _, time_ms, _, _, _ = entry
-            bn = block.get("block_number")
-            gas = block.get("gas_used")
-            txs = block.get("transaction_count") or "N/A"
-            print(
-                f"| {rank:>{COL_RANK}} | {bn:<{COL_BLOCK}} | {fmt_time(time_ms):<{COL_TIME}} | {fmt_gas(gas):>{COL_GAS}} | {txs:>{COL_TXS}} |"
-            )
+def analyze_comparison(
+    data: dict,
+    top_k: int = 10,
+    target_zkvm: str = "openvm2",
+    target_cluster: str | None = None,
+) -> None:
+    """Find blocks where the target prover (default OpenVM 2.0 / Axiom) was slow.
 
-    if metric in ("all", "min"):
-        print(f"\n## Top {top_k} by MIN Proving Time\n")
-        print(time_table_header("Min"))
-        print(TIME_TABLE_SEP)
-        for rank, entry in enumerate(top_min, 1):
-            block, _, _, _, time_ms, _ = entry
-            bn = block.get("block_number")
-            gas = block.get("gas_used")
-            txs = block.get("transaction_count") or "N/A"
-            print(
-                f"| {rank:>{COL_RANK}} | {bn:<{COL_BLOCK}} | {fmt_time(time_ms):<{COL_TIME}} | {fmt_gas(gas):>{COL_GAS}} | {txs:>{COL_TXS}} |"
-            )
+    Two tables:
+      1. ABSOLUTE  - blocks where the target's own proving time was highest,
+                     alongside the closest other completed proof.
+      2. RELATIVE  - blocks where the target trailed the fastest *other* prover by
+                     the largest ratio (target time / fastest competitor).
+    """
+    rows = data.get("rows", [])
+    if not rows:
+        print("No blocks found in the response.")
+        return
+
+    absolute = []  # (block, target_time, closest_other_time, closest_other_zkvm)
+    relative = []  # (block, target_time, fastest_other_time, fastest_other_zkvm, ratio)
+    for block in rows:
+        proofs = block.get("proofs", [])
+        target = proving_times(p for p in proofs if proof_matches(p, target_cluster, target_zkvm))
+        others = [
+            p for p in proofs
+            if not proof_matches(p, target_cluster, target_zkvm)
+            and p.get("proving_time") is not None
+        ]
+        if not target:
+            continue
+        t = min(target)  # target's fastest completed proof for this block
+        if others:
+            closest = min(others, key=lambda p: abs(p["proving_time"] - t))
+            absolute.append((block, t, closest["proving_time"], proof_zkvm_label(closest)))
+            fastest = min(others, key=lambda p: p["proving_time"])
+            fastest_time = fastest["proving_time"]
+            relative.append((block, t, fastest_time, proof_zkvm_label(fastest), t / fastest_time))
+        else:
+            absolute.append((block, t, None, None))
+
+    label = target_zkvm + (f" / {target_cluster}" if target_cluster else "")
+    print(f"**Target prover:** {label}")
+    print(f"Fetched {len(rows):,} blocks, {len(absolute):,} with a completed {target_zkvm} "
+          f"proof, {len(relative):,} comparable to other provers\n")
+
+    if not absolute:
+        print(f"No completed proofs found for {target_zkvm}.")
+        return
+
+    top_abs = sorted(absolute, key=lambda x: x[ABS_TARGET_TIME], reverse=True)[:top_k]
+    print(f"## Top {top_k} blocks where {target_zkvm} was SLOWEST (absolute)\n")
+    print_table(
+        [("Rank", COL_RANK, ">"), ("Block", COL_BLOCK, "<"),
+         *comparison_time_columns(target_zkvm, "Closest"),
+         ("Gas", COL_GAS, ">"), ("Txs", COL_TXS, ">")],
+        [(rank, b.get("block_number"), *comparison_time_cells(t, closest_time, closest_zkvm),
+          fmt_gas(b.get("gas_used")), b.get("transaction_count") or "N/A")
+         for rank, (b, t, closest_time, closest_zkvm) in enumerate(top_abs, 1)],
+    )
+
+    if not relative:
+        print(f"\nNo blocks have both a {target_zkvm} proof and another prover to compare.")
+        return
+
+    top_rel = sorted(relative, key=lambda x: x[REL_SLOWDOWN], reverse=True)[:top_k]
+    print(f"\n## Top {top_k} blocks where {target_zkvm} trailed the FASTEST other prover\n")
+    print_table(
+        [("Rank", COL_RANK, ">"), ("Block", COL_BLOCK, "<"),
+         *comparison_time_columns(target_zkvm, "Fastest"), ("Slowdown", COL_RATIO, ">")],
+        [(rank, b.get("block_number"), *comparison_time_cells(t, fastest, fastest_zkvm),
+          f"{ratio:.2f}x")
+         for rank, (b, t, fastest, fastest_zkvm, ratio) in enumerate(top_rel, 1)],
+    )
+
+
+# --- CLI --------------------------------------------------------------------
+
+
+def load_data(args: argparse.Namespace) -> dict:
+    """Load block data from a file or the ethproofs API per the parsed args."""
+    if args.file:
+        print(f"**Source:** {args.file}\n")
+        return load_from_file(args.file)
+    mode, amount = parse_last(args.last)
+    ttl = 0 if args.no_cache else args.cache_ttl
+    print(f"**Source:** {API_URL}  ")
+    print(f"**Config:** last {args.last}, filter={args.machine_type}"
+          f"{'' if ttl else ', cache off'}\n")
+    data = fetch_window(make_client(ttl), mode, amount, args.size, args.machine_type)
+    print()
+    return data
 
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Analyze ethproofs.org block data to find top blocks by gas used and proving time",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
-Examples:
-  %(prog)s                         Fetch 1 page (100 blocks), show all metrics
-  %(prog)s --pages 5               Fetch 5 pages (500 blocks)
-  %(prog)s --pages 10 --size 50    Fetch 10 pages of 50 blocks each
-  %(prog)s --file data.json        Load from local JSON file
-  %(prog)s --top-k 10              Show top 10 blocks per metric
-  %(prog)s --metric median         Show only median proving time
-  %(prog)s --metric gas            Show only gas used
-        """,
+        description="Analyze ethproofs.org block data: top blocks by gas, proving time, "
+        "and how far one prover trails the fastest.",
     )
-    parser.add_argument(
-        "--pages",
-        "-p",
-        type=int,
-        default=1,
-        help="Number of pages to fetch (default: 1)",
-    )
-    parser.add_argument(
-        "--size",
-        "-s",
-        type=int,
-        default=100,
-        help="Number of blocks per page (default: 100)",
-    )
-    parser.add_argument(
-        "--file", "-f", type=str, help="Load data from a JSON file instead of fetching"
-    )
-    parser.add_argument(
-        "--machine-type",
-        "-m",
-        type=str,
-        default="multi",
-        choices=["multi", "single"],
-        help="Machine type filter (default: multi)",
-    )
-    parser.add_argument(
-        "--top-k",
-        "-k",
-        type=int,
-        default=1,
-        help="Number of top blocks to show per metric (default: 1)",
-    )
-    parser.add_argument(
-        "--metric",
-        type=str,
-        default="all",
-        choices=["all", "gas", "max", "median", "avg", "min"],
-        help="Which metric to show (default: all)",
-    )
-    parser.add_argument(
-        "--cluster",
-        type=str,
-        default=None,
-        help="Filter to proofs whose cluster name contains this text (case-insensitive), e.g. 'Axiom 16x5090' or 'axiom'",
-    )
-    parser.add_argument(
-        "--zkvm",
-        type=str,
-        default=None,
-        help="Filter to proofs whose zkvm slug/name contains this text (case-insensitive), e.g. 'openvm2'",
-    )
-    parser.add_argument(
-        "--list-provers",
-        action="store_true",
-        help="List distinct provers (zkvm + cluster) seen in the fetched data and exit",
-    )
+    parser.add_argument("--last", "-l", default="100",
+                        help="How much recent data to fetch: a duration (6h, 1d, 1w) or a "
+                        "block count (500). Default: 100")
+    parser.add_argument("--file", "-f", type=str,
+                        help="Load data from a JSON file instead of fetching")
+    parser.add_argument("--machine-type", "-m", default="multi", choices=["multi", "single"],
+                        help="Machine type filter (default: multi)")
+    parser.add_argument("--size", "-s", type=int, default=100,
+                        help="Blocks per API request, a fetch-tuning knob (default: 100)")
+    parser.add_argument("--no-cache", action="store_true",
+                        help="Bypass the local page cache and always hit the API")
+    parser.add_argument("--cache-ttl", type=int, default=CACHE_TTL,
+                        help=f"Seconds a cached page stays fresh (default: {CACHE_TTL})")
+    parser.add_argument("--top-k", "-k", type=int, default=None,
+                        help="Top blocks to show per metric (default: 1, or 10 with --compare)")
+    parser.add_argument("--metric", default="all", choices=["all", "gas", *STATS],
+                        help="Which metric to show (default: all)")
+    parser.add_argument("--cluster", default=None,
+                        help="Filter to proofs whose cluster name contains this text, e.g. 'axiom'")
+    parser.add_argument("--zkvm", default=None,
+                        help="Filter to proofs whose zkvm slug/name contains this text, e.g. 'openvm2'")
+    parser.add_argument("--list-provers", action="store_true",
+                        help="List distinct provers seen in the fetched data and exit")
+    parser.add_argument("--compare", action="store_true",
+                        help="Show where the target prover was slowest, absolute and vs the fastest other prover")
+    parser.add_argument("--compare-zkvm", default="openvm2",
+                        help="zkvm slug/name of the prover to compare in --compare mode (default: openvm2)")
+    parser.add_argument("--compare-cluster", default=None,
+                        help="Optional cluster substring to further pin the --compare target (e.g. 'axiom')")
 
     args = parser.parse_args()
+    top_k = args.top_k if args.top_k is not None else (10 if args.compare else 1)
 
     print("\n# ETHPROOFS ANALYZER\n")
 
-    if args.file:
-        print(f"**Source:** {args.file}\n")
-        try:
-            data = load_from_file(args.file)
-        except FileNotFoundError:
-            print(f"Error: File not found: {args.file}")
-            sys.exit(1)
-        except json.JSONDecodeError as e:
-            print(f"Error parsing JSON: {e}")
-            sys.exit(1)
+    try:
+        data = load_data(args)
+    except ValueError:
+        print(f"Error: invalid --last value '{args.last}' (use e.g. 500, 6h, 1d, 1w)")
+        sys.exit(1)
+    except FileNotFoundError:
+        print(f"Error: File not found: {args.file}")
+        sys.exit(1)
+    except httpx.HTTPError as e:
+        print(f"\nError fetching data: {e}")
+        print("Try: ./ethproofs_analyzer.py --file data.json")
+        sys.exit(1)
+    except json.JSONDecodeError as e:
+        print(f"Error parsing JSON: {e}")
+        sys.exit(1)
 
-        if args.list_provers:
-            list_provers(data)
-        else:
-            analyze_blocks(
-                data,
-                top_k=args.top_k,
-                metric=args.metric,
-                cluster_filter=args.cluster,
-                zkvm_filter=args.zkvm,
-            )
+    if args.list_provers:
+        list_provers(data)
+    elif args.compare:
+        analyze_comparison(data, top_k, args.compare_zkvm, args.compare_cluster)
     else:
-        print(f"**Source:** {API_URL}  ")
-        print(
-            f"**Config:** {args.pages} × {args.size} blocks, filter={args.machine_type}\n"
-        )
-
-        try:
-            data = fetch_multiple_pages(
-                num_pages=args.pages,
-                page_size=args.size,
-                machine_type=args.machine_type,
-            )
-            print()
-            if args.list_provers:
-                list_provers(data)
-            else:
-                analyze_blocks(
-                    data,
-                    top_k=args.top_k,
-                    metric=args.metric,
-                    cluster_filter=args.cluster,
-                    zkvm_filter=args.zkvm,
-                )
-        except urllib.error.URLError as e:
-            print(f"\nError: {e}")
-            print("Try: python3 ethproofs_analyzer.py --file data.json")
-            sys.exit(1)
-        except json.JSONDecodeError as e:
-            print(f"Error parsing response: {e}")
-            sys.exit(1)
+        analyze_blocks(data, top_k, args.metric, args.cluster, args.zkvm)
 
 
 if __name__ == "__main__":

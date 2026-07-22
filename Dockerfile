@@ -13,15 +13,17 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-# Toolchains: stable for cargo-openvm, nightly for tco build
+# Toolchains: stable for cargo-openvm, nightly for host build
 ENV CARGO_HOME="/root/.cargo" \
     RUSTUP_HOME="/root/.rustup" \
     PATH="/root/.cargo/bin:${PATH}"
-RUN rustup toolchain install nightly-2026-01-18 \
-    && rustup component add rust-src --toolchain nightly-2026-01-18
+RUN rustup toolchain install nightly-2026-01-18
 
 # Install cargo-openvm (builds the guest ELF)
-RUN cargo +1.91.1 install --git https://github.com/openvm-org/openvm.git --locked --force cargo-openvm
+RUN cargo +1.91.1 install --git https://github.com/openvm-org/openvm.git --branch develop-v2.1.0 --locked --force cargo-openvm
+
+# Install the openvm rust toolchain
+RUN cargo openvm toolchain install
 
 WORKDIR /app
 # Copy only Rust workspace files to keep build cache stable when server/ changes
@@ -32,14 +34,14 @@ COPY rustfmt.toml ./
 
 # Build guest ELF and place where host expects it
 WORKDIR /app/bin/stateless-guest
-RUN RUSTFLAGS="" OPENVM_RUST_TOOLCHAIN=nightly-2026-01-18 cargo openvm build --no-transpile --profile=release \
+RUN RUSTFLAGS="" cargo openvm build --no-transpile --profile=release \
     && mkdir -p ../reth-benchmark/elf \
-    && cp target/riscv32im-risc0-zkvm-elf/release/openvm-stateless-guest ../reth-benchmark/elf/
+    && cp target/riscv64im-unknown-openvm-elf/release/openvm-stateless-guest ../reth-benchmark/elf/
 
 # Build host binary
 WORKDIR /app
 ENV JEMALLOC_SYS_WITH_MALLOC_CONF="retain:true,background_thread:true,metadata_thp:always,dirty_decay_ms:10000,muzzy_decay_ms:10000,abort_conf:true"
-ARG FEATURES="metrics,jemalloc,tco,unprotected,cuda"
+ARG FEATURES="metrics,jemalloc,rvr,unprotected,cuda"
 ARG PROFILE="release"
 # CUDA SASS targets: 89 = Ada, 120 = Blackwell
 ARG CUDA_ARCH="89,120"
@@ -59,7 +61,7 @@ RUN S5CMD_VER=$(curl -s https://api.github.com/repos/peak/s5cmd/releases/latest 
 
 WORKDIR /app
 COPY --from=builder /app/target/release/openvm-reth-benchmark /usr/local/bin/openvm-reth-benchmark
-COPY --from=builder /app/bin/openvm-reth-benchmark/elf/openvm-stateless-guest /app/bin/openvm-reth-benchmark/elf/openvm-stateless-guest
+COPY --from=builder /app/bin/reth-benchmark/elf/openvm-stateless-guest /app/bin/reth-benchmark/elf/openvm-stateless-guest
 COPY server /app/server
 
 RUN python3 -m venv /opt/venv \

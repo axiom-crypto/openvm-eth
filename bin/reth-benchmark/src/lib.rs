@@ -1,6 +1,11 @@
 #![cfg_attr(feature = "tco", allow(incomplete_features))]
 #![cfg_attr(feature = "tco", feature(explicit_tail_calls))]
-use std::{fs, io::Write, path::PathBuf, time::Instant};
+use std::{
+    fs,
+    io::Write,
+    path::{Path, PathBuf},
+    time::Instant,
+};
 
 use alloy_provider::RootProvider;
 use alloy_rpc_client::RpcClient;
@@ -11,7 +16,7 @@ use openvm_circuit::arch::{
     execution_mode::metered::segment_ctx::DEFAULT_MAX_MEMORY, instructions::exe::VmExe,
     verify_segments, VmCircuitConfig,
 };
-use openvm_rpc_proxy::{RpcExecutor, DEFAULT_PREIMAGE_CACHE_NIBBLES};
+use openvm_rpc_proxy::RpcExecutor;
 use openvm_sdk::{
     config::{
         AggregationSystemParams, AggregationTreeConfig, AppConfig, DEFAULT_APP_LOG_BLOWUP,
@@ -19,7 +24,7 @@ use openvm_sdk::{
         DEFAULT_ROOT_LOG_BLOWUP,
     },
     fs::{read_object_from_file, write_object_to_file},
-    Sdk, SC,
+    Sdk, StdIn, SC,
 };
 use openvm_sdk_config::{SdkVmConfig, TranspilerConfig};
 #[cfg(feature = "evm-verify")]
@@ -37,7 +42,6 @@ use openvm_stark_sdk::{
         air_builders::symbolic::{SymbolicExpressionDag, SymbolicExpressionNode},
         codec::Encode,
         keygen::types::MultiStarkProvingKey,
-        p3_field::PrimeCharacteristicRing,
         SystemParams,
     },
 };
@@ -52,9 +56,11 @@ use openvm_verify_stark_host::{
 pub use reth_ethereum_primitives as reth_primitives;
 use tracing::{info, info_span};
 
+const VM_MAX_CONSTRAINT_DEGREE: usize = 4;
+
 mod cli;
-use cli::ProviderArgs;
 mod soundness;
+pub use cli::RethInputSource;
 
 /// Enum representing the execution mode of the host executable.
 #[derive(Debug, Clone, clap::ValueEnum)]
@@ -71,6 +77,7 @@ pub enum BenchMode {
     ProveApp,
     /// Generate a full end-to-end STARK proof with aggregation.
     ProveStark,
+    /// Generate the root STARK proof without halo2 wrapping.
     #[cfg(feature = "evm-verify")]
     ProveRoot,
     /// Generate a full end-to-end halo2 proof for EVM verifier.
@@ -112,76 +119,6 @@ impl std::fmt::Display for BenchMode {
     }
 }
 
-/// The arguments for the host executable.
-#[derive(Debug, Parser)]
-pub struct HostArgs {
-    /// The block number of the block to execute.
-    #[clap(long)]
-    block_number: Option<u64>,
-    #[clap(flatten)]
-    provider: ProviderArgs,
-
-    /// The execution mode.
-    #[clap(long, value_enum)]
-    mode: BenchMode,
-
-    /// Optional path to the directory containing cached client input. A new cache file will be
-    /// created from RPC data if it doesn't already exist.
-    #[clap(long)]
-    cache_dir: Option<PathBuf>,
-    /// The path to the CSV file containing the execution data.
-    #[clap(long, default_value = "report.csv")]
-    report_path: PathBuf,
-    /// The path to the CSV file containing per-AIR statistics.
-    #[clap(long, default_value = "air_stats.csv")]
-    air_stats_path: PathBuf,
-
-    #[clap(flatten)]
-    benchmark: BenchmarkCli,
-
-    /// Optional path to the input file.
-    #[arg(long)]
-    pub input_path: Option<PathBuf>,
-
-    /// Path to write the fixtures to. Only needed for mode=make_input
-    #[arg(long)]
-    pub fixtures_path: Option<PathBuf>,
-
-    /// In make_input mode, this path is where the input JSON is written.
-    #[arg(long)]
-    pub generated_input_path: Option<PathBuf>,
-
-    /// If specificed, the proof and other output is written to this dir.
-    #[arg(long, default_value = "output")]
-    pub output_dir: PathBuf,
-
-    /// Optional directory used by prove-root to cache the intermediate stark proof. If set,
-    /// the stark proof is written to (or loaded from) <proof_cache>/stark.bitcode. If not
-    /// set, no proof caching is performed.
-    #[arg(long)]
-    pub proof_cache: Option<PathBuf>,
-
-    /// If specified, loads the app proving key from this path.
-    #[arg(long)]
-    pub app_pk_path: Option<PathBuf>,
-
-    /// Path to save the app verifying key (overrides output_dir)
-    #[arg(long)]
-    pub app_vk_path: Option<PathBuf>,
-
-    /// If specified, loads the agg proving key from this path.
-    #[arg(long)]
-    pub agg_pk_path: Option<PathBuf>,
-
-    /// The number of nibbles to precompute for the preimage lookup table.
-    /// Higher values increase startup time but reduce RPC calls for missing storage keys.
-    ///
-    /// Warning: This is a form of grinding, so higher values will be slower on machines with many
-    /// CPU cores.
-    #[clap(long, default_value_t = DEFAULT_PREIMAGE_CACHE_NIBBLES, value_parser = clap::value_parser!(u8).range(..=8))]
-    pub preimage_cache_nibbles: u8,
-}
-
 #[derive(Parser, Debug)]
 #[command(allow_external_subcommands = true)]
 pub struct BenchmarkCli {
@@ -213,6 +150,92 @@ pub struct BenchmarkCli {
     pub segment_max_memory: usize,
 }
 
+/// The arguments for the host executable.
+#[derive(Debug, Parser)]
+pub struct HostArgs {
+    /// The execution mode.
+    #[clap(long, value_enum)]
+    mode: BenchMode,
+
+    /// The path to the CSV file containing the execution data.
+    #[clap(long, default_value = "report.csv")]
+    report_path: PathBuf,
+    /// The path to the CSV file containing per-AIR statistics.
+    #[clap(long, default_value = "air_stats.csv")]
+    air_stats_path: PathBuf,
+
+    #[clap(flatten)]
+    benchmark: BenchmarkCli,
+
+    #[clap(flatten)]
+    input: RethInputSource,
+
+    /// Path to write the fixtures to. Only needed for mode=make_input
+    #[arg(long)]
+    pub fixtures_path: Option<PathBuf>,
+
+    /// In make_input mode, this path is where the input JSON is written.
+    #[arg(long)]
+    pub generated_input_path: Option<PathBuf>,
+
+    /// If specificed, the proof and other output is written to this dir.
+    #[arg(long, default_value = "output")]
+    pub output_dir: PathBuf,
+
+    /// Optional directory used by prove-root to cache the intermediate stark proof. If set,
+    /// the stark proof is written to (or loaded from) <proof_cache>/stark.bitcode. If not
+    /// set, no proof caching is performed.
+    #[arg(long)]
+    pub proof_cache: Option<PathBuf>,
+
+    /// If specified, loads the app proving key from this path.
+    #[arg(long)]
+    pub app_pk_path: Option<PathBuf>,
+
+    /// Path to save the app verifying key (overrides output_dir)
+    #[arg(long)]
+    pub app_vk_path: Option<PathBuf>,
+
+    /// If specified, loads the agg proving key from this path.
+    #[arg(long)]
+    pub agg_pk_path: Option<PathBuf>,
+}
+
+pub struct RethWorkload {
+    pub exe: VmExe<F>,
+    pub stdin: StdIn,
+}
+
+impl std::fmt::Debug for RethWorkload {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("RethWorkload")
+            .field("exe", &self.exe)
+            .field("stdin_buffer_len", &self.stdin.buffer.len())
+            .field("stdin_deferrals_len", &self.stdin.deferrals.len())
+            .finish()
+    }
+}
+
+pub fn build_reth_workload(
+    vm_config: &SdkVmConfig,
+    stateless_input: &StatelessExecutorInput,
+    openvm_client_eth_elf: &[u8],
+) -> Result<RethWorkload> {
+    let exe = build_reth_exe(vm_config, openvm_client_eth_elf)?;
+    let encoded_stateless_input: Vec<u8> = {
+        let words = openvm::serde::to_vec(stateless_input)?;
+        words.into_iter().flat_map(|w| w.to_le_bytes()).collect()
+    };
+    let stdin = vec![encoded_stateless_input].into();
+    Ok(RethWorkload { exe, stdin })
+}
+
+pub fn build_reth_exe(vm_config: &SdkVmConfig, openvm_client_eth_elf: &[u8]) -> Result<VmExe<F>> {
+    let transpiler = vm_config.transpiler().clone();
+    let elf = Elf::decode(openvm_client_eth_elf, MEM_SIZE as u32)?;
+    Ok(VmExe::from_elf(elf, transpiler)?)
+}
+
 pub fn reth_vm_config() -> SdkVmConfig {
     let mut config = SdkVmConfig::standard();
     config.system.config = config
@@ -222,8 +245,6 @@ pub fn reth_vm_config() -> SdkVmConfig {
         .with_public_values(32);
     config
 }
-
-const VM_MAX_CONSTRAINT_DEGREE: usize = 4;
 
 fn override_system_params(
     params: SystemParams,
@@ -258,6 +279,49 @@ fn override_log_blowup(params: SystemParams, log_blowup: usize) -> Result<System
     override_system_params(params, log_blowup, l_skip)
 }
 
+pub async fn load_reth_input(source: &RethInputSource) -> Result<StatelessExecutorInput> {
+    let block_number = source
+        .block_number
+        .ok_or_else(|| eyre::eyre!("--block-number is required to load reth input"))?;
+
+    if let Some(path) = &source.input_path {
+        return try_load_input_from_path(path);
+    }
+
+    let provider_config = source.resolve_provider().await?;
+
+    match provider_config.chain_id {
+        #[allow(non_snake_case)]
+        CHAIN_ID_ETH_MAINNET => (),
+        _ => {
+            eyre::bail!("unknown chain ID: {}", provider_config.chain_id);
+        }
+    };
+
+    if let Some(stateless_input) = try_load_input_from_cache(
+        source.cache_dir.as_deref(),
+        provider_config.chain_id,
+        block_number,
+    )? {
+        return Ok(stateless_input);
+    }
+
+    let Some(rpc_url) = provider_config.rpc_url else {
+        eyre::bail!("cache not found and RPC URL not provided");
+    };
+
+    let client = RpcClient::builder().layer(RetryBackoffLayer::new(5, 1000, 100)).http(rpc_url);
+    let provider = RootProvider::new(client);
+    let rpc_executor = RpcExecutor::new(provider, source.preimage_cache_nibbles);
+    let stateless_input = rpc_executor.execute(block_number).await?;
+
+    if let Some(cache_dir) = &source.cache_dir {
+        write_input_to_cache(cache_dir, provider_config.chain_id, block_number, &stateless_input)?;
+    }
+
+    Ok(stateless_input)
+}
+
 pub async fn run_reth_benchmark(args: HostArgs, openvm_client_eth_elf: &[u8]) -> Result<()> {
     // Initialize the environment variables.
     dotenv::dotenv().ok();
@@ -272,8 +336,6 @@ pub async fn run_reth_benchmark(args: HostArgs, openvm_client_eth_elf: &[u8]) ->
         tracing::debug!("air_idx={air_idx} | {}", air.name());
     }
 
-    let transpiler = vm_config.transpiler().clone();
-
     let app_params = override_system_params(
         app_params_with_100_bits_security(MAX_APP_LOG_STACKED_HEIGHT),
         args.benchmark.app_log_blowup,
@@ -281,7 +343,7 @@ pub async fn run_reth_benchmark(args: HostArgs, openvm_client_eth_elf: &[u8]) ->
     )?;
 
     // Setup: this can all be done once before receiving proof input
-    let app_config = AppConfig::new(vm_config, app_params);
+    let app_config = AppConfig::new(vm_config.clone(), app_params);
     let agg_params = AggregationSystemParams {
         leaf: override_log_blowup(
             leaf_params_with_100_bits_security(),
@@ -389,10 +451,8 @@ pub async fn run_reth_benchmark(args: HostArgs, openvm_client_eth_elf: &[u8]) ->
         return Ok(());
     }
 
-    let elf = Elf::decode(openvm_client_eth_elf, MEM_SIZE as u32)?;
-    let exe = VmExe::from_elf(elf, transpiler)?;
-
     if matches!(args.mode, BenchMode::GenerateVmVkey) {
+        let exe = build_reth_exe(&vm_config, openvm_client_eth_elf)?;
         let prover = sdk.prover(exe)?;
         let vk = VmStarkVerifyingKey {
             mvk: (*sdk.agg_vk()).clone(),
@@ -405,77 +465,18 @@ pub async fn run_reth_benchmark(args: HostArgs, openvm_client_eth_elf: &[u8]) ->
     }
 
     let block_number = args
+        .input
         .block_number
         .ok_or_else(|| eyre::eyre!("--block-number is required for mode {}", args.mode))?;
 
     let program_name = format!("reth.{}.block_{}", args.mode, block_number);
 
-    // Parse the command line arguments.
-    let stateless_input_from_path =
-        args.input_path.as_ref().map(|path| try_load_input_from_path(path).unwrap());
-
-    let stateless_input = if let Some(stateless_input_from_path) = stateless_input_from_path {
-        stateless_input_from_path
-    } else {
-        let provider_config = args.provider.into_provider().await?;
-        match provider_config.chain_id {
-            #[allow(non_snake_case)]
-            CHAIN_ID_ETH_MAINNET => (),
-            _ => {
-                eyre::bail!("unknown chain ID: {}", provider_config.chain_id);
-            }
-        };
-        let stateless_input_from_cache = try_load_input_from_cache(
-            args.cache_dir.as_ref(),
-            provider_config.chain_id,
-            block_number,
-        )?;
-
-        match (stateless_input_from_cache, provider_config.rpc_url) {
-            (Some(stateless_input_from_cache), _) => stateless_input_from_cache,
-            (None, Some(rpc_url)) => {
-                // Cache not found but we have RPC
-                // Setup the provider.
-                let client =
-                    RpcClient::builder().layer(RetryBackoffLayer::new(5, 1000, 100)).http(rpc_url);
-                let provider = RootProvider::new(client);
-
-                // Setup the host executor.
-                let rpc_executor = RpcExecutor::new(provider, args.preimage_cache_nibbles);
-
-                // Execute the host.
-                let stateless_input =
-                    rpc_executor.execute(block_number).await.expect("failed to execute host");
-
-                if let Some(cache_dir) = args.cache_dir {
-                    let input_folder =
-                        cache_dir.join(format!("input/{}", provider_config.chain_id));
-                    if !input_folder.exists() {
-                        std::fs::create_dir_all(&input_folder)?;
-                    }
-
-                    let input_path = input_folder.join(format!("{}.bin", block_number));
-                    let mut cache_file = std::fs::File::create(input_path)?;
-
-                    bincode::serde::encode_into_std_write(
-                        &stateless_input,
-                        &mut cache_file,
-                        bincode::config::standard(),
-                    )?;
-                }
-
-                stateless_input
-            }
-            (None, None) => {
-                eyre::bail!("cache not found and RPC URL not provided")
-            }
-        }
-    };
+    let stateless_input = load_reth_input(&args.input).await?;
 
     // MakeInput: encode stateless_input as JSON and write to disk.
     if matches!(args.mode, BenchMode::MakeInput) {
         let words = openvm::serde::to_vec(&stateless_input)?;
-        let bytes: Vec<u8> = words.into_iter().flat_map(|w: u32| w.to_le_bytes()).collect();
+        let bytes: Vec<u8> = words.into_iter().flat_map(|w: u64| w.to_le_bytes()).collect();
         let hex = format!("0x01{}", hex::encode(&bytes));
         let json = serde_json::json!({ "input": [hex] });
 
@@ -493,7 +494,6 @@ pub async fn run_reth_benchmark(args: HostArgs, openvm_client_eth_elf: &[u8]) ->
 
     // Host execution: run the stateless executor natively, no VM.
     if matches!(args.mode, BenchMode::ExecuteHost) {
-        let program_name = format!("reth.{}.block_{}", args.mode, block_number);
         let executor = StatelessExecutor;
         let start = Instant::now();
         let header = info_span!("host.execute", group = program_name).in_scope(|| {
@@ -508,27 +508,22 @@ pub async fn run_reth_benchmark(args: HostArgs, openvm_client_eth_elf: &[u8]) ->
         return Ok(());
     }
 
-    let encoded_stateless_input: Vec<F> = {
-        let words = openvm::serde::to_vec(&stateless_input)?;
-        words.into_iter().flat_map(|w| w.to_le_bytes()).map(F::from_u8).collect()
-    };
-
-    let stdin = vec![encoded_stateless_input].into();
+    let RethWorkload { exe, stdin } =
+        build_reth_workload(&vm_config, &stateless_input, openvm_client_eth_elf)?;
 
     run_with_metric_collection("OUTPUT_PATH", move || {
         info_span!("reth-block", block_number = block_number).in_scope(|| -> Result<()> {
             match args.mode {
                 BenchMode::Execute => {
-                    let public_values = info_span!("sdk.execute", group = program_name)
-                        .in_scope(|| sdk.execute(exe, stdin))?;
+                    let compiled = sdk.compile(exe)?;
+                    let public_values = sdk.execute(&compiled, stdin)?;
                     let block_hash = hex::encode(&public_values);
                     info!("Execute completed, block hash: {}", block_hash);
                     println!("BENCH_BLOCK_HASH={block_hash}");
                 }
                 BenchMode::ExecuteMetered => {
-                    let (public_values, _segments) =
-                        info_span!("sdk.execute_metered", group = program_name)
-                            .in_scope(|| sdk.execute_metered(exe, stdin))?;
+                    let compiled = sdk.compile_metered(exe)?;
+                    let (public_values, _) = sdk.execute_metered(&compiled, stdin)?;
                     let block_hash = hex::encode(&public_values);
                     info!("Execute metered completed, block hash: {}", block_hash);
                     println!("BENCH_BLOCK_HASH={block_hash}");
@@ -639,7 +634,7 @@ pub async fn run_reth_benchmark(args: HostArgs, openvm_client_eth_elf: &[u8]) ->
                     {
                         info!("Generating root proving key...");
                         let root_pk = sdk.root_pk();
-                        info!("Saving app root key to: {}", root_pk_path.display());
+                        info!("Saving root proving key to: {}", root_pk_path.display());
                         write_object_to_file(&root_pk_path, &root_pk)?;
                     }
 
@@ -754,7 +749,7 @@ fn max_rule_length<F>(dag: &SymbolicExpressionDag<F>) -> usize {
 }
 
 fn try_load_input_from_cache(
-    cache_dir: Option<&PathBuf>,
+    cache_dir: Option<&Path>,
     chain_id: u64,
     block_number: u64,
 ) -> Result<Option<StatelessExecutorInput>> {
@@ -776,7 +771,26 @@ fn try_load_input_from_cache(
     })
 }
 
-fn try_load_input_from_path(path: &PathBuf) -> Result<StatelessExecutorInput> {
+fn write_input_to_cache(
+    cache_dir: &Path,
+    chain_id: u64,
+    block_number: u64,
+    stateless_input: &StatelessExecutorInput,
+) -> Result<()> {
+    let input_folder = cache_dir.join(format!("input/{chain_id}"));
+    fs::create_dir_all(&input_folder)?;
+
+    let input_path = input_folder.join(format!("{block_number}.bin"));
+    let mut cache_file = fs::File::create(input_path)?;
+    bincode::serde::encode_into_std_write(
+        stateless_input,
+        &mut cache_file,
+        bincode::config::standard(),
+    )?;
+    Ok(())
+}
+
+fn try_load_input_from_path(path: &Path) -> Result<StatelessExecutorInput> {
     let ext = path.extension().and_then(|s| s.to_str()).unwrap_or("");
     if ext.eq_ignore_ascii_case("json") {
         let s = std::fs::read_to_string(path)?;

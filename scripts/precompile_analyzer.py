@@ -1,26 +1,58 @@
-#!/usr/bin/env python3
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.10"
+# dependencies = ["httpx", "tenacity", "rich", "python-dotenv"]
+# ///
 """
-Analyzes precompile calls in Ethereum blocks using debug_traceBlockByNumber.
+Analyzes precompile calls in an Ethereum block via debug_traceBlockByNumber.
+
+For a block it reports how many times each precompile (ecrecover, bn254_*, kzg, …)
+was called, and the transactions that called them most. Needs an RPC endpoint with
+the `debug` namespace enabled.
+
+RPC endpoints are read from .env as RPC_1, RPC_2, … and tried in order until one
+serves the trace (override with --rpc); public trace-capable fallbacks are tried
+last. Run --check to see which support tracing.
+
+Run it directly (uv installs the dependencies on first use):
+    ./precompile_analyzer.py <block_number>
+    uv run precompile_analyzer.py <block_number>   # equivalent
+
+Typical workflow — find a slow block with ethproofs_analyzer, then inspect it here:
+    ./ethproofs_analyzer.py --last 1d --metric min --top-k 20   # hardest blocks for every prover
+    ./ethproofs_analyzer.py --last 1d --compare --top-k 20      # blocks where OpenVM trailed most
+    ./precompile_analyzer.py <block_number>                     # why: that block's precompile load
 
 Usage:
-    python3 precompile_analyzer.py <block_number>
-    python3 precompile_analyzer.py <block_number> --rpc <url>
-    python3 precompile_analyzer.py <block_number> -v
-    python3 precompile_analyzer.py <block_number> --top-k 10
-    python3 precompile_analyzer.py <block_number> --filter bn254_add
-    python3 precompile_analyzer.py <block_number> --filter bn254_add,bn254_mul
-    python3 precompile_analyzer.py --check
+    ./precompile_analyzer.py 21000000                       # analyze a block
+    ./precompile_analyzer.py 21000000 --rpc http://host:8545 # against a specific RPC
+    ./precompile_analyzer.py 21000000 -v                    # also report tx and call-frame counts
+    ./precompile_analyzer.py 21000000 --top-k 10            # top 10 transactions
+    ./precompile_analyzer.py 21000000 --filter bn254_add,bn254_mul  # only these precompiles
+    ./precompile_analyzer.py --check                        # verify the RPC supports tracing
 """
 
 import argparse
-import json
+import os
+import re
 import sys
-import urllib.request
+from pathlib import Path
 
+import httpx
+import tenacity
+from dotenv import dotenv_values
+from rich.console import Console
+
+# Endpoint used when no --rpc and no RPC_N in the environment or .env.
 DEFAULT_RPC_URL = "http://localhost:8545"
+# Public trace-capable endpoints, tried after the configured ones.
+FALLBACK_RPCS = ["https://eth.drpc.org"]
 DEFAULT_TOP_K = 5
 
-# Precompile addresses
+# .env at the repository root (one level above scripts/).
+ENV_PATH = Path(__file__).resolve().parent.parent / ".env"
+
+# Precompile address -> name, by hardfork.
 PRECOMPILES = {
     # Frontier
     "0x0000000000000000000000000000000000000001": "ecrecover",
@@ -48,280 +80,224 @@ PRECOMPILES = {
     "0x0000000000000000000000000000000000000100": "p256_verify",
 }
 
-# Case-insensitive lookup for filtering
+# Lower-cased precompile name -> canonical name, for case-insensitive --filter.
 PRECOMPILE_NAMES = {name.lower(): name for name in PRECOMPILES.values()}
 
-# Table column widths
-COL_RANK = 4
-COL_TX = 66
-COL_CALLS = 6
-COL_PRECOMPILE = 22
+# Column widths (chars).
+COL_RANK, COL_TX, COL_CALLS, COL_PRECOMPILE = 4, 66, 6, 22
 
-# Table formatting
-SUMMARY_HEADER = f"| {'Precompile':<{COL_PRECOMPILE}} | {'Calls':>{COL_CALLS}} |"
-SUMMARY_SEP = f"|{'-' * (COL_PRECOMPILE + 2)}|{'-' * (COL_CALLS + 2)}|"
 
-TX_HEADER = (
-    f"| {'Rank':>{COL_RANK}} | {'Transaction':<{COL_TX}} | {'Calls':>{COL_CALLS}} |"
+def print_table(columns: list[tuple[str, int, str]], rows: list[tuple]) -> None:
+    """Print a markdown table.
+
+    columns: (header, width, align) per column, align being '<' or '>'.
+    rows:    row tuples whose cells line up positionally with columns.
+    """
+    cell = lambda value, width, align: f"{value:{align}{width}}"
+    print("| " + " | ".join(cell(h, w, a) for h, w, a in columns) + " |")
+    print("|" + "|".join("-" * (w + 2) for _, w, _ in columns) + "|")
+    for row in rows:
+        print("| " + " | ".join(cell(v, w, a) for v, (_, w, a) in zip(row, columns)) + " |")
+
+
+# --- RPC --------------------------------------------------------------------
+
+
+def resolve_rpcs(explicit: list[str] | None) -> list[tuple[str, str]]:
+    """(label, url) endpoints to try in order: explicit --rpc, else RPC_1, RPC_2, … , else
+    default — always followed by the public fallbacks.
+
+    Labels are safe to print; URLs hold secrets and must not be logged.
+    """
+    if explicit:
+        pairs = [(f"RPC #{i}", url) for i, url in enumerate(explicit, 1)]
+    else:
+        values = {**dotenv_values(ENV_PATH), **os.environ}
+        keys = sorted((k for k in values if re.fullmatch(r"RPC_\d+", k)),
+                      key=lambda k: int(k.split("_")[1]))
+        pairs = [(k, values[k]) for k in keys if values[k]] or [("default", DEFAULT_RPC_URL)]
+    urls = {url for _, url in pairs}
+    pairs += [(f"fallback ({url})", url) for url in FALLBACK_RPCS if url not in urls]
+    return pairs
+
+
+def redact(text) -> str:
+    """Strip the key-bearing path from any URL in text, leaving only scheme and host."""
+    return re.sub(r"(https?://[^/\s]+)/[^\s'\"]*", r"\1/…", str(text))
+
+
+def make_client(url: str) -> httpx.Client:
+    """An httpx client targeting one RPC endpoint."""
+    return httpx.Client(base_url=url, timeout=120, headers={"Content-Type": "application/json"})
+
+
+def is_transient(exc: BaseException) -> bool:
+    """True for errors worth retrying: timeouts, connection drops, and 5xx responses."""
+    if isinstance(exc, httpx.TransportError):
+        return True
+    if isinstance(exc, httpx.HTTPStatusError):
+        return exc.response.status_code >= 500
+    return False
+
+
+@tenacity.retry(
+    retry=tenacity.retry_if_exception(is_transient),
+    wait=tenacity.wait_exponential(multiplier=0.5, max=5),
+    stop=tenacity.stop_after_attempt(4),
+    reraise=True,
 )
-TX_SEP = f"|{'-' * (COL_RANK + 2)}|{'-' * (COL_TX + 2)}|{'-' * (COL_CALLS + 2)}|"
+def rpc_call(client: httpx.Client, method: str, params: list) -> dict:
+    """Make a JSON-RPC call, retrying transient errors with exponential backoff."""
+    resp = client.post("", json={"jsonrpc": "2.0", "method": method, "params": params, "id": 1})
+    if 400 <= resp.status_code < 500:
+        try:
+            error = resp.json()["error"]
+        except (ValueError, KeyError):
+            error = None
+        if error:
+            raise RuntimeError(f"RPC error: {error}")
+    resp.raise_for_status()
+    result = resp.json()
+    if "error" in result:
+        raise RuntimeError(f"RPC error: {result['error']}")
+    return result
 
 
-def rpc_call(url: str, method: str, params: list) -> dict:
-    """Make a JSON-RPC call."""
-    payload = {
-        "jsonrpc": "2.0",
-        "method": method,
-        "params": params,
-        "id": 1,
-    }
-    req = urllib.request.Request(
-        url,
-        data=json.dumps(payload).encode(),
-        headers={"Content-Type": "application/json"},
-    )
-    with urllib.request.urlopen(req, timeout=120) as response:
-        return json.loads(response.read().decode())
+# --- Tracing ----------------------------------------------------------------
 
 
-def process_call_for_tx(call: dict, counts: dict[str, int]) -> None:
-    """Process a single call and its subcalls, counting precompile calls for a tx."""
-    to_addr = call.get("to", "").lower()
-    if to_addr in PRECOMPILES:
-        name = PRECOMPILES[to_addr]
+def count_precompiles(call: dict, counts: dict[str, int]) -> None:
+    """Tally precompile calls in a call frame and its subcalls (recursive)."""
+    name = PRECOMPILES.get(call.get("to", "").lower())
+    if name:
         counts[name] = counts.get(name, 0) + 1
-
     for subcall in call.get("calls", []):
-        process_call_for_tx(subcall, counts)
+        count_precompiles(subcall, counts)
 
 
 def count_call_frames(call: dict) -> int:
-    """Count total call frames in a call tree."""
-    n = 1
-    for sub in call.get("calls", []):
-        n += count_call_frames(sub)
-    return n
+    """Count the call frames in a call tree (recursive)."""
+    return 1 + sum(count_call_frames(sub) for sub in call.get("calls", []))
 
 
-def analyze_block(rpc_url: str, block_number: int, verbose: bool = False) -> list:
-    """Analyze a single block and return per-transaction precompile counts."""
-    block_hex = hex(block_number)
-    tracer_config = {"tracer": "callTracer"}
-
-    result = rpc_call(rpc_url, "debug_traceBlockByNumber", [block_hex, tracer_config])
-    if result is None:
-        raise Exception("RPC returned None")
-    if "error" in result:
-        raise Exception(f"RPC error: {result['error']}")
+def analyze_block(client: httpx.Client, block_number: int, verbose: bool = False) -> list:
+    """Trace a block and return [(tx_hash, {precompile: count})] for txs that used any."""
+    with Console(stderr=True).status(f"Tracing block {block_number}..."):
+        result = rpc_call(client, "debug_traceBlockByNumber",
+                          [hex(block_number), {"tracer": "callTracer"}])
 
     trace = result.get("result", [])
     if verbose:
-        total_calls = 0
-        for tx in trace:
-            if "result" in tx:
-                total_calls += count_call_frames(tx["result"])
-        print(f"  Transactions: {len(trace)}, Call frames: {total_calls}")
+        frames = sum(count_call_frames(tx["result"]) for tx in trace if "result" in tx)
+        print(f"  Transactions: {len(trace)}, Call frames: {frames}")
 
-    # Build per-transaction stats
     tx_stats = []
     for tx_trace in trace:
-        tx_hash = tx_trace.get("txHash", "unknown")
         counts: dict[str, int] = {}
         if "result" in tx_trace:
-            process_call_for_tx(tx_trace["result"], counts)
+            count_precompiles(tx_trace["result"], counts)
         if counts:
-            tx_stats.append((tx_hash, counts))
-
+            tx_stats.append((tx_trace.get("txHash", "unknown"), counts))
     return tx_stats
 
 
-def check_rpc(rpc_url: str) -> bool:
-    """Check if RPC endpoint supports debug_traceBlockByNumber."""
+def check_rpc(client: httpx.Client) -> bool:
+    """Report whether the RPC endpoint supports debug_traceBlockByNumber."""
     print("Checking for debug_traceBlockByNumber support...")
-
     try:
-        result = rpc_call(rpc_url, "eth_blockNumber", [])
-        if "error" in result:
-            print(f"  eth_blockNumber failed: {result['error']}")
-            return False
-        block_num = int(result["result"], 16)
+        block_num = int(rpc_call(client, "eth_blockNumber", [])["result"], 16)
         print(f"  eth_blockNumber: {block_num}")
-
-        # Use an older block for testing (100 blocks back)
-        test_block = block_num - 100
-        tracer_config = {"tracer": "callTracer"}
-
-        result = rpc_call(
-            rpc_url, "debug_traceBlockByNumber", [hex(test_block), tracer_config]
-        )
-
-        if "error" in result:
-            print(f"  debug_traceBlockByNumber failed: {result['error']}")
-            return False
-
-        trace = result.get("result", [])
+        trace = rpc_call(client, "debug_traceBlockByNumber",
+                         [hex(block_num - 100), {"tracer": "callTracer"}]).get("result", [])
         print(f"  debug_traceBlockByNumber: OK ({len(trace)} transactions)")
         return True
-    except Exception as e:
-        print(f"  Error: {e}")
+    except (httpx.HTTPError, RuntimeError, KeyError, ValueError) as e:
+        print(f"  Error: {redact(e)}")
         return False
 
 
-def normalize_precompile_name(name: str) -> str | None:
-    """Normalize precompile name (case-insensitive). Returns None if invalid."""
-    return PRECOMPILE_NAMES.get(name.lower())
+# --- Reporting --------------------------------------------------------------
 
 
 def parse_filter(filter_arg: str) -> list[str]:
-    """Parse comma-separated filter argument and normalize names."""
+    """Parse a comma-separated --filter value into canonical precompile names."""
     names = []
-    for part in filter_arg.split(","):
-        part = part.strip()
+    for part in (p.strip() for p in filter_arg.split(",")):
         if not part:
             continue
-        normalized = normalize_precompile_name(part)
-        if normalized is None:
+        canonical = PRECOMPILE_NAMES.get(part.lower())
+        if canonical is None:
             valid = ", ".join(sorted(PRECOMPILES.values()))
             raise ValueError(f"Invalid precompile name: {part}\nValid names: {valid}")
-        names.append(normalized)
+        names.append(canonical)
     return names
 
 
-def filter_tx_stats(
-    tx_stats: list, filter_names: list[str]
-) -> list[tuple[str, dict[str, int]]]:
-    """Filter transaction stats to only include specified precompiles."""
-    if not filter_names:
-        return tx_stats
-
-    filtered = []
-    for tx_hash, counts in tx_stats:
-        filtered_counts = {k: v for k, v in counts.items() if k in filter_names}
-        if filtered_counts:
-            filtered.append((tx_hash, filtered_counts))
-    return filtered
-
-
-def print_summary(
-    tx_stats: list, block_number: int, filter_names: list[str] | None
-) -> None:
-    """Print block-level precompile summary."""
-    # Aggregate counts across all transactions
+def print_summary(tx_stats: list, block_number: int, filter_names: list[str] | None) -> None:
+    """Print block-level precompile totals."""
     totals: dict[str, int] = {}
     for _, counts in tx_stats:
         for name, count in counts.items():
-            if filter_names and name not in filter_names:
-                continue
-            totals[name] = totals.get(name, 0) + count
+            if not filter_names or name in filter_names:
+                totals[name] = totals.get(name, 0) + count
 
-    total = sum(totals.values())
+    suffix = f" (filtered: {', '.join(filter_names)})" if filter_names else ""
+    print(f"## Block {block_number} Summary{suffix}\n")
+    rows = [(name, count) for name, count in sorted(totals.items(), key=lambda x: -x[1]) if count]
+    rows.append(("Total", sum(totals.values())))
+    print_table([("Precompile", COL_PRECOMPILE, "<"), ("Calls", COL_CALLS, ">")], rows)
 
+
+def print_top_transactions(tx_stats: list, top_k: int, filter_names: list[str] | None) -> None:
+    """Print the transactions with the most precompile calls."""
     if filter_names:
-        filter_str = ", ".join(filter_names)
-        print(f"## Block {block_number} Summary (filtered: {filter_str})\n")
+        stats = [(h, {k: v for k, v in c.items() if k in filter_names}) for h, c in tx_stats]
+        stats = [(h, c) for h, c in stats if c]
+        heading = f"Transactions using {', '.join(filter_names)}"
     else:
-        print(f"## Block {block_number} Summary\n")
+        stats, heading = tx_stats, "Transactions by Precompile Calls"
 
-    print(SUMMARY_HEADER)
-    print(SUMMARY_SEP)
-
-    for name, count in sorted(totals.items(), key=lambda x: -x[1]):
-        if count > 0:
-            print(f"| {name:<{COL_PRECOMPILE}} | {count:>{COL_CALLS}} |")
-
-    print(SUMMARY_SEP)
-    print(f"| {'Total':<{COL_PRECOMPILE}} | {total:>{COL_CALLS}} |")
+    top = sorted(stats, key=lambda x: -sum(x[1].values()))[:top_k]
+    print(f"\n## Top {len(top)} {heading}\n")
+    print_table(
+        [("Rank", COL_RANK, ">"), ("Transaction", COL_TX, "<"), ("Calls", COL_CALLS, ">")],
+        [(rank, tx_hash, sum(counts.values())) for rank, (tx_hash, counts) in enumerate(top, 1)],
+    )
 
 
-def print_top_transactions(
-    tx_stats: list, top_k: int, filter_names: list[str] | None
-) -> None:
-    """Print top transactions by precompile calls."""
-    if filter_names:
-        # Filter and sort by matching precompiles
-        filtered = filter_tx_stats(tx_stats, filter_names)
-        sorted_stats = sorted(filtered, key=lambda x: -sum(x[1].values()))
-        top = sorted_stats[:top_k]
-
-        filter_str = ", ".join(filter_names)
-        print(f"\n## Top {len(top)} Transactions using {filter_str}\n")
-    else:
-        # Sort by total precompile calls
-        sorted_stats = sorted(tx_stats, key=lambda x: -sum(x[1].values()))
-        top = sorted_stats[:top_k]
-
-        print(f"\n## Top {len(top)} Transactions by Precompile Calls\n")
-
-    print(TX_HEADER)
-    print(TX_SEP)
-
-    for rank, (tx_hash, counts) in enumerate(top, 1):
-        total = sum(counts.values())
-        print(f"| {rank:>{COL_RANK}} | {tx_hash:<{COL_TX}} | {total:>{COL_CALLS}} |")
+# --- CLI --------------------------------------------------------------------
 
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Analyze precompile calls in Ethereum blocks using debug_traceBlockByNumber",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
-Examples:
-  %(prog)s 21000000                              Analyze block 21000000
-  %(prog)s 21000000 --rpc http://localhost:8545
-  %(prog)s 21000000 -v                           Verbose output
-  %(prog)s 21000000 --top-k 10                   Show top 10 transactions
-  %(prog)s 21000000 --filter ecrecover           Filter by precompile
-  %(prog)s 21000000 --filter bn254_add,bn254_mul Filter by multiple precompiles
-  %(prog)s --check                               Check if RPC supports trace method
-        """,
+        description="Analyze precompile calls in an Ethereum block via debug_traceBlockByNumber",
     )
-    parser.add_argument(
-        "block",
-        type=int,
-        nargs="?",
-        help="Block number to analyze",
-    )
-    parser.add_argument(
-        "--rpc",
-        type=str,
-        default=DEFAULT_RPC_URL,
-        help=f"RPC endpoint URL (default: {DEFAULT_RPC_URL})",
-    )
-    parser.add_argument(
-        "--check",
-        action="store_true",
-        help="Check if RPC endpoint supports debug_traceBlockByNumber",
-    )
-    parser.add_argument(
-        "--verbose",
-        "-v",
-        action="store_true",
-        help="Print debug information about the trace response",
-    )
-    parser.add_argument(
-        "--top-k",
-        "-k",
-        type=int,
-        default=DEFAULT_TOP_K,
-        help=f"Number of top transactions to show (default: {DEFAULT_TOP_K})",
-    )
-    parser.add_argument(
-        "--filter",
-        "-f",
-        type=str,
-        help="Filter by precompile name(s), comma-separated (e.g., bn254_add,bn254_mul)",
-    )
+    parser.add_argument("block", type=int, nargs="?", help="Block number to analyze")
+    parser.add_argument("--rpc", nargs="+", metavar="URL",
+                        help="One or more RPC URLs to try in order "
+                        "(default: RPC_1, RPC_2, … from .env, then localhost)")
+    parser.add_argument("--check", action="store_true",
+                        help="Check whether the RPC endpoints support debug_traceBlockByNumber")
+    parser.add_argument("--verbose", "-v", action="store_true",
+                        help="Also report transaction and call-frame counts")
+    parser.add_argument("--top-k", "-k", type=int, default=DEFAULT_TOP_K,
+                        help=f"Number of top transactions to show (default: {DEFAULT_TOP_K})")
+    parser.add_argument("--filter", "-f",
+                        help="Only these precompiles, comma-separated (e.g. bn254_add,bn254_mul)")
 
     args = parser.parse_args()
+    rpcs = resolve_rpcs(args.rpc)
 
     if args.check:
-        success = check_rpc(args.rpc)
-        sys.exit(0 if success else 1)
+        ok = False
+        for label, url in rpcs:
+            print(f"\n{label}")
+            ok |= check_rpc(make_client(url))
+        sys.exit(0 if ok else 1)
 
     if args.block is None:
         parser.error("block number is required (or use --check)")
 
-    # Parse and validate filter if provided
     filter_names = None
     if args.filter:
         try:
@@ -332,22 +308,27 @@ Examples:
     print("\n# PRECOMPILE ANALYZER\n")
     print(f"**Block:** {args.block}\n")
 
-    try:
-        tx_stats = analyze_block(args.rpc, args.block, args.verbose)
+    # Try each endpoint until one serves the trace.
+    tx_stats, used = None, None
+    for label, url in rpcs:
+        try:
+            tx_stats = analyze_block(make_client(url), args.block, args.verbose)
+            used = label
+            break
+        except (httpx.HTTPError, RuntimeError) as e:
+            print(f"  {label} unavailable: {redact(e)}")
 
-        if not tx_stats:
-            print("No precompile calls found in this block.")
-            sys.exit(0)
-
-        print_summary(tx_stats, args.block, filter_names)
-        print_top_transactions(tx_stats, args.top_k, filter_names)
-
-    except urllib.error.URLError as e:
-        print(f"\nError: {e}")
+    if used is None:
+        print("\nError: no working RPC (set RPC_1, RPC_2, … in .env, or pass --rpc).")
         sys.exit(1)
-    except Exception as e:
-        print(f"\nError: {e}")
-        sys.exit(1)
+    print(f"**RPC:** {used}\n")
+
+    if not tx_stats:
+        print("No precompile calls found in this block.")
+        sys.exit(0)
+
+    print_summary(tx_stats, args.block, filter_names)
+    print_top_transactions(tx_stats, args.top_k, filter_names)
 
 
 if __name__ == "__main__":

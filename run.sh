@@ -4,7 +4,7 @@
 #
 # Options:
 #   --mode <MODE>       Set the proving mode (default: prove-app)
-#                       Valid modes: prove-app, prove-stark, prove-evm, keygen, generate-vm-vkey
+#                       Valid modes: prove-app, prove-stark, prove-root, prove-evm, keygen, keygen-root, generate-vm-vkey
 #   --generate-vm-vkey  Shortcut for --mode generate-vm-vkey
 #   --profile <PROFILE> Set the Cargo build profile (default: profiling)
 #                       Valid profiles: dev, release, profiling
@@ -18,7 +18,9 @@
 #   --num-children-internal <N>
 #   --segment-max-memory <N>
 #   --cuda              Force CUDA acceleration (auto-detected if nvidia-smi available)
-#   --tco               Use TCO instead of AOT (default is AOT on x86_64)
+#   --exec-mode <MODE>  Select the OpenVM execution backend: interpreter | tco | rvr.
+#                       Defaults to rvr.
+#                       rvr requires clang-22 and lld on PATH.
 #   --perf              Run with perf + samply host profiling and upload to Firefox Profiler
 #   --nsys              Run with nsys profiling and output summary stats
 #   --nsys-gpu-metrics  Include nsys GPU hardware metrics (`--gpu-metrics-devices=all`).
@@ -50,14 +52,16 @@ DEST="$REPO_ROOT/bin/reth-benchmark/elf/openvm-stateless-guest"
 
 build_openvm_guest_elf() {
     cd "$REPO_ROOT/bin/stateless-guest"
-    OPENVM_RUST_TOOLCHAIN=$RUST_TOOLCHAIN cargo openvm build
+    cargo openvm build
     mkdir -p ../reth-benchmark/elf
-    SRC="target/riscv32im-risc0-zkvm-elf/release/openvm-stateless-guest"
-    cp "$SRC" "$DEST"
+    SRC="target/riscv64im-unknown-openvm-elf/release/openvm-stateless-guest"
+    if [ ! -f "$DEST" ] || ! cmp -s "$SRC" "$DEST"; then
+        cp "$SRC" "$DEST"
+    fi
     cd "$WORKDIR"
 }
 
-cd $WORKDIR
+cd "$WORKDIR"
 
 # =============== GPU memory usage monitoring ============================
 source "$REPO_ROOT/scripts/gpu_monitor.sh"
@@ -75,7 +79,7 @@ PROFILE_OVERRIDE=""
 BLOCK_NUMBER_OVERRIDE=""
 USE_CUDA=false
 CUDA_REASON=""
-USE_TCO=false
+EXEC_MODE=""
 USE_PERF=false
 USE_NSYS=false
 USE_NSYS_GPU_METRICS=false
@@ -137,9 +141,17 @@ while [[ $# -gt 0 ]]; do
             CUDA_REASON="requested via --cuda script argument"
             shift
             ;;
-        --tco)
-            USE_TCO=true
-            shift
+        --exec-mode)
+            case "${2:-}" in
+                interpreter|tco|rvr)
+                    EXEC_MODE="$2"
+                    ;;
+                *)
+                    echo "Error: --exec-mode requires one of: interpreter, tco, rvr (got '${2:-}')" >&2
+                    exit 1
+                    ;;
+            esac
+            shift 2
             ;;
         --perf)
             USE_PERF=true
@@ -271,6 +283,10 @@ if [ "$USE_NSYS" = "true" ]; then
 fi
 if [ "$MODE" = "prove-evm" ] || [ "$MODE" = "prove-root" ] || [ "$MODE" = "keygen-root" ]; then
     FEATURES="$FEATURES,evm-verify"
+    arch=$(uname -m)
+    if [ "$arch" = "x86_64" ] || [ "$arch" = "amd64" ]; then
+        FEATURES="$FEATURES,halo2-asm"
+    fi
 fi
 
 # `keygen-root` is a shell-level alias: enable evm-verify (handled above) and pass --mode keygen
@@ -284,18 +300,14 @@ arch=$(uname -m)
 case $arch in
 arm64|aarch64)
     RUSTFLAGS="-Ctarget-cpu=native"
-    if [ "$USE_TCO" = "false" ]; then
-        USE_TCO=true
+    if [ -z "$EXEC_MODE" ]; then
+        EXEC_MODE="rvr"
     fi
     ;;
 x86_64|amd64)
     RUSTFLAGS="-Ctarget-cpu=native"
-    if [ "$USE_TCO" = "false" ]; then
-        # aot enables halo2curves-axiom/asm which is x86_64-only
-        FEATURES="$FEATURES,aot"
-        if [ "$MODE" = "prove-evm" ]; then
-            FEATURES="$FEATURES,halo2-asm"
-        fi
+    if [ -z "$EXEC_MODE" ]; then
+        EXEC_MODE="rvr"
     fi
     ;;
 *)
@@ -303,9 +315,25 @@ echo "Unsupported architecture: $arch"
 exit 1
 ;;
 esac
-if [ "$USE_TCO" = "true" ]; then
-    FEATURES="$FEATURES,tco"
-fi
+case "$EXEC_MODE" in
+    interpreter)
+        # default interpreted execution; no extra backend feature
+        ;;
+    tco)
+        FEATURES="$FEATURES,tco"
+        ;;
+    rvr)
+        FEATURES="$FEATURES,rvr"
+        missing=()
+        command -v clang-22 >/dev/null 2>&1 || missing+=("clang-22")
+        command -v lld      >/dev/null 2>&1 || missing+=("lld")
+        if [ "${#missing[@]}" -gt 0 ]; then
+            echo "Error: --exec-mode rvr requires the following tools on PATH: ${missing[*]}" >&2
+            echo "       Install them or rerun with --exec-mode interpreter." >&2
+            exit 1
+        fi
+        ;;
+esac
 if [ "$USE_PERF" = "true" ] || [ "$USE_NSYS" = "true" ]; then
     RUSTFLAGS="$RUSTFLAGS -C force-frame-pointers=yes"
     # Default to profiling profile for host profiling if not overridden
@@ -385,11 +413,11 @@ if [ "$USE_PERF" = "true" ]; then
 
     echo "Running with perf profiling (freq=${PERF_FREQ})..."
     export OUTPUT_PATH="metrics.json"
-    perf record -F $PERF_FREQ --call-graph=dwarf -g -o perf.data -- $BIN $BIN_ARGS
+    perf record -F $PERF_FREQ --call-graph=fp -g -o perf.data -- $BIN $BIN_ARGS
 
     echo "Converting perf.data with samply..."
     mkdir -p samply_profile
-    samply import perf.data --unstable-presymbolicate --save-only --output samply_profile/profile.json.gz
+    samply import perf.data --presymbolicate --save-only --output samply_profile/profile.json.gz
     echo "Saved profile: samply_profile/profile.json.gz"
 
     FIREFOX_PROFILER_URL=$(python3 "$REPO_ROOT/scripts/upload_firefox_profile.py" samply_profile/profile.json.gz) || true
@@ -401,7 +429,7 @@ if [ "$USE_PERF" = "true" ]; then
     fi
 elif [ "$USE_NSYS" = "true" ]; then
     NSYS_OUTPUT="reth.nsys-rep"
-    NSYS_ARGS="--trace=cuda,nvtx,osrt --sample=cpu --cpuctxsw=true --cuda-memory-usage=true --force-overwrite=true -o $NSYS_OUTPUT"
+    NSYS_ARGS="--trace=cuda,nvtx,osrt --sample=cpu --cpuctxsw=process-tree --cuda-memory-usage=true --force-overwrite=true -o $NSYS_OUTPUT"
     if [ "$USE_NSYS_GPU_METRICS" = "true" ]; then
         NSYS_ARGS="$NSYS_ARGS --gpu-metrics-devices=all"
     fi

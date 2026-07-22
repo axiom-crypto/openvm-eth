@@ -21,12 +21,10 @@ revm-primitives.workspace = true
 alloy-rlp.workspace = true
 alloy-trie.workspace = true
 
-[dev-dependencies]
-hex-literal.workspace = true
-
 [lints]
 workspace = true
 
 [features]
 default = []
-host = []
+std = []
+host = ["std"]

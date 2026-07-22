@@ -60,10 +60,10 @@
 # openvm-pairing-circuit = { git = "ssh://git@github.com/openvm-org/openvm.git", branch = "main" }
 # openvm-pairing-guest = { git = "ssh://git@github.com/openvm-org/openvm.git", branch = "main" }
 # openvm-pairing-transpiler = { git = "ssh://git@github.com/openvm-org/openvm.git", branch = "main" }
-# openvm-rv32-adapters = { git = "ssh://git@github.com/openvm-org/openvm.git", branch = "main" }
-# openvm-rv32im-circuit = { git = "ssh://git@github.com/openvm-org/openvm.git", branch = "main" }
-# openvm-rv32im-guest = { git = "ssh://git@github.com/openvm-org/openvm.git", branch = "main" }
-# openvm-rv32im-transpiler = { git = "ssh://git@github.com/openvm-org/openvm.git", branch = "main" }
+# openvm-riscv-adapters = { git = "ssh://git@github.com/openvm-org/openvm.git", branch = "main" }
+# openvm-riscv-circuit = { git = "ssh://git@github.com/openvm-org/openvm.git", branch = "main" }
+# openvm-riscv-guest = { git = "ssh://git@github.com/openvm-org/openvm.git", branch = "main" }
+# openvm-riscv-transpiler = { git = "ssh://git@github.com/openvm-org/openvm.git", branch = "main" }
 # openvm-sha2-air = { git = "ssh://git@github.com/openvm-org/openvm.git", branch = "main" }
 # openvm-sha2-circuit = { git = "ssh://git@github.com/openvm-org/openvm.git", branch = "main" }
 # openvm-sha2-guest = { git = "ssh://git@github.com/openvm-org/openvm.git", branch = "main" }
