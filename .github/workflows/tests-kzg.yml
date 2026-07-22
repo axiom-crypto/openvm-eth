@@ -1,6 +1,7 @@
 name: OpenVM KZG Tests
 
 on:
+  workflow_call:
   push:
     branches: ["main"]
     paths:
@@ -10,7 +11,6 @@ on:
       - "Cargo.lock"
       - ".github/workflows/tests-kzg.yml"
   pull_request:
-    types: [opened, synchronize, reopened, labeled]
     paths:
       - "crates/kzg/**"
       - "crates/curve-utils/**"
@@ -30,6 +30,7 @@ env:
 
 jobs:
   test:
+    if: ${{ github.event.action != 'labeled' }}
     runs-on:
       - runs-on=${{ github.run_id }}
       - runner=64cpu-linux-arm64
@@ -61,6 +62,35 @@ jobs:
       - name: Run tests
         run: cargo nextest run -p openvm-kzg --release
 
+  # Proves every valid test vector. Runs on pushes to main and on PRs with
+  # the run-kzg-proving label (see label-overrides.yml).
+  prove-all:
+    if: ${{ github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'run-kzg-proving') }}
+    runs-on:
+      - runs-on=${{ github.run_id }}
+      - runner=64cpu-linux-arm64
+      - extras=s3-cache
+
+    steps:
+      - uses: runs-on/action@v2
+      - uses: actions/checkout@v6
+      - uses: dtolnay/rust-toolchain@nightly
+      - uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
+      - uses: taiki-e/install-action@nextest
+      - name: Restore openvm toolchain from cache
+        uses: runs-on/cache@v4
+        with:
+          path: ~/.openvm/toolchains
+          key: openvm-toolchain-openvm-1.94.0-${{ runner.os }}-${{ runner.arch }}
+
+      - name: Install OpenVM guest toolchain
+        run: |
+          rustup install nightly-2026-01-18
+          rustup component add rust-src --toolchain nightly-2026-01-18
+          cargo install --git https://github.com/openvm-org/openvm.git --branch "$OPENVM_BRANCH" --locked --force cargo-openvm
+          cargo openvm toolchain install
+
       - name: Prove all test vectors
-        if: github.event_name == 'push' || contains(github.event.pull_request.labels.*.name, 'run-kzg-proving')
         run: cargo nextest run -p openvm-kzg --release --run-ignored ignored-only test_prove_multiple_valid_verify_kzg
