@@ -74,6 +74,7 @@ UNITS = {"s": 1, "m": 60, "h": 3600, "d": 86400, "w": 604800}
 # Column widths (chars).
 COL_RANK, COL_BLOCK, COL_GAS, COL_TXS = 4, 10, 14, 5
 COL_TIME, COL_TIMESTAMP, COL_RATIO, COL_ZKVM = 13, 19, 8, 18
+ABS_BLOCK, ABS_TARGET_TIME, ABS_CLOSEST_TIME, ABS_CLOSEST_ZKVM = range(4)
 REL_BLOCK, REL_TARGET_TIME, REL_FASTEST_TIME, REL_FASTEST_ZKVM, REL_SLOWDOWN = range(5)
 
 # Statistics available as proving-time metrics, keyed by their CLI name.
@@ -119,6 +120,28 @@ def print_table(columns: list[tuple[str, int, str]], rows: list[tuple]) -> None:
     print("|" + "|".join("-" * (w + 2) for _, w, _ in columns) + "|")
     for row in rows:
         print("| " + " | ".join(cell(v, w, a) for v, (_, w, a) in zip(row, columns)) + " |")
+
+
+def comparison_time_columns(target_zkvm: str, relationship: str) -> list[tuple[str, int, str]]:
+    """Consistent target/competitor columns for comparison tables."""
+    return [
+        (f"{target_zkvm} Time", COL_TIME, "<"),
+        (f"{relationship} Other", COL_TIME, "<"),
+        (f"{relationship} zkVM", COL_ZKVM, "<"),
+    ]
+
+
+def comparison_time_cells(
+    target_time: float,
+    other_time: float | None,
+    other_zkvm: str | None,
+) -> tuple[str, str, str]:
+    """Format the shared target/competitor cells, including missing competitors."""
+    return (
+        fmt_time(target_time),
+        fmt_time(other_time) if other_time is not None else "N/A",
+        other_zkvm or "N/A",
+    )
 
 
 # --- Data access ------------------------------------------------------------
@@ -385,7 +408,8 @@ def analyze_comparison(
     """Find blocks where the target prover (default OpenVM 2.0 / Axiom) was slow.
 
     Two tables:
-      1. ABSOLUTE  - blocks where the target's own proving time was highest.
+      1. ABSOLUTE  - blocks where the target's own proving time was highest,
+                     alongside the closest other completed proof.
       2. RELATIVE  - blocks where the target trailed the fastest *other* prover by
                      the largest ratio (target time / fastest competitor).
     """
@@ -394,7 +418,7 @@ def analyze_comparison(
         print("No blocks found in the response.")
         return
 
-    absolute = []  # (block, target_time)
+    absolute = []  # (block, target_time, closest_other_time, closest_other_zkvm)
     relative = []  # (block, target_time, fastest_other_time, fastest_other_zkvm, ratio)
     for block in rows:
         proofs = block.get("proofs", [])
@@ -407,11 +431,14 @@ def analyze_comparison(
         if not target:
             continue
         t = min(target)  # target's fastest completed proof for this block
-        absolute.append((block, t))
         if others:
+            closest = min(others, key=lambda p: abs(p["proving_time"] - t))
+            absolute.append((block, t, closest["proving_time"], proof_zkvm_label(closest)))
             fastest = min(others, key=lambda p: p["proving_time"])
             fastest_time = fastest["proving_time"]
             relative.append((block, t, fastest_time, proof_zkvm_label(fastest), t / fastest_time))
+        else:
+            absolute.append((block, t, None, None))
 
     label = target_zkvm + (f" / {target_cluster}" if target_cluster else "")
     print(f"**Target prover:** {label}")
@@ -422,14 +449,15 @@ def analyze_comparison(
         print(f"No completed proofs found for {target_zkvm}.")
         return
 
-    top_abs = sorted(absolute, key=lambda x: x[1], reverse=True)[:top_k]
+    top_abs = sorted(absolute, key=lambda x: x[ABS_TARGET_TIME], reverse=True)[:top_k]
     print(f"## Top {top_k} blocks where {target_zkvm} was SLOWEST (absolute)\n")
     print_table(
-        [("Rank", COL_RANK, ">"), ("Block", COL_BLOCK, "<"), ("Time", COL_TIME, "<"),
+        [("Rank", COL_RANK, ">"), ("Block", COL_BLOCK, "<"),
+         *comparison_time_columns(target_zkvm, "Closest"),
          ("Gas", COL_GAS, ">"), ("Txs", COL_TXS, ">")],
-        [(rank, b.get("block_number"), fmt_time(t), fmt_gas(b.get("gas_used")),
-          b.get("transaction_count") or "N/A")
-         for rank, (b, t) in enumerate(top_abs, 1)],
+        [(rank, b.get("block_number"), *comparison_time_cells(t, closest_time, closest_zkvm),
+          fmt_gas(b.get("gas_used")), b.get("transaction_count") or "N/A")
+         for rank, (b, t, closest_time, closest_zkvm) in enumerate(top_abs, 1)],
     )
 
     if not relative:
@@ -440,9 +468,8 @@ def analyze_comparison(
     print(f"\n## Top {top_k} blocks where {target_zkvm} trailed the FASTEST other prover\n")
     print_table(
         [("Rank", COL_RANK, ">"), ("Block", COL_BLOCK, "<"),
-         (f"{target_zkvm} Time", COL_TIME, "<"), ("Fastest Other", COL_TIME, "<"),
-         ("Fastest zkVM", COL_ZKVM, "<"), ("Slowdown", COL_RATIO, ">")],
-        [(rank, b.get("block_number"), fmt_time(t), fmt_time(fastest), fastest_zkvm,
+         *comparison_time_columns(target_zkvm, "Fastest"), ("Slowdown", COL_RATIO, ">")],
+        [(rank, b.get("block_number"), *comparison_time_cells(t, fastest, fastest_zkvm),
           f"{ratio:.2f}x")
          for rank, (b, t, fastest, fastest_zkvm, ratio) in enumerate(top_rel, 1)],
     )
