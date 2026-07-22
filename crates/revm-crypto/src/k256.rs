@@ -46,6 +46,7 @@ mod backend {
         }
     }
 
+    #[inline(always)]
     fn address_from_uncompressed_pubkey(pubkey: &[u8]) -> [u8; 20] {
         let pubkey_hash = keccak256(pubkey);
         let mut address = [0u8; 20];
@@ -53,6 +54,7 @@ mod backend {
         address
     }
 
+    #[inline(always)]
     fn recover_address(
         sig_bytes: &[u8],
         mut recid: u8,
