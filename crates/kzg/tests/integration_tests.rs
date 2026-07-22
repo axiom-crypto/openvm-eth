@@ -39,7 +39,7 @@ fn test_multiple_valid_verify_kzg() {
 }
 
 /// Proves every valid vector with a shared prover so keygen runs once.
-#[ignore = "run via the run-kzg-prove-all CI label"]
+#[ignore = "run via the run-full-proving CI label"]
 #[test]
 fn test_prove_multiple_valid_verify_kzg() {
     let sdk = create_sdk();
