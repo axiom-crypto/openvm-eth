@@ -11,7 +11,7 @@ cargo test --release test_single_valid_verify_kzg -- --show-output
 cargo test --release test_multiple_valid_verify_kzg -- --show-output
 cargo test --release test_multiple_invalid_verify_kzg -- --show-output
 cargo test --release test_single_invalid_verify_kzg -- --show-output
-# Prove all valid test vectors (in CI: pushes to main or the run-full-proving PR label):
+# Prove all valid test vectors (in CI: pushes to main or the run-kzg-proving PR label):
 cargo test --release test_prove_multiple_valid_verify_kzg -- --ignored --show-output
 ```
 
