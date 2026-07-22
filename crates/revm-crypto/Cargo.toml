@@ -10,7 +10,7 @@ repository.workspace = true
 workspace = true
 
 [features]
-native-ecrecover = []
+native-k256 = []
 
 [dependencies]
 # revm
