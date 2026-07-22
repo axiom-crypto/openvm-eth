@@ -393,14 +393,9 @@ pub fn install_openvm_crypto() -> Result<bool, Box<dyn std::error::Error>> {
     install_default_provider(Arc::new(OpenVmK256Provider))?;
 
     // Install OpenVM crypto for REVM precompiles
-    let installed = install_openvm_revm_crypto();
+    let installed = install_crypto(OpenVmCrypto);
 
     Ok(installed)
-}
-
-/// Installs only the OpenVM implementations used by REVM precompiles.
-pub fn install_openvm_revm_crypto() -> bool {
-    install_crypto(OpenVmCrypto)
 }
 
 // Helper functions for BN254 operations

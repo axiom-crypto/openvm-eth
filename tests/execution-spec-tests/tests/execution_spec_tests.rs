@@ -4,7 +4,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use openvm_revm_crypto::install_openvm_revm_crypto;
+use openvm_revm_crypto::install_openvm_crypto;
 use rayon::prelude::*;
 use serde::Deserialize;
 use stateless_validator_reth::guest::{run_stateless_guest, Platform};
@@ -102,7 +102,8 @@ fn execution_spec_tests() -> Result<(), FixtureError> {
         "fixture count changed; verify that the configured release was fully extracted"
     );
 
-    let crypto_installed = install_openvm_revm_crypto();
+    let crypto_installed =
+        install_openvm_crypto().expect("failed to install OpenVM crypto providers");
     assert!(crypto_installed, "another revm crypto provider was installed first");
 
     let failures = fixtures
