@@ -4,6 +4,9 @@ on:
   workflow_dispatch:
   pull_request:
 
+permissions:
+  contents: read
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
@@ -16,7 +19,7 @@ env:
   EEST_FIXTURES_URL: https://github.com/ethereum/execution-specs/releases/download/tests-zkevm%40v0.4.1/fixtures_zkevm.tar.gz
 
 jobs:
-  test:
+  execution-spec-tests:
     runs-on:
       - runs-on=${{ github.run_id }}
       - runner=64cpu-linux-arm64
