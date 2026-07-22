@@ -2,14 +2,15 @@
 
 ## Quickstart
 
-To run guest tests with OpenVM proving, run:
+To run the guest tests, run:
 
 ```bash
+# Proves a single test vector through the full app proving pipeline:
 cargo test --release test_single_valid_verify_kzg -- --show-output
+# Execute (without proving) all valid and invalid test vectors:
 cargo test --release test_multiple_valid_verify_kzg -- --show-output
+cargo test --release test_multiple_invalid_verify_kzg -- --show-output
 cargo test --release test_single_invalid_verify_kzg -- --show-output
-# The following takes longer:
-cargo test --release --ignored test_multiple_invalid_verify_kzg -- --show-output
 ```
 
 ## Crates
