@@ -12,11 +12,10 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  CARGO_TARGET_DIR: ${{ github.workspace }}/target
   CARGO_TERM_COLOR: always
   CARGO_NET_GIT_FETCH_WITH_CLI: "true"
+  EEST_FIXTURES_VERSION: v0.4.1
   EEST_FIXTURES_SHA256: 0e3ce037abe98c3190a18d7bb2403fdc2a5c09c904439c6a4e392995ac676f17
-  EEST_FIXTURES_URL: https://github.com/ethereum/execution-specs/releases/download/tests-zkevm%40v0.4.1/fixtures_zkevm.tar.gz
 
 jobs:
   execution-spec-tests:
@@ -32,6 +31,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@nightly
       - uses: Swatinem/rust-cache@v2
         with:
+          workspaces: tests/execution-spec-tests
           cache-on-failure: true
       - uses: taiki-e/install-action@nextest
 
@@ -48,23 +48,24 @@ jobs:
       - name: Cache execution-spec fixtures
         uses: actions/cache@v6
         with:
-          path: ${{ runner.temp }}/fixtures_zkevm-v0.4.1.tar.gz
-          key: execution-spec-tests-zkevm-v0.4.1-${{ env.EEST_FIXTURES_SHA256 }}
+          path: ${{ runner.temp }}/fixtures_zkevm-${{ env.EEST_FIXTURES_VERSION }}.tar.gz
+          key: execution-spec-tests-zkevm-${{ env.EEST_FIXTURES_VERSION }}-${{ env.EEST_FIXTURES_SHA256 }}
 
       - name: Download and verify execution-spec fixtures
         shell: bash
         run: |
-          archive="$RUNNER_TEMP/fixtures_zkevm-v0.4.1.tar.gz"
+          archive="$RUNNER_TEMP/fixtures_zkevm-$EEST_FIXTURES_VERSION.tar.gz"
           if [[ ! -f "$archive" ]]; then
-            curl --fail --location --retry 3 --output "$archive" "$EEST_FIXTURES_URL"
+            url="https://github.com/ethereum/execution-specs/releases/download/tests-zkevm%40$EEST_FIXTURES_VERSION/fixtures_zkevm.tar.gz"
+            curl --fail --location --retry 3 --output "$archive" "$url"
           fi
           echo "$EEST_FIXTURES_SHA256  $archive" | sha256sum --check --strict
 
       - name: Extract blockchain fixtures
         shell: bash
         run: |
-          archive="$RUNNER_TEMP/fixtures_zkevm-v0.4.1.tar.gz"
-          fixture_dir="$RUNNER_TEMP/fixtures_zkevm-v0.4.1"
+          archive="$RUNNER_TEMP/fixtures_zkevm-$EEST_FIXTURES_VERSION.tar.gz"
+          fixture_dir="$RUNNER_TEMP/fixtures_zkevm-$EEST_FIXTURES_VERSION"
           mkdir -p "$fixture_dir"
           tar -xzf "$archive" \
             -C "$fixture_dir" \
@@ -73,7 +74,7 @@ jobs:
 
       - name: Run execution-spec tests
         env:
-          EEST_FIXTURES_DIR: ${{ runner.temp }}/fixtures_zkevm-v0.4.1
+          EEST_FIXTURES_DIR: ${{ runner.temp }}/fixtures_zkevm-${{ env.EEST_FIXTURES_VERSION }}
         run: |
           cargo nextest run \
             --manifest-path tests/execution-spec-tests/Cargo.toml \
