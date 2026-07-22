@@ -10,6 +10,7 @@ on:
       - "Cargo.lock"
       - ".github/workflows/tests-kzg.yml"
   pull_request:
+    types: [opened, synchronize, reopened, labeled]
     paths:
       - "crates/kzg/**"
       - "crates/curve-utils/**"
@@ -59,3 +60,7 @@ jobs:
 
       - name: Run tests
         run: cargo nextest run -p openvm-kzg --release
+
+      - name: Prove all test vectors
+        if: github.event_name == 'push' || contains(github.event.pull_request.labels.*.name, 'run-kzg-prove-all')
+        run: cargo nextest run -p openvm-kzg --release --run-ignored ignored-only test_prove_multiple_valid_verify_kzg

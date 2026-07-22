@@ -16,7 +16,6 @@ use openvm_sdk_config::SdkVmConfig;
 use openvm_stark_sdk::utils::setup_tracing;
 use serde_yaml::from_str;
 
-/// Proves a single test vector, covering the full app proving pipeline.
 #[test]
 fn test_single_valid_verify_kzg() {
     let (_, data) = SINGLE_VALID_KZG_PROOF_TEST[0];
@@ -26,8 +25,6 @@ fn test_single_valid_verify_kzg() {
     sdk.app_prover(elf).unwrap().prove(stdin(&input)).unwrap();
 }
 
-/// Executes (without proving) every valid test vector against a guest built
-/// and compiled once.
 #[test]
 fn test_multiple_valid_verify_kzg() {
     let sdk = create_sdk();
@@ -38,6 +35,20 @@ fn test_multiple_valid_verify_kzg() {
         let input = parse_inputs(data).expect("Invalid test inputs");
         sdk.execute(&compiled, stdin(&input))
             .unwrap_or_else(|err| panic!("Test {} failed: {}", test_file, err));
+    }
+}
+
+/// Proves every valid vector with a shared prover so keygen runs once.
+#[ignore = "run via the run-kzg-prove-all CI label"]
+#[test]
+fn test_prove_multiple_valid_verify_kzg() {
+    let sdk = create_sdk();
+    let elf = build_guest(&sdk);
+    let mut prover = sdk.app_prover(elf).unwrap();
+    for (test_file, data) in ONLY_VALID_KZG_PROOF_TESTS {
+        println!("Proving test: {}", test_file);
+        let input = parse_inputs(data).expect("Invalid test inputs");
+        prover.prove(stdin(&input)).unwrap();
     }
 }
 
@@ -61,8 +72,7 @@ fn test_multiple_invalid_verify_kzg() {
     }
 }
 
-/// Asserts that an invalid test vector is rejected, either at input parsing or
-/// by the guest program trapping during execution.
+/// Passes if the vector is rejected at input parsing or by the guest trapping.
 fn assert_rejected(sdk: &Sdk, compiled: &CompiledExePure<'_>, test_file: &str, data: &str) {
     let Some(input) = parse_inputs(data) else {
         return;

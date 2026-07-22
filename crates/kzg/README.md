@@ -5,12 +5,14 @@
 To run the guest tests, run:
 
 ```bash
-# Proves a single test vector through the full app proving pipeline:
+# Prove a single test vector:
 cargo test --release test_single_valid_verify_kzg -- --show-output
 # Execute (without proving) all valid and invalid test vectors:
 cargo test --release test_multiple_valid_verify_kzg -- --show-output
 cargo test --release test_multiple_invalid_verify_kzg -- --show-output
 cargo test --release test_single_invalid_verify_kzg -- --show-output
+# Prove all valid test vectors (in CI: pushes to main or the run-kzg-prove-all PR label):
+cargo test --release test_prove_multiple_valid_verify_kzg -- --ignored --show-output
 ```
 
 ## Crates
