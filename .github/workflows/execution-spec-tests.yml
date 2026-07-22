@@ -46,7 +46,7 @@ jobs:
           fi
 
       - name: Cache execution-spec fixtures
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ${{ runner.temp }}/fixtures_zkevm-v0.4.1.tar.gz
           key: execution-spec-tests-zkevm-v0.4.1-${{ env.EEST_FIXTURES_SHA256 }}
