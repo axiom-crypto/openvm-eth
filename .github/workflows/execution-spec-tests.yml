@@ -1,0 +1,83 @@
+name: Execution Spec Tests
+
+on:
+  workflow_dispatch:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_NET_GIT_FETCH_WITH_CLI: "true"
+  EEST_FIXTURES_VERSION: v0.4.1
+  EEST_FIXTURES_SHA256: 0e3ce037abe98c3190a18d7bb2403fdc2a5c09c904439c6a4e392995ac676f17
+
+jobs:
+  execution-spec-tests:
+    runs-on:
+      - runs-on=${{ github.run_id }}
+      - runner=64cpu-linux-arm64
+      - extras=s3-cache
+    timeout-minutes: 30
+
+    steps:
+      - uses: runs-on/action@v2
+      - uses: actions/checkout@v6
+      - uses: dtolnay/rust-toolchain@nightly
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: tests/execution-spec-tests
+          cache-on-failure: true
+      - uses: taiki-e/install-action@nextest
+
+      - name: Verify OpenVM dependency revision
+        shell: bash
+        run: |
+          root_revision=$(sed -n 's|^source = "git+https://github.com/openvm-org/openvm.git?branch=main#\([0-9a-f]\{40\}\)"$|\1|p' Cargo.lock | sort -u)
+          test_revision=$(sed -n 's|^source = "git+https://github.com/openvm-org/openvm.git?branch=main#\([0-9a-f]\{40\}\)"$|\1|p' tests/execution-spec-tests/Cargo.lock | sort -u)
+          if [[ -z "$root_revision" || "$root_revision" != "$test_revision" ]]; then
+            echo "Execution-spec and workspace OpenVM revisions differ" >&2
+            exit 1
+          fi
+
+      - name: Cache execution-spec fixtures
+        uses: actions/cache@v6
+        with:
+          path: ${{ runner.temp }}/fixtures_zkevm-${{ env.EEST_FIXTURES_VERSION }}.tar.gz
+          key: execution-spec-tests-zkevm-${{ env.EEST_FIXTURES_VERSION }}-${{ env.EEST_FIXTURES_SHA256 }}
+
+      - name: Download and verify execution-spec fixtures
+        shell: bash
+        run: |
+          archive="$RUNNER_TEMP/fixtures_zkevm-$EEST_FIXTURES_VERSION.tar.gz"
+          if [[ ! -f "$archive" ]]; then
+            url="https://github.com/ethereum/execution-specs/releases/download/tests-zkevm%40$EEST_FIXTURES_VERSION/fixtures_zkevm.tar.gz"
+            curl --fail --location --retry 3 --output "$archive" "$url"
+          fi
+          echo "$EEST_FIXTURES_SHA256  $archive" | sha256sum --check --strict
+
+      - name: Extract blockchain fixtures
+        shell: bash
+        run: |
+          archive="$RUNNER_TEMP/fixtures_zkevm-$EEST_FIXTURES_VERSION.tar.gz"
+          fixture_dir="$RUNNER_TEMP/fixtures_zkevm-$EEST_FIXTURES_VERSION"
+          mkdir -p "$fixture_dir"
+          tar -xzf "$archive" \
+            -C "$fixture_dir" \
+            --strip-components=2 \
+            fixtures/blockchain_tests
+
+      - name: Run execution-spec tests
+        env:
+          EEST_FIXTURES_DIR: ${{ runner.temp }}/fixtures_zkevm-${{ env.EEST_FIXTURES_VERSION }}
+        run: |
+          cargo nextest run \
+            --manifest-path tests/execution-spec-tests/Cargo.toml \
+            --test execution_spec_tests \
+            --locked \
+            --run-ignored ignored-only

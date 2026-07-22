@@ -9,6 +9,9 @@ repository.workspace = true
 [lints]
 workspace = true
 
+[features]
+native-k256 = []
+
 [dependencies]
 # revm
 revm.workspace = true

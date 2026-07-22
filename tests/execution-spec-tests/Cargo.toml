@@ -1,0 +1,18 @@
+[package]
+name = "openvm-execution-spec-tests"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+hex = "0.4"
+openvm-pairing = { git = "https://github.com/openvm-org/openvm.git", branch = "main", default-features = false, features = ["halo2curves"] }
+openvm-pairing-guest = { git = "https://github.com/openvm-org/openvm.git", branch = "main", default-features = false, features = ["halo2curves"] }
+openvm-revm-crypto = { path = "../../crates/revm-crypto", features = ["native-k256"] }
+rayon = "1.10"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+stateless-validator-reth = { git = "https://github.com/eth-act/ere-guests", tag = "v0.13.0" }
+thiserror = "2"
+
+[workspace]
