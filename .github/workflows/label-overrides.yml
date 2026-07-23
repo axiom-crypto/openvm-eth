@@ -1,0 +1,14 @@
+name: Label overrides
+
+on:
+  pull_request:
+    types: [labeled]
+
+permissions:
+  contents: read
+
+jobs:
+  kzg-proving:
+    if: ${{ github.event.label.name == 'run-kzg-proving' }}
+    uses: ./.github/workflows/tests-kzg.yml
+    secrets: inherit
