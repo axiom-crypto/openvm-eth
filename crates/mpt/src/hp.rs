@@ -1,5 +1,5 @@
 //! Hex-prefix (HP) helpers and nibble utilities for MPT paths.
-use core::{cmp, iter};
+use core::cmp;
 use smallvec::SmallVec;
 
 /// Compact vector for nibble sequences used in key traversal.
@@ -7,30 +7,76 @@ pub(crate) type Nibbles = SmallVec<[u8; 64]>;
 
 // Hex-prefix (HP) encoding flags for MPT paths
 pub(crate) const HP_FLAG_ODD: u8 = 0x10; // path has odd number of nibbles; low nibble of first byte is data
-#[allow(dead_code)]
 pub(crate) const HP_FLAG_LEAF: u8 = 0x20; // node is a leaf (vs extension)
 
-/// Returns the length of the common prefix (in nibbles) between two nibble slices.
+/// A cursor over the nibbles of a lookup key. Trie traversal tracks a nibble offset into the raw
+/// key bytes and computes nibbles by shift/mask on demand, instead of materializing the nibble
+/// array up front.
+#[derive(Copy, Clone, Debug)]
+pub(crate) struct KeyNibbles<'k> {
+    key: &'k [u8],
+    /// Position of the cursor, in nibbles from the start of `key`.
+    offset: usize,
+}
+
+impl<'k> KeyNibbles<'k> {
+    #[inline(always)]
+    pub(crate) fn new(key: &'k [u8]) -> Self {
+        Self { key, offset: 0 }
+    }
+
+    /// Number of nibbles remaining after the cursor.
+    #[inline(always)]
+    pub(crate) fn len(&self) -> usize {
+        2 * self.key.len() - self.offset
+    }
+
+    #[inline(always)]
+    pub(crate) fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
+    /// The `i`-th nibble after the cursor.
+    #[inline(always)]
+    pub(crate) fn nib(&self, i: usize) -> u8 {
+        let j = self.offset + i;
+        let byte = self.key[j / 2];
+        if j % 2 == 0 {
+            byte >> 4
+        } else {
+            byte & 0x0f
+        }
+    }
+
+    /// Splits off the first nibble, like `slice::split_first`.
+    #[inline(always)]
+    pub(crate) fn split_first(&self) -> Option<(u8, Self)> {
+        if self.is_empty() {
+            None
+        } else {
+            Some((self.nib(0), self.advanced(1)))
+        }
+    }
+
+    /// The cursor advanced by `n` nibbles.
+    #[inline(always)]
+    pub(crate) fn advanced(&self, n: usize) -> Self {
+        debug_assert!(n <= self.len());
+        Self { key: self.key, offset: self.offset + n }
+    }
+}
+
+/// Returns the length of the common prefix (in nibbles) between a nibble slice and the key
+/// nibbles at the cursor.
 #[inline]
-pub(crate) fn lcp(a: &[u8], b: &[u8]) -> usize {
-    for (i, (a, b)) in iter::zip(a, b).enumerate() {
-        if a != b {
+pub(crate) fn lcp_key(nibs: &[u8], key: KeyNibbles<'_>) -> usize {
+    let max = cmp::min(nibs.len(), key.len());
+    for (i, &nib) in nibs[..max].iter().enumerate() {
+        if nib != key.nib(i) {
             return i;
         }
     }
-    cmp::min(a.len(), b.len())
-}
-
-/// Converts a byte slice into a vector of nibbles.
-/// Uses `SmallVec` to avoid heap allocation for typical key sizes (≤32 bytes = 64 nibbles).
-#[inline]
-pub(crate) fn to_nibs(slice: &[u8]) -> Nibbles {
-    let mut result = SmallVec::with_capacity(2 * slice.len());
-    for byte in slice {
-        result.push(byte >> 4);
-        result.push(byte & 0x0f);
-    }
-    result
+    max
 }
 
 /// Decodes a compact hex-prefix-encoded path (as used in MPT leaf/extension nodes)
@@ -72,97 +118,91 @@ pub(crate) fn encoded_path_nibble_count(encoded_path: &[u8]) -> usize {
     2 * (encoded_path.len() - 1) + if is_odd { 1 } else { 0 }
 }
 
-/// Compares a compact hex-prefix path with a nibble slice for equality without allocating.
+/// Compares a compact hex-prefix path with the key nibbles at the cursor for equality, without
+/// allocating.
 #[inline]
-pub(crate) fn encoded_path_eq_nibs(encoded_path: &[u8], nibs: &[u8]) -> bool {
+pub(crate) fn encoded_path_eq_key(encoded_path: &[u8], key: KeyNibbles<'_>) -> bool {
     let nib_count = encoded_path_nibble_count(encoded_path);
-    if nib_count != nibs.len() {
+    if nib_count != key.len() {
         return false;
     }
+    encoded_path_matches_key(encoded_path, nib_count, key)
+}
+
+/// If `encoded_path` is a prefix of the key nibbles at the cursor, returns the cursor advanced
+/// past it.
+#[inline]
+pub(crate) fn encoded_path_strip_prefix_key<'k>(
+    encoded_path: &[u8],
+    key: KeyNibbles<'k>,
+) -> Option<KeyNibbles<'k>> {
+    let nib_count = encoded_path_nibble_count(encoded_path);
+    if nib_count > key.len() {
+        return None;
+    }
+    encoded_path_matches_key(encoded_path, nib_count, key).then(|| key.advanced(nib_count))
+}
+
+/// Whether the first `nib_count` key nibbles at the cursor equal the path's nibbles. The caller
+/// must have checked `nib_count <= key.len()`. After the path's optional odd leading nibble its
+/// data is whole bytes, so when the cursor is byte-aligned there — always the case for leaves in
+/// tries keyed by whole-byte keys — this is a direct byte comparison.
+#[inline]
+fn encoded_path_matches_key(encoded_path: &[u8], nib_count: usize, key: KeyNibbles<'_>) -> bool {
     if nib_count == 0 {
         return true;
     }
 
     let first = encoded_path[0];
     let is_odd = (first & HP_FLAG_ODD) != 0;
-    let mut i = 0usize; // index in nibs
-    let mut j = 1usize; // index in encoded_path bytes
-
-    if is_odd {
-        if nibs[i] != (first & 0x0f) {
-            return false;
-        }
-        i += 1;
+    let start = usize::from(is_odd);
+    if is_odd && key.nib(0) != (first & 0x0f) {
+        return false;
     }
 
-    while i + 1 < nibs.len() {
-        let b = encoded_path[j];
-        if nibs[i] != (b >> 4) {
-            return false;
-        }
-        if nibs[i + 1] != (b & 0x0f) {
-            return false;
-        }
-        i += 2;
-        j += 1;
+    let path_data = &encoded_path[1..];
+    if (key.offset + start) % 2 == 0 {
+        let key_start = (key.offset + start) / 2;
+        return key.key[key_start..key_start + path_data.len()] == *path_data;
     }
 
-    if i < nibs.len() {
-        // one last high nibble remains
-        let b = encoded_path[j];
-        if nibs[i] != (b >> 4) {
+    // The path's byte boundaries are misaligned with the key's (possible for extension paths);
+    // compare nibble by nibble.
+    for (j, &byte) in path_data.iter().enumerate() {
+        let i = start + 2 * j;
+        if key.nib(i) != (byte >> 4) || key.nib(i + 1) != (byte & 0x0f) {
             return false;
         }
     }
     true
 }
 
-/// If `encoded_path` is a prefix of `nibs`, returns the tail `&nibs[matched_len..]`.
+/// Encodes the key nibbles remaining after the cursor into hex-prefix format in the bump arena.
+/// For whole-byte keys the remaining-length parity always matches the cursor parity, so after the
+/// optional odd leading nibble this is a direct copy of the key's bytes.
 #[inline]
-pub(crate) fn encoded_path_strip_prefix<'a>(
-    encoded_path: &[u8],
-    nibs: &'a [u8],
-) -> Option<&'a [u8]> {
-    let nib_count = encoded_path_nibble_count(encoded_path);
-    if nib_count > nibs.len() {
-        return None;
-    }
-    if nib_count == 0 {
-        return Some(nibs);
-    }
+pub(crate) fn encoded_path_from_key<'a>(
+    bump: &'a bumpalo::Bump,
+    key: KeyNibbles<'_>,
+    is_leaf: bool,
+) -> &'a [u8] {
+    let remaining = key.len();
+    let is_odd = !remaining.is_multiple_of(2);
+    let start = usize::from(is_odd);
+    debug_assert!(
+        (key.offset + start).is_multiple_of(2),
+        "cursor over whole-byte keys is always byte-aligned after the odd nibble"
+    );
 
-    let first = encoded_path[0];
-    let is_odd = (first & HP_FLAG_ODD) != 0;
-    let mut i = 0usize; // index in nibs
-    let mut j = 1usize; // index in encoded_path bytes
-
+    let mut prefix = if is_leaf { HP_FLAG_LEAF } else { 0x00 };
     if is_odd {
-        if nibs[i] != (first & 0x0f) {
-            return None;
-        }
-        i += 1;
+        prefix |= HP_FLAG_ODD | key.nib(0);
     }
 
-    while i + 1 < nib_count {
-        let b = encoded_path[j];
-        if nibs[i] != (b >> 4) {
-            return None;
-        }
-        if nibs[i + 1] != (b & 0x0f) {
-            return None;
-        }
-        i += 2;
-        j += 1;
-    }
-
-    if i < nib_count {
-        let b = encoded_path[j];
-        if nibs[i] != (b >> 4) {
-            return None;
-        }
-        i += 1;
-    }
-    Some(&nibs[i..])
+    let encoded = bump.alloc_slice_fill_copy(1 + remaining / 2, 0);
+    encoded[0] = prefix;
+    encoded[1..].copy_from_slice(&key.key[(key.offset + start) / 2..]);
+    encoded
 }
 
 /// Encodes nibbles into the standard hex-prefix format directly into the bump arena.
@@ -193,32 +233,6 @@ pub(crate) fn to_encoded_path_with_bump<'a>(
     encoded.into_bump_slice()
 }
 
-/// Encodes nibbles into the standard hex-prefix format.
-#[cfg(feature = "host")]
-#[allow(dead_code)]
-#[inline]
-pub(crate) fn to_encoded_path(nibs: &[u8], is_leaf: bool) -> Vec<u8> {
-    let is_odd = !nibs.len().is_multiple_of(2);
-    let encoded_len = 1 + (nibs.len() / 2);
-    let mut encoded = Vec::with_capacity(encoded_len);
-
-    let mut prefix = if is_leaf { 0x20 } else { 0x00 };
-    if is_odd {
-        prefix |= 0x10;
-        encoded.push(prefix | nibs[0]);
-        for i in (1..nibs.len()).step_by(2) {
-            encoded.push((nibs[i] << 4) | nibs[i + 1]);
-        }
-    } else {
-        encoded.push(prefix);
-        for i in (0..nibs.len()).step_by(2) {
-            encoded.push((nibs[i] << 4) | nibs[i + 1]);
-        }
-    }
-
-    encoded
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -232,19 +246,81 @@ mod tests {
         assert_eq!(encoded_path_nibble_count(&[0x00, 0xab, 0xcd]), 4);
     }
 
+    /// Collects the nibbles remaining after a cursor, for assertions.
+    fn nibs_of(key: KeyNibbles<'_>) -> Vec<u8> {
+        (0..key.len()).map(|i| key.nib(i)).collect()
+    }
+
+    #[test]
+    fn test_key_nibbles_cursor() {
+        let key = KeyNibbles::new(&[0x12, 0x34]);
+        assert_eq!(key.len(), 4);
+        assert_eq!(nibs_of(key), vec![1, 2, 3, 4]);
+
+        let (first, rest) = key.split_first().unwrap();
+        assert_eq!(first, 1);
+        assert_eq!(nibs_of(rest), vec![2, 3, 4]);
+
+        let empty = key.advanced(4);
+        assert!(empty.is_empty());
+        assert!(empty.split_first().is_none());
+    }
+
     #[test]
     fn test_eq_and_strip_prefix() {
         // path [1, 2, 3] as HP: ODD + EXT, first byte 0x10 | 0x1, then 0x23
         let path = [HP_FLAG_ODD | 0x01, 0x23];
-        let key = [1, 2, 3];
-        assert!(encoded_path_eq_nibs(&path, &key));
-        assert_eq!(encoded_path_strip_prefix(&path, &key), Some(&[][..]));
+        // key nibbles [1, 2, 3]: cursor at offset 1 into bytes [0x01, 0x23]
+        let key = KeyNibbles::new(&[0x01, 0x23]).advanced(1);
+        assert!(encoded_path_eq_key(&path, key));
+        assert!(encoded_path_strip_prefix_key(&path, key).unwrap().is_empty());
 
-        let key_longer = [1, 2, 3, 4, 5];
-        assert_eq!(encoded_path_strip_prefix(&path, &key_longer), Some(&key_longer[3..]));
+        // key nibbles [1, 2, 3, 4, 5]: cursor at offset 1 into bytes [0x01, 0x23, 0x45]
+        let key_longer = KeyNibbles::new(&[0x01, 0x23, 0x45]).advanced(1);
+        assert!(!encoded_path_eq_key(&path, key_longer));
+        let tail = encoded_path_strip_prefix_key(&path, key_longer).unwrap();
+        assert_eq!(nibs_of(tail), vec![4, 5]);
 
-        let key_mismatch = [1, 2, 4];
-        assert!(encoded_path_strip_prefix(&path, &key_mismatch).is_none());
+        // key nibbles [1, 2, 4]
+        let key_mismatch = KeyNibbles::new(&[0x01, 0x24]).advanced(1);
+        assert!(encoded_path_strip_prefix_key(&path, key_mismatch).is_none());
+
+        // even-length path [2, 3] against a misaligned (odd-offset) cursor
+        let even_path = [0x00, 0x23];
+        let key_misaligned = KeyNibbles::new(&[0x02, 0x34]).advanced(1);
+        let tail = encoded_path_strip_prefix_key(&even_path, key_misaligned).unwrap();
+        assert_eq!(nibs_of(tail), vec![4]);
+        assert!(encoded_path_strip_prefix_key(
+            &even_path,
+            KeyNibbles::new(&[0x02, 0x44]).advanced(1)
+        )
+        .is_none());
+    }
+
+    #[test]
+    fn test_encoded_path_from_key() {
+        let bump = bumpalo::Bump::new();
+
+        let key = KeyNibbles::new(&[0xab, 0xcd]);
+        // leaf with an even remainder
+        assert_eq!(encoded_path_from_key(&bump, key, true), &[0x20, 0xab, 0xcd]);
+        // extension with an odd remainder
+        assert_eq!(encoded_path_from_key(&bump, key.advanced(1), false), &[0x1b, 0xcd]);
+        // leaf with an odd remainder
+        assert_eq!(encoded_path_from_key(&bump, key.advanced(3), true), &[0x3d]);
+        // empty remainder
+        assert_eq!(encoded_path_from_key(&bump, key.advanced(4), true), &[0x20]);
+    }
+
+    #[test]
+    fn test_lcp_key() {
+        let key = KeyNibbles::new(&[0xab, 0xcd]);
+        assert_eq!(lcp_key(&[], key), 0);
+        assert_eq!(lcp_key(&[0xa], key), 1);
+        assert_eq!(lcp_key(&[0xa, 0xb, 0xd], key), 2);
+        assert_eq!(lcp_key(&[0xa, 0xb, 0xc, 0xd], key), 4);
+        assert_eq!(lcp_key(&[0xa, 0xb, 0xc, 0xd, 0xe], key), 4);
+        assert_eq!(lcp_key(&[0xb, 0xc], key.advanced(1)), 2);
     }
 
     #[test]
@@ -263,22 +339,5 @@ mod tests {
         // leaf node with an odd path length
         let nibbles = vec![0x0a, 0x0b, 0x0c];
         assert_eq!(to_encoded_path_with_bump(&bump, &nibbles, true), vec![0x3a, 0xbc]);
-    }
-
-    #[test]
-    fn test_lcp() {
-        let cases = [
-            (vec![], vec![], 0),
-            (vec![0xa], vec![0xa], 1),
-            (vec![0xa, 0xb], vec![0xa, 0xc], 1),
-            (vec![0xa, 0xb], vec![0xa, 0xb], 2),
-            (vec![0xa, 0xb], vec![0xa, 0xb, 0xc], 2),
-            (vec![0xa, 0xb, 0xc], vec![0xa, 0xb, 0xc], 3),
-            (vec![0xa, 0xb, 0xc], vec![0xa, 0xb, 0xc, 0xd], 3),
-            (vec![0xa, 0xb, 0xc, 0xd], vec![0xa, 0xb, 0xc, 0xd], 4),
-        ];
-        for (a, b, cpl) in cases {
-            assert_eq!(lcp(&a, &b), cpl)
-        }
     }
 }
