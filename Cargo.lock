@@ -8213,6 +8213,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "openvm-zilkworm-benchmark"
+version = "0.4.0"
+dependencies = [
+ "clap",
+ "dotenv",
+ "eyre",
+ "hex",
+ "openvm-circuit",
+ "openvm-cuda-backend",
+ "openvm-sdk",
+ "openvm-sdk-config",
+ "openvm-stark-sdk",
+ "openvm-transpiler",
+ "openvm-verify-stark-host",
+ "tracing",
+ "tracing-subscriber 0.3.23",
+ "zstd",
+]
+
+[[package]]
 name = "ordered-float"
 version = "4.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"

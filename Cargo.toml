@@ -2,6 +2,7 @@
 members = [
     "bin/reth-benchmark",
     "bin/reth-verify",
+    "bin/zilkworm-benchmark",
     "crates/mpt",
     "crates/revm-crypto",
     "crates/stateless-executor",
