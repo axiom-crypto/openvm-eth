@@ -25,7 +25,7 @@ on:
       input_source:
         type: string
         required: false
-        description: Guest input; "mock" (synthetic conformance vector) or an s3:// / https:// URL to an eth-act SSZ StatelessInput .bin
+        description: Guest input; "mock", "block:<number>" (mainnet block via RPC witness pipeline), or an s3:// / https:// URL to an eth-act SSZ StatelessInput .bin
         default: mock
       mode:
         type: choice
@@ -108,7 +108,7 @@ on:
       input_source:
         type: string
         required: false
-        description: Guest input; "mock" or an s3:// / https:// URL to an eth-act SSZ StatelessInput .bin
+        description: Guest input; "mock", "block:<number>", or an s3:// / https:// URL to an eth-act SSZ StatelessInput .bin
         default: mock
       mode:
         type: string
@@ -160,6 +160,8 @@ on:
     secrets:
       GH_ACTIONS_DEPLOY_PRIVATE_KEY:
         required: true
+      RPC_URL_1:
+        required: false
     outputs:
       metric_name:
         description: "Name of the metric"
@@ -431,6 +433,32 @@ jobs:
             # The synthetic mock block cannot pass stateless validation (empty
             # witness), so conformance harnesses assert the failure result.
             EXPECTED_ARGS="--expected-output guest-input/mock_expected_failure.bin"
+          elif [[ "$INPUT_SOURCE" == block:* ]]; then
+            BLOCK_NUMBER="${INPUT_SOURCE#block:}"
+            NAME="block${BLOCK_NUMBER}"
+            S3_INPUT_BASE="${S3_FIXTURE_PATH}/zilkworm-input/v1/mainnet/${BLOCK_NUMBER}"
+            RESTORED=false
+            if [[ "${S3_FIXTURE_READ_ENABLED}" == "true" ]]; then
+              if s5cmd cp "${S3_INPUT_BASE}.input.bin" "guest-input/${NAME}_input.bin" &&                  s5cmd cp "${S3_INPUT_BASE}.expected_success.bin" "guest-input/${NAME}_expected_success.bin"; then
+                echo "Restored zilkworm input for block ${BLOCK_NUMBER} from S3"
+                RESTORED=true
+              else
+                rm -f "guest-input/${NAME}_input.bin" "guest-input/${NAME}_expected_success.bin"
+              fi
+            fi
+            if [[ "$RESTORED" != "true" ]]; then
+              # Generate: Reth witness pipeline -> payload/witness JSONs ->
+              # eth-act SSZ StatelessInput assembly in the zilkworm repo.
+              cargo build -p openvm-rpc-proxy --bin zilkworm-input
+              ./target/debug/zilkworm-input --rpc-url "${{ secrets.RPC_URL_1 }}"                 --block-number "${BLOCK_NUMBER}" --out-dir guest-input
+              (cd "$ZILKWORM_DIR/conformance" && cargo run --release -- reth                 --payload-json "$GITHUB_WORKSPACE/guest-input/payload.json"                 --witness-json "$GITHUB_WORKSPACE/guest-input/witness.json"                 --out-dir "$GITHUB_WORKSPACE/guest-input" --name "${NAME}")
+              if [[ "${S3_PUBLIC_UPLOAD_ENABLED}" == "true" ]]; then
+                s5cmd cp "guest-input/${NAME}_input.bin" "${S3_INPUT_BASE}.input.bin"
+                s5cmd cp "guest-input/${NAME}_expected_success.bin" "${S3_INPUT_BASE}.expected_success.bin"
+              fi
+            fi
+            INPUT_PATH="guest-input/${NAME}_input.bin"
+            EXPECTED_ARGS="--expected-output guest-input/${NAME}_expected_success.bin"
           elif [[ "$INPUT_SOURCE" == s3://* ]]; then
             s5cmd cp "$INPUT_SOURCE" guest-input/input.bin
             INPUT_PATH="guest-input/input.bin"
