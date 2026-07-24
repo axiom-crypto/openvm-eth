@@ -258,8 +258,12 @@ jobs:
       - name: Checkout zilkworm-stateless
         run: |
           ZILKWORM_REF="${{ inputs.zilkworm_ref || github.event.inputs.zilkworm_ref || 'feat/openvm-rv64' }}"
-          git clone --branch "$ZILKWORM_REF" "https://github.com/${ZILKWORM_REPO}.git" zilkworm-stateless
-          ZILKWORM_SHA=$(git -C zilkworm-stateless rev-parse HEAD)
+          # Clone OUTSIDE the workspace so its cargo crates are not adopted
+          # by the openvm-eth workspace manifest.
+          ZILKWORM_DIR="${RUNNER_TEMP}/zilkworm-stateless"
+          git clone --branch "$ZILKWORM_REF" "https://github.com/${ZILKWORM_REPO}.git" "$ZILKWORM_DIR"
+          ZILKWORM_SHA=$(git -C "$ZILKWORM_DIR" rev-parse HEAD)
+          echo "ZILKWORM_DIR=${ZILKWORM_DIR}" >> $GITHUB_ENV
           echo "ZILKWORM_SHA=${ZILKWORM_SHA}" >> $GITHUB_ENV
           echo "Zilkworm commit: ${ZILKWORM_SHA}"
 
