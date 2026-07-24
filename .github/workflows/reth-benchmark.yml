@@ -615,7 +615,7 @@ jobs:
           MODE=${{ inputs.mode || github.event.inputs.mode }}
           BLOCK_NUMBER=${{ inputs.block_number || github.event.inputs.block_number }}
           HOST_PROFILE=${{ steps.set-build-profiles.outputs.host_profile }}
-          OPTIONAL_ARGS=""
+          OPTIONAL_ARGS="--preimage-cache-nibbles 8"
           APP_LOG_BLOWUP="${{ inputs.app_log_blowup || github.event.inputs.app_log_blowup }}"
           LEAF_LOG_BLOWUP="${{ inputs.leaf_log_blowup || github.event.inputs.leaf_log_blowup }}"
           INTERNAL_LOG_BLOWUP="${{ inputs.internal_log_blowup || github.event.inputs.internal_log_blowup }}"
