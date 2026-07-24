@@ -403,11 +403,10 @@ jobs:
 
       - name: Build Guest ELF
         if: steps.cache-guest-elf-restore.outputs.cache-hit != 'true'
-        working-directory: zilkworm-stateless
         run: |
-          make guest_openvm
-          mkdir -p ../guest-elf
-          cp build/openvm/z6m_guest.elf ../guest-elf/
+          make -C "$ZILKWORM_DIR" guest_openvm
+          mkdir -p guest-elf
+          cp "$ZILKWORM_DIR/build/openvm/z6m_guest.elf" guest-elf/
 
       - name: Save Guest ELF to cache
         if: steps.cache-guest-elf-restore.outputs.cache-hit != 'true'
@@ -423,7 +422,7 @@ jobs:
           EXPECTED_ARGS=""
           mkdir -p guest-input
           if [[ "$INPUT_SOURCE" == "mock" ]]; then
-            (cd zilkworm-stateless/conformance && cargo run --release -- mock --out-dir ../../guest-input --name mock)
+            (cd "$ZILKWORM_DIR/conformance" && cargo run --release -- mock --out-dir "$GITHUB_WORKSPACE/guest-input" --name mock)
             INPUT_PATH="guest-input/mock_input.bin"
             # The synthetic mock block cannot pass stateless validation (empty
             # witness), so conformance harnesses assert the failure result.
