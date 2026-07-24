@@ -1,7 +1,7 @@
 name: "Update openvm patches"
 
 env:
-  OPENVM_BRANCH: develop-v2.1.0
+  OPENVM_BRANCH: experimental-v2.1.0
 
 on:
   workflow_dispatch:

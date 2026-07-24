@@ -188,7 +188,7 @@ on:
         value: ${{ jobs.run-reth.outputs.num_segments }}
 
 env:
-  OPENVM_BRANCH: develop-v2.1.0
+  OPENVM_BRANCH: experimental-v2.1.0
   S3_FIXTURE_READ_ENABLED: ${{ vars.S3_PUBLIC_DATA_BUCKET != '' }}
   S3_PUBLIC_UPLOAD_ENABLED: ${{ vars.S3_PUBLIC_DATA_BUCKET != '' && vars.S3_REGION != '' }}
   S3_WORKFLOW_UPLOAD_ENABLED: ${{ vars.S3_WORKFLOW_DATA_BUCKET != '' }}

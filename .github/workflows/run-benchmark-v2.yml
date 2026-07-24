@@ -61,7 +61,7 @@ jobs:
 
             # Install OpenVM CLI
             echo "Installing OpenVM CLI..."
-            cargo +1.91.1 install --git https://github.com/openvm-org/openvm.git --branch develop-v2.1.0 --locked --force cargo-openvm
+            cargo +1.91.1 install --git https://github.com/openvm-org/openvm.git --branch experimental-v2.1.0 --locked --force cargo-openvm
 
             # Install the openvm rust toolchain
             cargo openvm toolchain install

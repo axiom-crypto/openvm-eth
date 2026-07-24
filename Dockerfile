@@ -20,7 +20,7 @@ ENV CARGO_HOME="/root/.cargo" \
 RUN rustup toolchain install nightly-2026-01-18
 
 # Install cargo-openvm (builds the guest ELF)
-RUN cargo +1.91.1 install --git https://github.com/openvm-org/openvm.git --branch develop-v2.1.0 --locked --force cargo-openvm
+RUN cargo +1.91.1 install --git https://github.com/openvm-org/openvm.git --branch experimental-v2.1.0 --locked --force cargo-openvm
 
 # Install the openvm rust toolchain
 RUN cargo openvm toolchain install
