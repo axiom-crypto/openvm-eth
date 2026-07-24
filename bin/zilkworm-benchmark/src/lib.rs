@@ -159,16 +159,14 @@ pub struct HostArgs {
 }
 
 /// VM extension config matching the instructions the Zilkworm guest issues:
-/// RV64IM + hint/reveal IO + the keccak-f[1600] and SHA-256 accelerators.
+/// RV64IM + hint/reveal IO, the keccak-f[1600] and SHA-256 accelerators, and
+/// the modular / Fp2 / short-Weierstrass extensions used by the guest's ECC
+/// precompile hooks (secp256k1 ecrecover, bn254 field + curve ops). The
+/// moduli/curve order in openvm.toml is ABI — it must match the funct7
+/// indices in zilkworm's zkvm/openvm/src/include/openvm_ecc.hpp.
 pub fn zilkworm_vm_config() -> SdkVmConfig {
-    let mut config = SdkVmConfig::builder()
-        .system(Default::default())
-        .rv64i(Default::default())
-        .rv64m(Default::default())
-        .io(Default::default())
-        .keccak(Default::default())
-        .sha2(Default::default())
-        .build()
+    let mut config = SdkVmConfig::from_toml(include_str!("../openvm.toml"))
+        .expect("invalid embedded openvm.toml")
         .optimize();
     config.system.config = config
         .system
