@@ -14,14 +14,11 @@ use crate::{
         encoded_path_eq_key, encoded_path_from_key, encoded_path_strip_prefix_key, lcp_key,
         prefix_to_nibs, to_encoded_path_with_bump, KeyNibbles,
     },
-    node::{BranchChildId, BranchChildren, NodeData, NodeId, NodeRef},
+    node::{BranchChildId, BranchChildren, Digest, NodeData, NodeId, NodeRef, DIGEST_LEN},
 };
 
 /// OpenVM memory alignment word size.
 const MIN_ALIGN: usize = 4;
-
-/// Length of a node reference that is a keccak digest rather than the node's own encoding.
-const DIGEST_LEN: usize = 32;
 
 /// Sentinel index representing the null node when decoding and in internal references.
 /// In a default MPT, `nodes[0]` starts as `Null`, but the root may later be changed to a
@@ -152,41 +149,18 @@ fn is_null_ref(slice: &[u8]) -> bool {
 }
 
 /// Byte-slice equality as an explicit loop. Slice `==` on slices of unknown length compiles to a
-/// `memcmp` call; the node references compared during decoding are at most 33 bytes, where the
-/// call overhead dominates an inline loop. Prefer [`digest_eq`] whenever one side is a full-length
-/// digest, since a length known at compile time turns the comparison into whole-word loads.
+/// `memcmp` call, and the short node references compared during decoding are small enough that the
+/// call dominates an inline loop. Digests do not need this: their length is part of [`Digest`], so
+/// comparing them with `==` stays inline as whole-word loads.
 #[inline(always)]
 fn bytes_eq(a: &[u8], b: &[u8]) -> bool {
     a.len() == b.len() && core::iter::zip(a, b).all(|(x, y)| x == y)
 }
 
-/// Equality against a 32-byte node reference.
-///
-/// Fixing the length lets the comparison stay inline as four word loads per side and an XOR
-/// chain, where a loop over slices of unknown length pays several instructions for every byte.
-/// Slices of different lengths are never equal, so a reference that is not a full digest is
-/// inequality rather than a case to fall back on.
+/// Reads a digest from `slice`, which must be exactly [`DIGEST_LEN`] bytes.
 #[inline(always)]
-fn digest_eq(a: &[u8], b: &[u8]) -> bool {
-    match (<&[u8; DIGEST_LEN]>::try_from(a), <&[u8; DIGEST_LEN]>::try_from(b)) {
-        (Ok(a), Ok(b)) => a == b,
-        _ => false,
-    }
-}
-
-/// Appends a 32-byte node reference to `out`.
-///
-/// Fixing the length keeps the copy inline as whole-word moves. Handing the buffer a slice whose
-/// length the compiler cannot see turns the copy into a `memcpy` call, and at this size the call
-/// costs more than the bytes it moves — encoding node references is the decoder's busiest copy.
-#[inline(always)]
-fn put_digest<B: alloy_rlp::BufMut>(digest: &[u8], out: &mut B) {
-    match <&[u8; DIGEST_LEN]>::try_from(digest) {
-        Ok(digest) => out.put_slice(digest),
-        // A digest reference always holds `DIGEST_LEN` bytes, so this arm exists only to keep the
-        // function total without a conversion that could panic.
-        Err(_) => out.put_slice(digest),
-    }
+fn digest_from(slice: &[u8]) -> Result<&Digest, Error> {
+    slice.try_into().map_err(|_| Error::RlpError(alloy_rlp::Error::UnexpectedLength))
 }
 
 /// Converts a node id to a branch child slot id.
@@ -303,11 +277,10 @@ impl<'a> Mpt<'a> {
             if rlp_node.len() < 32 {
                 NodeRef::Bytes(rlp_node)
             } else if !list {
-                NodeRef::Digest(payload)
+                NodeRef::Digest(digest_from(payload)?)
             } else {
-                let digest = keccak256(rlp_node);
-                let digest_slice = bump.alloc_slice_copy(digest.as_slice());
-                NodeRef::Digest(digest_slice)
+                // Allocating the array rather than a slice of it keeps the copy a fixed-size move.
+                NodeRef::Digest(bump.alloc(keccak256(rlp_node)))
             }
         };
 
@@ -330,8 +303,8 @@ impl<'a> Mpt<'a> {
             // the declared RLP payload and its alignment padding.
             let encoded = unsafe { advance_unchecked(bytes, 33) };
             unsafe { advance_unchecked(bytes, 3) };
-            let digest = &encoded[1..];
-            if !digest_eq(digest, expected_node_ref.as_slice()) {
+            let digest = digest_from(&encoded[1..])?;
+            if digest.as_slice() != expected_node_ref.as_slice() {
                 return Err(Error::NodeRefMismatch);
             }
             return Ok(self.add_node(NodeData::Digest(digest), Some(NodeRef::Digest(digest))));
@@ -358,13 +331,13 @@ impl<'a> Mpt<'a> {
                 }
                 NodeRef::Bytes(rlp_node)
             } else if payload_length == 32 && !list {
-                if !digest_eq(payload, expected_node_ref.as_slice()) {
+                if payload != expected_node_ref.as_slice() {
                     return Err(Error::NodeRefMismatch);
                 }
                 expected_node_ref
             } else {
                 let digest = keccak256(rlp_node);
-                if !digest_eq(digest.as_slice(), expected_node_ref.as_slice()) {
+                if digest.as_slice() != expected_node_ref.as_slice() {
                     return Err(Error::NodeRefMismatch);
                 }
                 expected_node_ref
@@ -374,7 +347,10 @@ impl<'a> Mpt<'a> {
         if !list {
             let node_id = match payload_length {
                 0 => NULL_NODE_ID,
-                32 => self.add_node(NodeData::Digest(payload), Some(NodeRef::Digest(payload))),
+                DIGEST_LEN => {
+                    let digest = digest_from(payload)?;
+                    self.add_node(NodeData::Digest(digest), Some(NodeRef::Digest(digest)))
+                }
                 _ => {
                     return Err(Error::RlpError(alloy_rlp::Error::UnexpectedLength));
                 }
@@ -495,9 +471,7 @@ impl<'a> Mpt<'a> {
                     self.encode_with_payload_len(node_id, payload_length, &mut sponge);
                     debug_assert_eq!(sponge.absorbed_len(), rlp_length);
 
-                    let digest = sponge.finalize();
-                    let digest_slice = self.bump.alloc_slice_copy(&digest);
-                    NodeRef::Digest(digest_slice)
+                    NodeRef::Digest(self.bump.alloc(sponge.finalize()))
                 }
             }
         }
@@ -536,7 +510,7 @@ impl<'a> Mpt<'a> {
                 self.reference_encode(*child_id, out);
             }
             NodeData::Digest(digest) => {
-                encode_slice(digest, out);
+                encode_slice(digest.as_slice(), out);
             }
         }
     }
@@ -557,8 +531,8 @@ impl<'a> Mpt<'a> {
             NodeRef::Bytes(bytes) => out.put_slice(bytes),
             // if the reference is a digest, RLP-encode it with its fixed known length
             NodeRef::Digest(digest) => {
-                out.put_u8(alloy_rlp::EMPTY_STRING_CODE + 32);
-                put_digest(digest, out);
+                out.put_u8(alloy_rlp::EMPTY_STRING_CODE + DIGEST_LEN as u8);
+                out.put_slice(digest);
             }
         }
     }
@@ -619,7 +593,7 @@ impl<'a> Mpt<'a> {
                     }
                 };
                 match node_ref {
-                    NodeRef::Digest(digest) => B256::from_slice(digest),
+                    NodeRef::Digest(digest) => B256::new(*digest),
                     NodeRef::Bytes(bytes) => B256::new(keccak256(bytes)),
                 }
             }
@@ -725,7 +699,7 @@ impl<'a> Mpt<'a> {
             NodeData::Extension(prefix, ext_node_id) => {
                 NodeData::Extension(self.bump.alloc_slice_copy(prefix), *ext_node_id)
             }
-            NodeData::Digest(digest) => NodeData::Digest(self.bump.alloc_slice_copy(digest)),
+            NodeData::Digest(digest) => NodeData::Digest(self.bump.alloc(**digest)),
         };
         self.add_node(data, None)
     }
@@ -769,7 +743,7 @@ impl<'a> Mpt<'a> {
                     Ok(None)
                 }
             }
-            NodeData::Digest(digest) => Err(Error::NodeNotResolved(B256::from_slice(digest))),
+            NodeData::Digest(digest) => Err(Error::NodeNotResolved(B256::new(**digest))),
         }
     }
 
@@ -891,7 +865,7 @@ impl<'a> Mpt<'a> {
                 }
             }
             NodeData::Digest(digest) => {
-                return Err(Error::NodeNotResolved(B256::from_slice(digest)));
+                return Err(Error::NodeNotResolved(B256::new(*digest)));
             }
         };
 
@@ -963,7 +937,7 @@ impl<'a> Mpt<'a> {
                             NodeData::Extension(new_path, child_id)
                         }
                         NodeData::Digest(digest) => {
-                            return Err(Error::NodeNotResolved(B256::from_slice(digest)));
+                            return Err(Error::NodeNotResolved(B256::new(*digest)));
                         }
                         NodeData::Null => unreachable!(),
                     };
@@ -1020,14 +994,14 @@ impl<'a> Mpt<'a> {
                     NodeData::Branch(_) => NodeData::Extension(prefix, child_id),
                     // for a digest, we don't know the node type so we can't safely canonicalize
                     NodeData::Digest(digest) => {
-                        return Err(Error::NodeNotResolved(B256::from_slice(digest)));
+                        return Err(Error::NodeNotResolved(B256::new(**digest)));
                     }
                 };
                 self.nodes[node_id as usize] = new_node_data;
                 true
             }
             NodeData::Digest(digest) => {
-                return Err(Error::NodeNotResolved(B256::from_slice(digest)));
+                return Err(Error::NodeNotResolved(B256::new(*digest)));
             }
         };
 
@@ -1052,7 +1026,10 @@ impl<'a> Mpt<'a> {
         let node_id = match alloy_rlp::Header::decode_raw(bytes)? {
             alloy_rlp::PayloadView::String(item) => match item.len() {
                 0 => NULL_NODE_ID,
-                32 => self.add_node(NodeData::Digest(item), Some(NodeRef::Digest(item))),
+                DIGEST_LEN => {
+                    let digest = digest_from(item)?;
+                    self.add_node(NodeData::Digest(digest), Some(NodeRef::Digest(digest)))
+                }
                 _ => {
                     return Err(Error::RlpError(alloy_rlp::Error::UnexpectedLength));
                 }
@@ -1155,7 +1132,7 @@ impl Mpt<'_> {
                 self.print_trie_internal(*child_id, depth + 1);
             }
             NodeData::Digest(digest) => {
-                println!("{}Digest {:?}", indent, B256::from_slice(digest));
+                println!("{}Digest {:?}", indent, B256::new(**digest));
             }
         }
     }
