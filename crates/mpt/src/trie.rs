@@ -174,6 +174,21 @@ fn digest_eq(a: &[u8], b: &[u8]) -> bool {
     }
 }
 
+/// Appends a 32-byte node reference to `out`.
+///
+/// Fixing the length keeps the copy inline as whole-word moves. Handing the buffer a slice whose
+/// length the compiler cannot see turns the copy into a `memcpy` call, and at this size the call
+/// costs more than the bytes it moves — encoding node references is the decoder's busiest copy.
+#[inline(always)]
+fn put_digest<B: alloy_rlp::BufMut>(digest: &[u8], out: &mut B) {
+    match <&[u8; DIGEST_LEN]>::try_from(digest) {
+        Ok(digest) => out.put_slice(digest),
+        // A digest reference always holds `DIGEST_LEN` bytes, so this arm exists only to keep the
+        // function total without a conversion that could panic.
+        Err(_) => out.put_slice(digest),
+    }
+}
+
 /// Converts a node id to a branch child slot id.
 /// The only zero id is the null-node sentinel ([`NULL_NODE_ID`]), which is never stored as a
 /// branch child.
@@ -543,7 +558,7 @@ impl<'a> Mpt<'a> {
             // if the reference is a digest, RLP-encode it with its fixed known length
             NodeRef::Digest(digest) => {
                 out.put_u8(alloy_rlp::EMPTY_STRING_CODE + 32);
-                out.put_slice(digest);
+                put_digest(digest, out);
             }
         }
     }
