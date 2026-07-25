@@ -3,19 +3,20 @@
 Benchmark host for [Zilkworm](https://github.com/eth-act/zilkworm-stateless)
 (mirrored at [axiom-crypto/zilkworm-stateless](https://github.com/axiom-crypto/zilkworm-stateless)), a bare-metal C++
 stateless Ethereum block validator compiled to an RV64IM ELF. The guest runs
-on OpenVM's RV64 target (`rv64i + rv64m + io + keccak + sha2` extensions) and
-goes through the same execute / prove pipeline as the Reth benchmark.
+on OpenVM's RV64 target (`rv64i + rv64m + io + keccak + sha2` plus the
+modular / Fp2 / short-Weierstrass / pairing extensions) and goes through the
+same execute / prove pipeline as the Reth benchmark.
 
 ## Guest
 
-Build the guest ELF from the `feat/openvm-rv64` branch of
+Build the guest ELF from the `feat/openvm-pairing` branch of
 `axiom-crypto/zilkworm-stateless` (requires cmake >= 3.28 and the xPack
 `riscv-none-elf-gcc` toolchain, see that repo's README):
 
 ```bash
 git clone https://github.com/axiom-crypto/zilkworm-stateless.git
 cd zilkworm-stateless
-git checkout feat/openvm-rv64
+git checkout feat/openvm-pairing
 make guest_openvm    # produces build/openvm/z6m_guest.elf
 ```
 
