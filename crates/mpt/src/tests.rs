@@ -277,7 +277,7 @@ fn test_serde_rejects_corrupted_digest_reference() -> Result<(), Error> {
 #[test]
 fn test_serde_digest_root() -> Result<(), Error> {
     let bump = bumpalo::Bump::new();
-    let digest = bump.alloc_slice_copy(&[0xabu8; 32]);
+    let digest = bump.alloc([0xabu8; 32]);
     let mut trie = Mpt::new(&bump);
     let root_id = trie.add_node(NodeData::Digest(digest), None);
     trie.set_root_id(root_id);
@@ -301,7 +301,7 @@ fn test_delete_with_unresolved_sibling_errors() {
     let mut trie = Mpt::new(&bump);
 
     // Create a fake 32-byte digest (simulating hash of an unknown node)
-    let fake_digest: &[u8] = bump.alloc_slice_copy(&[0xABu8; 32]);
+    let fake_digest: &[u8; 32] = bump.alloc([0xABu8; 32]);
 
     // Build structure: Branch -> [Leaf at index 0, Digest at index 1]
     // When we delete the Leaf, the Branch should collapse, but we don't know

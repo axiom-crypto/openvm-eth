@@ -1,5 +1,5 @@
 use crate::{
-    node::{BranchChildId, NodeData, NodeId},
+    node::{BranchChildId, NodeData, NodeId, DIGEST_LEN},
     trie::{NULL_NODE_ID, NULL_NODE_REF_SLICE},
     Error, Mpt,
 };
@@ -48,11 +48,15 @@ impl MptResolver {
         let node_id = match alloy_rlp::Header::decode_raw(node_bytes)? {
             PayloadView::String(item) => match item.len() {
                 0 => NULL_NODE_ID,
-                32 => match self.node_store.get(&B256::from_slice(item)) {
+                DIGEST_LEN => match self.node_store.get(&B256::from_slice(item)) {
                     Some(resolved_node_bytes) => {
                         self.resolve_internal(&mut resolved_node_bytes.as_ref(), mpt)?
                     }
-                    None => mpt.add_node_copied(&NodeData::Digest(item)),
+                    None => match item.try_into() {
+                        Ok(digest) => mpt.add_node_copied(&NodeData::Digest(digest)),
+                        // Unreachable: the arm matched on the length.
+                        Err(_) => return Err(Error::RlpError(alloy_rlp::Error::UnexpectedLength)),
+                    },
                 },
                 _ => {
                     return Err(Error::RlpError(alloy_rlp::Error::UnexpectedLength));

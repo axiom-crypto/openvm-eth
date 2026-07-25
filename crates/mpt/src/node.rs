@@ -4,6 +4,16 @@ use revm_primitives::hex;
 
 pub(crate) type NodeId = u32;
 
+/// Length of a node reference that is a keccak digest rather than the node's own encoding.
+pub(crate) const DIGEST_LEN: usize = 32;
+
+/// A node reference that is a keccak digest.
+///
+/// The length is part of the type so that comparisons and copies of a digest compile to whole-word
+/// operations. A slice of unknown length turns both into `memcmp`/`memcpy` calls, which cost more
+/// than the 32 bytes they touch, and the decoder performs one of each per node.
+pub(crate) type Digest = [u8; DIGEST_LEN];
+
 /// Id of a branch child node. `NonZero` so that a child slot (`Option<BranchChildId>`) fits in
 /// 4 bytes — `Option<u32>` has no niche and takes 8. Node id 0 is the null-node sentinel
 /// (`NULL_NODE_ID`) and is never stored as a branch child.
@@ -33,9 +43,9 @@ pub(crate) enum NodeData<'a> {
     /// Extension node containing a compact hex-prefix path and a single child. Path encodes a
     /// shared prefix to skip before continuing at `child`.
     Extension(&'a [u8], NodeId),
-    /// Unresolved reference to a node by its Keccak-256 digest (32 bytes). Encountering this in
+    /// Unresolved reference to a node by its Keccak-256 digest. Encountering this in
     /// `get`/`insert`/`delete` is an error; resolution happens in `build_mpt` helpers.
-    Digest(&'a [u8]),
+    Digest(&'a Digest),
 }
 
 /// Represents the ways in which one node can reference another node inside the sparse Merkle
@@ -49,9 +59,8 @@ pub(crate) enum NodeRef<'a> {
     /// used for short encodings that are less than 32 bytes in length.
     Bytes(&'a [u8]),
     /// Represents an indirect reference to another node using the Keccak hash of its long
-    /// encoding, so its length is always 32. Used for encodings that are not less than 32 bytes in
-    /// length.
-    Digest(&'a [u8]),
+    /// encoding. Used for encodings that are not less than [`DIGEST_LEN`] bytes in length.
+    Digest(&'a Digest),
 }
 
 impl core::fmt::Display for NodeRef<'_> {
@@ -75,17 +84,22 @@ impl<'a> NodeRef<'a> {
     pub(crate) fn as_slice(&self) -> &'a [u8] {
         match self {
             NodeRef::Bytes(slice) => slice,
-            NodeRef::Digest(slice) => slice,
+            NodeRef::Digest(digest) => digest.as_slice(),
         }
     }
 
+    /// Interprets one RLP-encoded reference: either a digest behind its one-byte string header, or
+    /// a short node's own encoding.
+    ///
+    /// The length is tested first so that a short reference — the common case, and one per branch
+    /// child — costs a single comparison.
     #[inline(always)]
     pub(crate) fn from_rlp_slice(slice: &'a [u8]) -> Self {
-        if slice.len() == 33 {
-            Self::Digest(&slice[1..])
-        } else {
-            debug_assert!(slice.len() < 32);
-            Self::Bytes(slice)
+        if slice.len() == DIGEST_LEN + 1 {
+            if let Ok(digest) = <&Digest>::try_from(&slice[1..]) {
+                return Self::Digest(digest);
+            }
         }
+        Self::Bytes(slice)
     }
 }
