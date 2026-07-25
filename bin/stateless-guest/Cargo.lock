@@ -2502,6 +2502,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "openvm-bigint-guest"
+version = "2.0.0"
+source = "git+https://github.com/openvm-org/openvm.git?branch=develop-v2.1.0#1417e1f11c5578a2fa364e8553f3923ee498fbf8"
+dependencies = [
+ "openvm-platform",
+ "strum_macros 0.26.4",
+]
+
+[[package]]
 name = "openvm-chainspec"
 version = "0.4.0"
 dependencies = [
@@ -2766,6 +2775,7 @@ version = "0.4.0"
 dependencies = [
  "openvm",
  "openvm-algebra-guest",
+ "openvm-bigint-guest",
  "openvm-ecc-guest",
  "openvm-stateless-executor",
 ]
@@ -3835,8 +3845,7 @@ dependencies = [
 [[package]]
 name = "ruint"
 version = "1.19.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "45caf26f647c19115bf9c453c70ffe4a4a3a6390dceebd942610584f99b8ddce"
+source = "git+https://github.com/Qumeric/uint?rev=cf03e356e38133ad27ee72644e0c4ef7c8e6433e#cf03e356e38133ad27ee72644e0c4ef7c8e6433e"
 dependencies = [
  "alloy-rlp",
  "ark-ff 0.3.0",
@@ -3864,8 +3873,7 @@ dependencies = [
 [[package]]
 name = "ruint-macro"
 version = "1.2.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "48fd7bd8a6377e15ad9d42a8ec25371b94ddc67abe7c8b9127bec79bebaaae18"
+source = "git+https://github.com/Qumeric/uint?rev=cf03e356e38133ad27ee72644e0c4ef7c8e6433e#cf03e356e38133ad27ee72644e0c4ef7c8e6433e"
 
 [[package]]
 name = "rustc-hash"
