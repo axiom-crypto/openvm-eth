@@ -21,7 +21,7 @@ on:
         type: string
         required: false
         description: Git ref of axiom-crypto/zilkworm-stateless to build the guest from
-        default: feat/openvm-rv64
+        default: feat/openvm-pairing
       input_source:
         type: string
         required: false
@@ -104,7 +104,7 @@ on:
         type: string
         required: false
         description: Git ref of axiom-crypto/zilkworm-stateless to build the guest from
-        default: feat/openvm-rv64
+        default: feat/openvm-pairing
       input_source:
         type: string
         required: false

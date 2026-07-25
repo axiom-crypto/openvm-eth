@@ -48,10 +48,12 @@ use tracing::{info, info_span};
 
 const VM_MAX_CONSTRAINT_DEGREE: usize = 4;
 
-/// Capacity of the user public-values address space in bytes. Must be at
-/// least `z6m::MAX_PUBLIC_VALUES_SIZE` (256) so the guest's largest SSZ
-/// `StatelessValidationResult` fits.
-const PUBLIC_VALUES_BYTES: usize = 256;
+/// Capacity of the user public-values address space in bytes. The guest's SSZ
+/// `StatelessValidationResult` is 105 bytes for mainnet blocks (root[32] ||
+/// success[1] || offset[4] || chain_config), so 128 is the smallest power of
+/// two that fits it. (z6m's MAX_PUBLIC_VALUES_SIZE buffer is 256, but only the
+/// encoded prefix is revealed.)
+const PUBLIC_VALUES_BYTES: usize = 128;
 
 /// Enum representing the execution mode of the host executable.
 #[derive(Debug, Clone, clap::ValueEnum)]
@@ -108,6 +110,23 @@ pub struct BenchmarkCli {
     /// Estimated proving-memory cap per VM segment, in bytes
     #[arg(long, default_value_t = DEFAULT_MAX_MEMORY)]
     pub segment_max_memory: usize,
+
+    /// Whether the proving-memory model assumes the Reed-Solomon code matrix
+    /// stays resident after `stacked_commit`.
+    ///
+    /// This is a segmentation *setting*, not a backend detail, and the two
+    /// engines disagree on it: the CPU engine passes `true`
+    /// (stark-backend `Engine::proving_memory_config`) while the CUDA engine
+    /// uses `GpuProverConfig::default()`, which is `false`. Caching leaves
+    /// less of `--segment-max-memory` for trace, so the same guest segments
+    /// differently: block 24001988 gives 119 segments under the CPU model and
+    /// 79 under the GPU model.
+    ///
+    /// Defaults to the GPU model so local `execute-metered` estimates match
+    /// the GPU benchmark runs; pass `--cache-rs-code-matrix` to model a CPU
+    /// prover instead.
+    #[arg(long, default_value_t = false)]
+    pub cache_rs_code_matrix: bool,
 }
 
 /// The arguments for the host executable.
@@ -158,16 +177,21 @@ pub struct HostArgs {
     pub agg_pk_path: Option<PathBuf>,
 }
 
-/// VM extension config matching the instructions the Zilkworm guest issues:
-/// RV64IM + hint/reveal IO, the keccak-f[1600] and SHA-256 accelerators, and
-/// the modular / Fp2 / short-Weierstrass extensions used by the guest's ECC
-/// precompile hooks (secp256k1 ecrecover, bn254 field + curve ops). The
-/// moduli/curve order in openvm.toml is ABI — it must match the funct7
-/// indices in zilkworm's zkvm/openvm/src/include/openvm_ecc.hpp.
+/// VM extension config for the Zilkworm guest.
+///
+/// Uses `SdkVmConfig::standard()` — byte-for-byte the same extension set the
+/// Reth benchmark host uses (`reth_vm_config`) — so the two guests are proven
+/// on an identical circuit and their segment counts are directly comparable.
+/// `standard()` also fixes the modulus / Fp2 / curve ordering that the guest's
+/// funct7 indices encode (see zilkworm's zkvm/openvm/src/include/openvm_ecc.hpp),
+/// and it enables the Int256 (`bigint`) extension.
+///
+/// The one deliberate difference from Reth: public-value capacity. Reth reveals
+/// a 32-byte block hash and configures 32 cells (64 bytes); the Zilkworm guest
+/// reveals the SSZ `StatelessValidationResult`, which is 105 bytes for mainnet
+/// blocks, so it needs 64 cells (128 bytes).
 pub fn zilkworm_vm_config() -> SdkVmConfig {
-    let mut config = SdkVmConfig::from_toml(include_str!("../openvm.toml"))
-        .expect("invalid embedded openvm.toml")
-        .optimize();
+    let mut config = SdkVmConfig::standard();
     config.system.config = config
         .system
         .config
@@ -374,6 +398,7 @@ pub fn run_zilkworm_benchmark(args: HostArgs) -> Result<()> {
     });
     let program_name = format!("zilkworm.{}.{}", args.mode, label);
 
+    let cache_rs_code_matrix = args.benchmark.cache_rs_code_matrix;
     let stdin: StdIn = vec![input_bytes].into();
 
     run_with_metric_collection("OUTPUT_PATH", move || {
@@ -389,7 +414,8 @@ pub fn run_zilkworm_benchmark(args: HostArgs) -> Result<()> {
                     }
                 }
                 BenchMode::ExecuteMetered => {
-                    let compiled = sdk.compile_metered(exe)?;
+                    let mut compiled = sdk.compile_metered(exe)?;
+                    compiled.ctx.set_cache_rs_code_matrix(cache_rs_code_matrix);
                     let (public_values, segments) = sdk.execute_metered(&compiled, stdin)?;
                     info!("Execute metered completed, {} segments", segments.len());
                     report_public_values(&public_values);
