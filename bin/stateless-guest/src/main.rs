@@ -2,6 +2,9 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
 use openvm::io::{read, reveal_bytes32};
+// Linked for the 256-bit instruction shims it exports, which `ruint` calls. Without a reference
+// the rlib is dropped before those symbols reach the link.
+use openvm_bigint_guest as _;
 use openvm_stateless_executor::{io::StatelessExecutorInput, ChainVariant, StatelessExecutor};
 
 openvm::entry!(main);
