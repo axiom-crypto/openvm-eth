@@ -110,6 +110,23 @@ pub struct BenchmarkCli {
     /// Estimated proving-memory cap per VM segment, in bytes
     #[arg(long, default_value_t = DEFAULT_MAX_MEMORY)]
     pub segment_max_memory: usize,
+
+    /// Whether the proving-memory model assumes the Reed-Solomon code matrix
+    /// stays resident after `stacked_commit`.
+    ///
+    /// This is a segmentation *setting*, not a backend detail, and the two
+    /// engines disagree on it: the CPU engine passes `true`
+    /// (stark-backend `Engine::proving_memory_config`) while the CUDA engine
+    /// uses `GpuProverConfig::default()`, which is `false`. Caching leaves
+    /// less of `--segment-max-memory` for trace, so the same guest segments
+    /// differently: block 24001988 gives 119 segments under the CPU model and
+    /// 79 under the GPU model.
+    ///
+    /// Defaults to the GPU model so local `execute-metered` estimates match
+    /// the GPU benchmark runs; pass `--cache-rs-code-matrix` to model a CPU
+    /// prover instead.
+    #[arg(long, default_value_t = false)]
+    pub cache_rs_code_matrix: bool,
 }
 
 /// The arguments for the host executable.
@@ -381,6 +398,7 @@ pub fn run_zilkworm_benchmark(args: HostArgs) -> Result<()> {
     });
     let program_name = format!("zilkworm.{}.{}", args.mode, label);
 
+    let cache_rs_code_matrix = args.benchmark.cache_rs_code_matrix;
     let stdin: StdIn = vec![input_bytes].into();
 
     run_with_metric_collection("OUTPUT_PATH", move || {
@@ -396,7 +414,8 @@ pub fn run_zilkworm_benchmark(args: HostArgs) -> Result<()> {
                     }
                 }
                 BenchMode::ExecuteMetered => {
-                    let compiled = sdk.compile_metered(exe)?;
+                    let mut compiled = sdk.compile_metered(exe)?;
+                    compiled.ctx.set_cache_rs_code_matrix(cache_rs_code_matrix);
                     let (public_values, segments) = sdk.execute_metered(&compiled, stdin)?;
                     info!("Execute metered completed, {} segments", segments.len());
                     report_public_values(&public_values);
