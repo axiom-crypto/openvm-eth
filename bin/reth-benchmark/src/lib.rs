@@ -1,5 +1,7 @@
 #![cfg_attr(feature = "tco", allow(incomplete_features))]
 #![cfg_attr(feature = "tco", feature(explicit_tail_calls))]
+#[cfg(all(feature = "cuda", feature = "rvr"))]
+use std::mem::size_of;
 use std::{
     fs,
     io::Write,
@@ -26,11 +28,15 @@ use openvm_sdk::{
     fs::{read_object_from_file, write_object_to_file},
     Sdk, StdIn, SC,
 };
+#[cfg(all(feature = "cuda", feature = "rvr"))]
+use openvm_sdk::{prover::verify_app_proof, DefaultStarkEngine};
 use openvm_sdk_config::{SdkVmConfig, TranspilerConfig};
 #[cfg(feature = "evm-verify")]
 use openvm_stark_sdk::config::root_params_with_100_bits_security;
 #[cfg(feature = "evm-verify")]
 use openvm_stark_sdk::openvm_stark_backend::codec::Decode;
+#[cfg(all(feature = "cuda", feature = "rvr"))]
+use openvm_stark_sdk::openvm_stark_backend::p3_field::PrimeField32;
 use openvm_stark_sdk::{
     bench::run_with_metric_collection,
     config::{
@@ -547,7 +553,21 @@ pub async fn run_reth_benchmark(args: HostArgs, openvm_client_eth_elf: &[u8]) ->
                     let mut prover = sdk.prepare_rvr_checkpoint_app_prover(app_prover)?;
                     let app_proof = prover.prove(stdin)?;
                     let (_, app_vk) = sdk.app_keygen();
-                    verify_segments(&prover.vm().engine, &app_vk.vk, &app_proof.per_segment)?;
+                    let _ = verify_app_proof::<DefaultStarkEngine>(&app_vk, &app_proof)?;
+                    let cells = &app_proof.user_public_values.public_values;
+                    let mut public_values = Vec::with_capacity(cells.len() * size_of::<u16>());
+                    for value in cells {
+                        let value = u16::try_from(value.as_canonical_u32())?;
+                        public_values.extend_from_slice(&value.to_le_bytes());
+                    }
+                    let block_hash = hex::encode(public_values);
+                    info!(
+                        "RVR app proof verified: {} segments, block hash: {}",
+                        app_proof.per_segment.len(),
+                        block_hash
+                    );
+                    println!("BENCH_SEGMENTS={}", app_proof.per_segment.len());
+                    println!("BENCH_BLOCK_HASH={block_hash}");
                 }
                 BenchMode::ProveStark => {
                     let (proof, baseline) = sdk.prove(exe, stdin, &[])?;
