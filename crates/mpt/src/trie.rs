@@ -20,6 +20,9 @@ use crate::{
 /// OpenVM memory alignment word size.
 const MIN_ALIGN: usize = 4;
 
+/// Length of a node reference that is a keccak digest rather than the node's own encoding.
+const DIGEST_LEN: usize = 32;
+
 /// Sentinel index representing the null node when decoding and in internal references.
 /// In a default MPT, `nodes[0]` starts as `Null`, but the root may later be changed to a
 /// non-null node (e.g. `Digest`) for convenience. `NULL_NODE_ID` is still used by the decoder
@@ -148,12 +151,27 @@ fn is_null_ref(slice: &[u8]) -> bool {
     matches!(slice, [byte] if *byte == alloy_rlp::EMPTY_STRING_CODE)
 }
 
-/// Byte-slice equality as an explicit loop. Slice `==` compiles to a `memcmp` call; the node
-/// references compared during decoding are at most 33 bytes, where the call overhead dominates
-/// an inline loop.
+/// Byte-slice equality as an explicit loop. Slice `==` on slices of unknown length compiles to a
+/// `memcmp` call; the node references compared during decoding are at most 33 bytes, where the
+/// call overhead dominates an inline loop. Prefer [`digest_eq`] whenever one side is a full-length
+/// digest, since a length known at compile time turns the comparison into whole-word loads.
 #[inline(always)]
 fn bytes_eq(a: &[u8], b: &[u8]) -> bool {
     a.len() == b.len() && core::iter::zip(a, b).all(|(x, y)| x == y)
+}
+
+/// Equality against a 32-byte node reference.
+///
+/// Fixing the length lets the comparison stay inline as four word loads per side and an XOR
+/// chain, where a loop over slices of unknown length pays several instructions for every byte.
+/// Slices of different lengths are never equal, so a reference that is not a full digest is
+/// inequality rather than a case to fall back on.
+#[inline(always)]
+fn digest_eq(a: &[u8], b: &[u8]) -> bool {
+    match (<&[u8; DIGEST_LEN]>::try_from(a), <&[u8; DIGEST_LEN]>::try_from(b)) {
+        (Ok(a), Ok(b)) => a == b,
+        _ => false,
+    }
 }
 
 /// Converts a node id to a branch child slot id.
@@ -298,7 +316,7 @@ impl<'a> Mpt<'a> {
             let encoded = unsafe { advance_unchecked(bytes, 33) };
             unsafe { advance_unchecked(bytes, 3) };
             let digest = &encoded[1..];
-            if !bytes_eq(digest, expected_node_ref.as_slice()) {
+            if !digest_eq(digest, expected_node_ref.as_slice()) {
                 return Err(Error::NodeRefMismatch);
             }
             return Ok(self.add_node(NodeData::Digest(digest), Some(NodeRef::Digest(digest))));
@@ -325,13 +343,13 @@ impl<'a> Mpt<'a> {
                 }
                 NodeRef::Bytes(rlp_node)
             } else if payload_length == 32 && !list {
-                if !bytes_eq(payload, expected_node_ref.as_slice()) {
+                if !digest_eq(payload, expected_node_ref.as_slice()) {
                     return Err(Error::NodeRefMismatch);
                 }
                 expected_node_ref
             } else {
                 let digest = keccak256(rlp_node);
-                if !bytes_eq(digest.as_slice(), expected_node_ref.as_slice()) {
+                if !digest_eq(digest.as_slice(), expected_node_ref.as_slice()) {
                     return Err(Error::NodeRefMismatch);
                 }
                 expected_node_ref

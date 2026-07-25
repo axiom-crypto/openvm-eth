@@ -232,6 +232,47 @@ fn test_serde_keccak_trie() -> Result<(), Error> {
     Ok(())
 }
 
+/// A child reference that disagrees with the child's own encoding must be rejected. Decoding
+/// compares the two for their whole length, so accepting one would mean accepting a witness that
+/// does not hash to the claimed root. Every byte of the digest is checked, including the last,
+/// which is what a comparison that stopped short would miss.
+#[cfg(feature = "host")]
+#[test]
+fn test_serde_rejects_corrupted_digest_reference() -> Result<(), Error> {
+    const N: usize = 64;
+
+    let bump = bumpalo::Bump::new();
+    let mut trie = Mpt::new(&bump);
+    for i in 0..N {
+        assert!(trie.insert_rlp(keccak256(i.to_be_bytes()).as_slice(), i)?);
+    }
+    let encoded = trie.encode_trie();
+
+    // Sanity check that the unmodified encoding decodes, so a rejection below is the corruption
+    // and not an unrelated failure.
+    Mpt::decode_trie(&bump, &mut encoded.as_slice(), trie.num_nodes())?;
+
+    // The first 32-byte RLP string in the encoding is a digest reference. Corrupting a byte of
+    // its payload leaves every length in the encoding intact, so the reference comparison is the
+    // only thing that can catch it.
+    let digest_header = alloy_rlp::EMPTY_STRING_CODE + 32;
+    let header_at = encoded.iter().position(|&b| b == digest_header).expect("a digest reference");
+
+    for offset in [1, 16, 32] {
+        let mut corrupted = encoded.clone();
+        corrupted[header_at + offset] ^= 0x01;
+        assert!(
+            matches!(
+                Mpt::decode_trie(&bump, &mut corrupted.as_slice(), trie.num_nodes()),
+                Err(Error::NodeRefMismatch)
+            ),
+            "corrupting digest byte {offset} was not rejected"
+        );
+    }
+
+    Ok(())
+}
+
 #[cfg(feature = "host")]
 #[test]
 fn test_serde_digest_root() -> Result<(), Error> {
