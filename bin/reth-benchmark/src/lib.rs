@@ -75,6 +75,9 @@ pub enum BenchMode {
     ExecuteMetered,
     /// Generate sequence of app proofs for continuation segments.
     ProveApp,
+    /// Generate app proofs with prepared RVR checkpoint preflight and replay.
+    #[cfg(all(feature = "cuda", feature = "rvr"))]
+    ProveAppRvr,
     /// Generate a full end-to-end STARK proof with aggregation.
     ProveStark,
     /// Generate the root STARK proof without halo2 wrapping.
@@ -105,6 +108,8 @@ impl std::fmt::Display for BenchMode {
             Self::Execute => write!(f, "execute"),
             Self::ExecuteMetered => write!(f, "execute_metered"),
             Self::ProveApp => write!(f, "prove_app"),
+            #[cfg(all(feature = "cuda", feature = "rvr"))]
+            Self::ProveAppRvr => write!(f, "prove_app_rvr"),
             Self::ProveStark => write!(f, "prove_stark"),
             #[cfg(feature = "evm-verify")]
             Self::ProveRoot => write!(f, "prove_root"),
@@ -531,6 +536,15 @@ pub async fn run_reth_benchmark(args: HostArgs, openvm_client_eth_elf: &[u8]) ->
                 BenchMode::ProveApp => {
                     let mut prover = sdk.app_prover(exe)?;
                     prover.set_program_name(program_name);
+                    let app_proof = prover.prove(stdin)?;
+                    let (_, app_vk) = sdk.app_keygen();
+                    verify_segments(&prover.vm().engine, &app_vk.vk, &app_proof.per_segment)?;
+                }
+                #[cfg(all(feature = "cuda", feature = "rvr"))]
+                BenchMode::ProveAppRvr => {
+                    let mut app_prover = sdk.app_prover(exe)?;
+                    app_prover.set_program_name(program_name);
+                    let mut prover = sdk.prepare_rvr_checkpoint_app_prover(app_prover)?;
                     let app_proof = prover.prove(stdin)?;
                     let (_, app_vk) = sdk.app_keygen();
                     verify_segments(&prover.vm().engine, &app_vk.vk, &app_proof.per_segment)?;
