@@ -10,9 +10,9 @@ edition = "2021"
 openvm-stateless-executor = { path = "../../crates/stateless-executor", default-features = false }
 
 # openvm
-openvm = { git = "https://github.com/openvm-org/openvm.git", rev = "13cddd7cefb2cccbe52ed5864d874403d436e9cf", default-features = false, features = ["getrandom-unsupported"] }
-openvm-algebra-guest = { git = "https://github.com/openvm-org/openvm.git", rev = "13cddd7cefb2cccbe52ed5864d874403d436e9cf", optional = true }
-openvm-ecc-guest = { git = "https://github.com/openvm-org/openvm.git", rev = "13cddd7cefb2cccbe52ed5864d874403d436e9cf", optional = true }
+openvm = { git = "https://github.com/openvm-org/openvm.git", rev = "60c5d498020960f6961089655a7ae7cb455611e1", default-features = false, features = ["getrandom-unsupported"] }
+openvm-algebra-guest = { git = "https://github.com/openvm-org/openvm.git", rev = "60c5d498020960f6961089655a7ae7cb455611e1", optional = true }
+openvm-ecc-guest = { git = "https://github.com/openvm-org/openvm.git", rev = "60c5d498020960f6961089655a7ae7cb455611e1", optional = true }
 
 # Enable std feature for host builds (provides critical-section implementation)
 [target.'cfg(not(any(target_os = "none", target_os = "openvm")))'.dependencies]

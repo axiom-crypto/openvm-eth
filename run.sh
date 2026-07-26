@@ -4,7 +4,8 @@
 #
 # Options:
 #   --mode <MODE>       Set the proving mode (default: prove-app)
-#                       Valid modes: prove-app, prove-stark, prove-root, prove-evm, keygen, keygen-root, generate-vm-vkey
+#                       Valid modes: prove-app, prove-stark, prove-root, prove-evm,
+#                       keygen, keygen-root, generate-vm-vkey
 #   --generate-vm-vkey  Shortcut for --mode generate-vm-vkey
 #   --profile <PROFILE> Set the Cargo build profile (default: profiling)
 #                       Valid profiles: dev, release, profiling

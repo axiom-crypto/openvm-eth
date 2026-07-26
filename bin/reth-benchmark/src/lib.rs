@@ -1,7 +1,5 @@
 #![cfg_attr(feature = "tco", allow(incomplete_features))]
 #![cfg_attr(feature = "tco", feature(explicit_tail_calls))]
-#[cfg(all(feature = "cuda", feature = "rvr"))]
-use std::mem::size_of;
 use std::{
     fs,
     io::Write,
@@ -28,15 +26,11 @@ use openvm_sdk::{
     fs::{read_object_from_file, write_object_to_file},
     Sdk, StdIn, SC,
 };
-#[cfg(all(feature = "cuda", feature = "rvr"))]
-use openvm_sdk::{prover::verify_app_proof, DefaultStarkEngine};
 use openvm_sdk_config::{SdkVmConfig, TranspilerConfig};
 #[cfg(feature = "evm-verify")]
 use openvm_stark_sdk::config::root_params_with_100_bits_security;
 #[cfg(feature = "evm-verify")]
 use openvm_stark_sdk::openvm_stark_backend::codec::Decode;
-#[cfg(all(feature = "cuda", feature = "rvr"))]
-use openvm_stark_sdk::openvm_stark_backend::p3_field::PrimeField32;
 use openvm_stark_sdk::{
     bench::run_with_metric_collection,
     config::{
@@ -81,9 +75,6 @@ pub enum BenchMode {
     ExecuteMetered,
     /// Generate sequence of app proofs for continuation segments.
     ProveApp,
-    /// Generate app proofs with prepared RVR checkpoint preflight and replay.
-    #[cfg(all(feature = "cuda", feature = "rvr"))]
-    ProveAppRvr,
     /// Generate a full end-to-end STARK proof with aggregation.
     ProveStark,
     /// Generate the root STARK proof without halo2 wrapping.
@@ -114,8 +105,6 @@ impl std::fmt::Display for BenchMode {
             Self::Execute => write!(f, "execute"),
             Self::ExecuteMetered => write!(f, "execute_metered"),
             Self::ProveApp => write!(f, "prove_app"),
-            #[cfg(all(feature = "cuda", feature = "rvr"))]
-            Self::ProveAppRvr => write!(f, "prove_app_rvr"),
             Self::ProveStark => write!(f, "prove_stark"),
             #[cfg(feature = "evm-verify")]
             Self::ProveRoot => write!(f, "prove_root"),
@@ -541,33 +530,9 @@ pub async fn run_reth_benchmark(args: HostArgs, openvm_client_eth_elf: &[u8]) ->
                 }
                 BenchMode::ProveApp => {
                     let mut prover = sdk.app_prover(exe)?;
-                    prover.set_program_name(program_name);
                     let app_proof = prover.prove(stdin)?;
                     let (_, app_vk) = sdk.app_keygen();
                     verify_segments(&prover.vm().engine, &app_vk.vk, &app_proof.per_segment)?;
-                }
-                #[cfg(all(feature = "cuda", feature = "rvr"))]
-                BenchMode::ProveAppRvr => {
-                    let mut app_prover = sdk.app_prover(exe)?;
-                    app_prover.set_program_name(program_name);
-                    let mut prover = sdk.prepare_rvr_checkpoint_app_prover(app_prover)?;
-                    let app_proof = prover.prove(stdin)?;
-                    let (_, app_vk) = sdk.app_keygen();
-                    let _ = verify_app_proof::<DefaultStarkEngine>(&app_vk, &app_proof)?;
-                    let cells = &app_proof.user_public_values.public_values;
-                    let mut public_values = Vec::with_capacity(cells.len() * size_of::<u16>());
-                    for value in cells {
-                        let value = u16::try_from(value.as_canonical_u32())?;
-                        public_values.extend_from_slice(&value.to_le_bytes());
-                    }
-                    let block_hash = hex::encode(public_values);
-                    info!(
-                        "RVR app proof verified: {} segments, block hash: {}",
-                        app_proof.per_segment.len(),
-                        block_hash
-                    );
-                    println!("BENCH_SEGMENTS={}", app_proof.per_segment.len());
-                    println!("BENCH_BLOCK_HASH={block_hash}");
                 }
                 BenchMode::ProveStark => {
                     let (proof, baseline) = sdk.prove(exe, stdin, &[])?;
@@ -584,7 +549,6 @@ pub async fn run_reth_benchmark(args: HostArgs, openvm_client_eth_elf: &[u8]) ->
                 #[cfg(feature = "evm-verify")]
                 BenchMode::ProveRoot => {
                     let mut evm_prover = sdk.evm_prover_without_halo2(exe)?;
-                    evm_prover.stark_prover.app_prover.set_program_name(&program_name);
 
                     let proof_file = args.proof_cache.as_ref().map(|d| d.join("stark.bitcode"));
                     let cached = proof_file.as_ref().filter(|p| p.exists());
@@ -632,7 +596,6 @@ pub async fn run_reth_benchmark(args: HostArgs, openvm_client_eth_elf: &[u8]) ->
                 #[cfg(feature = "evm-verify")]
                 BenchMode::ProveEvm => {
                     let mut evm_prover = sdk.evm_prover(exe)?;
-                    evm_prover.stark_prover.app_prover.set_program_name(&program_name);
                     let proof = evm_prover.prove_evm(stdin, &[])?;
                     let block_hash = &proof.user_public_values;
                     println!("block_hash (prove_evm): {}", hex::encode(block_hash));
