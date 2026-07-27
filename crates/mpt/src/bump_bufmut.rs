@@ -71,6 +71,11 @@ unsafe impl BufMut for BumpBytesMut<'_> {
 
     // Specialize these methods so they can skip checking `remaining_mut`
     // and `advance_mut`.
+    //
+    // Both copy through `extend_from_slice_copy`, not `extend_from_slice`. The latter is bumpalo's
+    // `Clone` path: it appends one element at a time and updates the vector's length after each,
+    // so a byte slice costs several instructions per byte. `extend_from_slice_copy` requires
+    // `Copy`, which `u8` satisfies, and moves the whole slice in one `copy_nonoverlapping`.
     #[inline]
     fn put<T: bytes::Buf>(&mut self, mut src: T)
     where
@@ -82,14 +87,14 @@ unsafe impl BufMut for BumpBytesMut<'_> {
         while src.has_remaining() {
             let s = src.chunk();
             let l = s.len();
-            self.inner.extend_from_slice(s);
+            self.inner.extend_from_slice_copy(s);
             src.advance(l);
         }
     }
 
     #[inline]
     fn put_slice(&mut self, src: &[u8]) {
-        self.inner.extend_from_slice(src);
+        self.inner.extend_from_slice_copy(src);
     }
 
     #[inline]
