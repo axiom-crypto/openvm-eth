@@ -12,6 +12,7 @@ members = [
     "crates/curve-utils",
     "crates/kzg",
     "crates/kzg/tests/programs/verify_kzg",
+    "crates/accelerators",
 ]
 exclude = []
 resolver = "3"
