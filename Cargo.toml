@@ -17,7 +17,7 @@ members = [
   "crates/kzg",
   "crates/kzg/tests/programs/verify_kzg",
 ]
-exclude = ["openvm", "halo2-gpu", "halo2", "halo2-lib"]
+exclude = ["openvm", "halo2-gpu", "halo2", "halo2-lib", "stark-backend"]
 resolver = "3"
 
 [workspace.package]
@@ -138,7 +138,7 @@ openvm-algebra-guest = { git = "https://github.com/openvm-org/openvm.git", branc
 # openvm (host only)
 openvm-sdk = { git = "https://github.com/openvm-org/openvm.git", branch = "develop-v2.0.0-rc.3", default-features = false }
 openvm-build = { git = "https://github.com/openvm-org/openvm.git", branch = "develop-v2.0.0-rc.3", default-features = false }
-openvm-stark-sdk = { git = "https://github.com/openvm-org/stark-backend.git", tag = "v2.0.0", default-features = false }
+openvm-stark-sdk = { git = "https://github.com/openvm-org/stark-backend.git", branch = "main", default-features = false }
 openvm-transpiler = { path = "openvm/crates/toolchain/transpiler", default-features = false }
 openvm-static-verifier = { path = "openvm/crates/static-verifier", default-features = false }
 openvm-continuations = { path = "openvm/crates/continuations", default-features = false }
@@ -204,6 +204,14 @@ halo2-ecc = { path = "halo2-lib/halo2-ecc" }
 halo2-base = { path = "halo2-lib/halo2-base" }
 halo2-ecc = { path = "halo2-lib/halo2-ecc" }
 halo2-axiom = { path = "halo2/halo2_proofs" }
+
+[patch."https://github.com/openvm-org/stark-backend.git"]
+openvm-stark-backend = { path = "stark-backend/crates/stark-backend" }
+openvm-stark-sdk = { path = "stark-backend/crates/stark-sdk" }
+openvm-cpu-backend = { path = "stark-backend/crates/cpu-backend" }
+openvm-cuda-backend = { path = "stark-backend/crates/cuda-backend" }
+openvm-cuda-builder = { path = "stark-backend/crates/cuda-builder" }
+openvm-cuda-common = { path = "stark-backend/crates/cuda-common" }
 
 [patch."https://github.com/openvm-org/openvm.git"]
 # crates/toolchain
