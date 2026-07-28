@@ -2,8 +2,9 @@
 
 use hex_literal::hex;
 use openvm_accelerators::{
+    ffi::zkvm_blake2f,
     ops::{blake2f, Error},
-    types::{ZkvmBlake2fMessage, ZkvmBlake2fOffset, ZkvmBlake2fState},
+    types::{ZkvmBlake2fMessage, ZkvmBlake2fOffset, ZkvmBlake2fState, ZkvmStatus},
 };
 
 /// EIP-152 vectors 4-7 share the same h, m and t inputs.
@@ -79,5 +80,44 @@ fn blake2f_invalid_final_flag() {
     let result = blake2f(12, &mut h, &m(), &ZkvmBlake2fOffset { data: T }, 2);
     assert_eq!(result, Err(Error::InvalidFinalFlag));
     // The state must be untouched on failure.
+    assert_eq!(h.data, H);
+}
+
+#[test]
+fn zkvm_blake2f_smoke() {
+    let mut h = ZkvmBlake2fState { data: H };
+    let m = m();
+    let t = ZkvmBlake2fOffset { data: T };
+
+    let status = unsafe { zkvm_blake2f(12, &mut h, &m, &t, 1) };
+    assert_eq!(status, ZkvmStatus::Ok);
+    assert_eq!(
+        h.data,
+        hex!(
+            "ba80a53f981c4d0d6a2797b69f12f6e94c212f14685ac4b74b12bb6fdbffa2d1"
+            "7d87c5392aab792dc252d5de4533cc9518d38aa8dbf1925ab92386edd4009923"
+        )
+    );
+
+    // An invalid final flag maps to the failure status.
+    let status = unsafe { zkvm_blake2f(12, &mut h, &m, &t, 2) };
+    assert_eq!(status, ZkvmStatus::Fail);
+}
+
+#[test]
+fn zkvm_blake2f_null_pointers() {
+    let mut h = ZkvmBlake2fState { data: H };
+    let m = m();
+    let t = ZkvmBlake2fOffset { data: T };
+
+    let status = unsafe { zkvm_blake2f(12, core::ptr::null_mut(), &m, &t, 1) };
+    assert_eq!(status, ZkvmStatus::Fail);
+
+    let status = unsafe { zkvm_blake2f(12, &mut h, core::ptr::null(), &t, 1) };
+    assert_eq!(status, ZkvmStatus::Fail);
+
+    let status = unsafe { zkvm_blake2f(12, &mut h, &m, core::ptr::null(), 1) };
+    assert_eq!(status, ZkvmStatus::Fail);
+    // The state must be untouched when a pointer is NULL.
     assert_eq!(h.data, H);
 }

@@ -4,6 +4,8 @@
 //! converts them to references, calls the operation, and maps the result to
 //! [`crate::types::ZkvmStatus`]. No other logic lives here.
 
+mod blake2;
 mod hash;
 
+pub use blake2::*;
 pub use hash::*;
