@@ -1,0 +1,67 @@
+name: OpenVM Accelerators Tests
+
+on:
+  pull_request:
+    paths:
+      - "crates/accelerators/**"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - ".github/workflows/tests-accelerators.yml"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_NET_GIT_FETCH_WITH_CLI: "true"
+
+jobs:
+  test:
+    runs-on:
+      - runs-on=${{ github.run_id }}
+      - runner=64cpu-linux-arm64
+      - extras=s3-cache
+
+    steps:
+      - uses: runs-on/action@v2
+      - uses: actions/checkout@v6
+      - uses: dtolnay/rust-toolchain@nightly
+      - uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
+      - uses: taiki-e/install-action@nextest
+
+      - name: Run tests
+        run: cargo nextest run -p openvm-accelerators
+
+  guest-build:
+    runs-on:
+      - runs-on=${{ github.run_id }}
+      - runner=64cpu-linux-arm64
+      - extras=s3-cache
+
+    steps:
+      - uses: runs-on/action@v2
+      - uses: actions/checkout@v6
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.91.1"
+      - uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
+      - name: Cache openvm toolchain
+        uses: actions/cache@v4
+        with:
+          path: ~/.openvm/toolchains
+          key: openvm-toolchain-openvm-1.94.0-${{ runner.os }}-${{ runner.arch }}
+
+      - name: Install OpenVM CLI
+        run: |
+          cargo install --git https://github.com/openvm-org/openvm.git --branch develop-v2.1.0 --locked --force cargo-openvm
+          cargo openvm toolchain install
+
+      - name: Build for the guest target
+        run: |
+          cd crates/accelerators
+          cargo openvm build --no-transpile
