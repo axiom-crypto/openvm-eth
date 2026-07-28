@@ -4,8 +4,10 @@
 //! G2 is `x_c0 || x_c1 || y_c0 || y_c1`, BN254 G2 uses the EIP-197
 //! `x_c1 || x_c0 || y_c1 || y_c0` order.
 
+mod blake2;
 mod hash;
 
+pub use blake2::blake2f;
 pub use hash::{keccak256, ripemd160, sha256};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -16,6 +18,8 @@ pub enum Error {
     PointNotOnCurve,
     /// A point is on the curve but not in the prime-order subgroup.
     PointNotInSubgroup,
+    /// The BLAKE2f final-block flag is neither 0 nor 1.
+    InvalidFinalFlag,
     /// A signature could not be parsed or key recovery failed.
     InvalidSignature,
     /// KZG commitment/proof/field-element inputs are malformed.
