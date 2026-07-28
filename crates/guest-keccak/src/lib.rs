@@ -218,6 +218,7 @@ unsafe impl BufMut for Keccak256Sponge {
     fn put_u8(&mut self, n: u8) {
         self.flush_if_full();
         let fill = self.fill;
+        debug_assert!(fill < RATE, "the flush above must leave room for one byte");
         // SAFETY: `fill < RATE` after the flush above, and the write extends the
         // initialized prefix by one byte.
         unsafe { self.block_ptr().add(fill).write(n) };
