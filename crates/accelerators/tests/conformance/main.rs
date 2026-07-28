@@ -3,4 +3,5 @@
 //!
 //! Modules mirror the `src/ops` layout: one file per domain.
 
+mod blake2;
 mod hash;
