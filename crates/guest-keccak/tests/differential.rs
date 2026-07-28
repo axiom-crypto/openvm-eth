@@ -10,6 +10,15 @@ fn reference(bytes: &[u8]) -> [u8; OUTPUT_SIZE] {
     digest
 }
 
+/// Keccak-256 rate in bytes, mirroring the sponge's own internal constant. Its block boundaries
+/// are where the absorb state machine changes behaviour, so the sweeps below are expressed
+/// relative to it.
+const RATE: usize = 136;
+
+/// Alignment the sponge maintains for buffers handed to the OpenVM instructions, mirroring its
+/// internal constant.
+const GUEST_ALIGN: usize = 8;
+
 /// Deterministic pseudo-random bytes (xorshift), independent of test order.
 fn test_bytes(len: usize, mut seed: u64) -> Vec<u8> {
     let mut bytes = Vec::with_capacity(len);
@@ -105,6 +114,9 @@ fn chunk_mut_writes_match_one_shot() {
     while written < bytes.len() {
         let chunk = sponge.chunk_mut();
         let take = usize::min(usize::min(step, chunk.len()), bytes.len() - written);
+        // Fail rather than spin if `chunk_mut` ever hands back an empty slice, which is what it
+        // does whenever it stops flushing a full block.
+        assert_ne!(take, 0, "chunk_mut returned no room at {written} bytes written");
         // SAFETY: `take` is bounded by both the chunk and the source lengths, and
         // `advance_mut` is passed exactly the number of initialized bytes.
         unsafe {
@@ -116,4 +128,80 @@ fn chunk_mut_writes_match_one_shot() {
     }
     assert_eq!(sponge.absorbed_len(), bytes.len());
     assert_eq!(sponge.finalize(), reference(&bytes));
+}
+
+/// Enumerates the absorb state machine's transition table: every `fill` the sponge can hold,
+/// against every following input length that selects a different branch.
+///
+/// [`streaming_absorb_matches_one_shot`] absorbs at a constant chunk size, so the `fill` it
+/// presents to `absorb` only ever visits an arithmetic progression — a chunk size of 8 never
+/// produces a fill of 3. Enumerating the pair leaves no combination unvisited.
+#[test]
+fn absorb_matches_reference_from_every_fill() {
+    let source = test_bytes(3 * RATE, 0xfeed);
+    for prefix in 0..=RATE {
+        for len in 0..=RATE + 8 {
+            let mut sponge = Keccak256Sponge::new();
+            sponge.absorb(&source[..prefix]);
+            sponge.absorb(&source[prefix..prefix + len]);
+            assert_eq!(sponge.absorbed_len(), prefix + len, "prefix {prefix} len {len}");
+            assert_eq!(
+                sponge.finalize(),
+                reference(&source[..prefix + len]),
+                "prefix {prefix} len {len}"
+            );
+        }
+    }
+}
+
+/// The sponge absorbs rate-sized chunks straight from the caller's buffer when their pointer is
+/// 8-byte aligned, so that choice has to be swept against alignment as well as against `fill`.
+///
+/// A host run executes the byte-wise stand-in rather than the XORIN instruction, and the stand-in
+/// tolerates any alignment. What makes this test meaningful off-target is that `xorin` asserts its
+/// length and alignment preconditions for both targets, so admitting a block the instruction could
+/// not accept fails here.
+#[test]
+fn absorb_matches_reference_across_alignments_and_fills() {
+    let source = test_bytes(4 * RATE, 0xa11c);
+    for align_off in 0..GUEST_ALIGN {
+        for prefix in 0..=RATE {
+            for len in [RATE - 1, RATE, RATE + 1, 2 * RATE] {
+                let start = align_off + prefix;
+                let mut sponge = Keccak256Sponge::new();
+                sponge.absorb(&source[align_off..start]);
+                sponge.absorb(&source[start..start + len]);
+                assert_eq!(
+                    sponge.finalize(),
+                    reference(&source[align_off..start + len]),
+                    "align {align_off} prefix {prefix} len {len}"
+                );
+            }
+        }
+    }
+}
+
+/// `put_u8` and `chunk_mut` write into the staged block directly, so the `flush_if_full` each one
+/// performs is what keeps it in bounds when a previous write landed exactly on a block boundary.
+/// `absorb` stages an exact fit without flushing, so that state is reachable — and no other test
+/// here produces it.
+#[test]
+fn block_boundary_writes_stay_in_bounds() {
+    let source = test_bytes(2 * RATE, 0xb10c);
+    // Every split reaches an exactly-full block by a different route through `absorb`.
+    for split in 0..=RATE {
+        let mut sponge = Keccak256Sponge::new();
+        sponge.put_slice(&source[..split]);
+        sponge.put_slice(&source[split..RATE]);
+        assert_eq!(sponge.absorbed_len(), RATE, "split {split}");
+        sponge.put_u8(source[RATE]);
+        sponge.put_slice(&source[RATE + 1..RATE + 9]);
+        assert_eq!(sponge.absorbed_len(), RATE + 9, "split {split}");
+        assert_eq!(sponge.finalize(), reference(&source[..RATE + 9]), "split {split}");
+
+        let mut sponge = Keccak256Sponge::new();
+        sponge.put_slice(&source[..split]);
+        sponge.put_slice(&source[split..RATE]);
+        assert_ne!(sponge.chunk_mut().len(), 0, "chunk_mut found no room, split {split}");
+    }
 }
