@@ -1,6 +1,7 @@
 use crate::{
     node::{BranchChildId, NodeData, NodeId},
-    trie::{NULL_NODE_ID, NULL_NODE_REF_SLICE},
+    rlp::NULL_NODE_REF_SLICE,
+    trie::NULL_NODE_ID,
     Error, Mpt,
 };
 use alloy_rlp::PayloadView;
