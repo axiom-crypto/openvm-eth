@@ -2,8 +2,9 @@ use alloc::{vec, vec::Vec};
 
 use alloy_trie::TrieAccount;
 use bumpalo::Bump;
+use openvm_guest_keccak::keccak256;
 use revm::database::BundleState;
-use revm_primitives::{keccak256, map::DefaultHashBuilder, HashMap, B256};
+use revm_primitives::{map::DefaultHashBuilder, HashMap, B256};
 
 use crate::{Error, Mpt};
 
@@ -45,7 +46,7 @@ impl<'a> EthereumState<'a> {
         // removals must happen last, otherwise unresolved orphans might still exist
         let mut removed_accounts = vec![];
         for (address, account) in &bundle_state.state {
-            let hashed_address = keccak256(address);
+            let hashed_address = B256::new(keccak256(address.as_slice()));
 
             let Some(info) = &account.info else {
                 removed_accounts.push(hashed_address);
@@ -61,7 +62,7 @@ impl<'a> EthereumState<'a> {
 
             let mut removed_slots = vec![];
             for (slot, value) in &account.storage {
-                let hashed_slot = keccak256(slot.to_be_bytes::<32>());
+                let hashed_slot = B256::new(keccak256(&slot.to_be_bytes::<32>()));
                 if !value.present_value.is_zero() {
                     storage_trie.insert_rlp(hashed_slot.as_slice(), value.present_value)?;
                 } else {

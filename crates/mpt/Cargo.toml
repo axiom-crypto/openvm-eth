@@ -9,6 +9,7 @@ version.workspace = true
 [dependencies]
 serde.workspace = true
 thiserror.workspace = true
+openvm-guest-keccak.workspace = true
 smallvec.workspace = true
 bumpalo = { workspace = true, features = ["collections"] }
 bytes.workspace = true
