@@ -11,6 +11,7 @@ pub use state::*;
 mod bump_bufmut;
 mod hp;
 mod node;
+mod rlp;
 
 #[cfg(feature = "host")]
 pub mod resolver;

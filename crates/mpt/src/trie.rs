@@ -7,7 +7,6 @@ use core::{
 
 use alloy_rlp::Encodable;
 use bumpalo::Bump;
-use bytes::Buf;
 use revm_primitives::{keccak256, B256};
 use smallvec::SmallVec;
 
@@ -18,6 +17,10 @@ use crate::{
         prefix_to_nibs, to_encoded_path_with_bump, KeyNibbles,
     },
     node::{BranchChildId, BranchChildren, NodeData, NodeId, NodeRef},
+    rlp::{
+        advance_unchecked, decode_node_header, decode_rlp_item, encode_header, encode_slice,
+        is_null_ref, NULL_NODE_REF_SLICE,
+    },
 };
 
 /// OpenVM memory alignment word size.
@@ -98,23 +101,6 @@ impl<'a> Mpt<'a> {
     }
 }
 
-/// Same as `let (bytes, rest) = buf.split_at(cnt); *buf = rest; bytes`.
-#[inline(always)]
-unsafe fn advance_unchecked<'a>(buf: &mut &'a [u8], cnt: usize) -> &'a [u8] {
-    let bytes = &buf[..cnt];
-    buf.advance(cnt);
-    bytes
-}
-
-/// Whether `slice` is the RLP encoding of an empty node reference: a single `EMPTY_STRING_CODE`
-/// byte. Written as an explicit pattern match because comparing against [`NULL_NODE_REF_SLICE`]
-/// with `==` compiles to a `memcmp` call, whose overhead dwarfs this one-byte check — and trie
-/// decoding performs it for every branch child.
-#[inline(always)]
-fn is_null_ref(slice: &[u8]) -> bool {
-    matches!(slice, [byte] if *byte == alloy_rlp::EMPTY_STRING_CODE)
-}
-
 /// Byte-slice equality as an explicit loop. Slice `==` on slices of unknown length compiles to a
 /// `memcmp` call; the node references compared during decoding are at most 33 bytes, where the
 /// call overhead dominates an inline loop. Prefer [`digest_eq`] whenever one side is a full-length
@@ -159,36 +145,6 @@ fn put_digest<B: alloy_rlp::BufMut>(digest: &[u8], out: &mut B) {
 #[inline(always)]
 fn branch_child_id(node_id: NodeId) -> BranchChildId {
     BranchChildId::new(node_id).expect("the null-node sentinel is never a branch child")
-}
-
-/// Writes an RLP header with the given base code (`EMPTY_LIST_CODE` for lists,
-/// `EMPTY_STRING_CODE` for strings). Emits the same bytes as [`alloy_rlp::Header::encode`], but
-/// is generic over the output buffer: `alloy_rlp` encoding goes through `&mut dyn BufMut`, and
-/// the resulting per-write dynamic dispatch is expensive in the zkVM.
-#[inline]
-fn encode_header<B: alloy_rlp::BufMut>(base_code: u8, payload_length: usize, out: &mut B) {
-    if payload_length < 56 {
-        out.put_u8(base_code + payload_length as u8);
-    } else {
-        let len_be = payload_length.to_be_bytes();
-        let num_len_bytes = alloy_rlp::length_of_length(payload_length) - 1;
-        out.put_u8(base_code + 55 + num_len_bytes as u8);
-        out.put_slice(&len_be[len_be.len() - num_len_bytes..]);
-    }
-}
-
-/// RLP-encodes a byte slice as a string. Emits the same bytes as `Encodable for [u8]`, without
-/// dynamic dispatch (see [`encode_header`]).
-#[inline]
-fn encode_slice<B: alloy_rlp::BufMut>(bytes: &[u8], out: &mut B) {
-    if let [byte] = bytes {
-        if *byte < alloy_rlp::EMPTY_STRING_CODE {
-            out.put_u8(*byte);
-            return;
-        }
-    }
-    encode_header(alloy_rlp::EMPTY_STRING_CODE, bytes.len(), out);
-    out.put_slice(bytes);
 }
 
 impl<'a> Mpt<'a> {
@@ -286,8 +242,23 @@ impl<'a> Mpt<'a> {
         bytes: &mut &'a [u8],
         expected_node_ref: NodeRef<'a>,
     ) -> Result<NodeId, Error> {
+        // Unresolved nodes are encoded as a 32-byte RLP string followed by three alignment bytes.
+        // They are common at the witness boundary and have a fixed representation, so avoid the
+        // generic header decoder and the general node-kind dispatch.
+        if bytes.first() == Some(&(alloy_rlp::EMPTY_STRING_CODE + 32)) {
+            // SAFETY: as elsewhere in this decoder, the witness encoding is expected to contain
+            // the declared RLP payload and its alignment padding.
+            let encoded = unsafe { advance_unchecked(bytes, 33) };
+            unsafe { advance_unchecked(bytes, 3) };
+            let digest = &encoded[1..];
+            if !digest_eq(digest, expected_node_ref.as_slice()) {
+                return Err(Error::NodeRefMismatch);
+            }
+            return Ok(self.add_node(NodeData::Digest(digest), Some(NodeRef::Digest(digest))));
+        }
+
         let rlp_node_header_start = *bytes;
-        let alloy_rlp::Header { list, payload_length } = alloy_rlp::Header::decode(bytes)?;
+        let alloy_rlp::Header { list, payload_length } = decode_node_header(bytes)?;
 
         // SAFETY: we already decoded the header, so we know the payload length.
         let mut payload = unsafe { advance_unchecked(bytes, payload_length) };
@@ -331,56 +302,41 @@ impl<'a> Mpt<'a> {
             return Ok(node_id);
         }
 
-        // first payload item
-        let item0_header_start = payload;
-        let alloy_rlp::Header { payload_length: item0_payload_length, .. } =
-            alloy_rlp::Header::decode(&mut payload)?;
-        // SAFETY: we already decoded the header, so we know the payload length.
-        let item0_payload_start = unsafe { advance_unchecked(&mut payload, item0_payload_length) };
-        let item0_length = item0_header_start.len() - payload.len();
-
-        // second payload item
-        let item1_header_start = payload;
-        let alloy_rlp::Header { payload_length: item1_payload_length, .. } =
-            alloy_rlp::Header::decode(&mut payload)?;
-        // SAFETY: we already decoded the header, so we know the payload length.
-        let item1_payload_start = unsafe { advance_unchecked(&mut payload, item1_payload_length) };
-        let item1_length = item1_header_start.len() - payload.len();
+        let (item0, item0_payload) = decode_rlp_item(&mut payload)?;
+        let (item1, item1_payload) = decode_rlp_item(&mut payload)?;
 
         if payload.is_empty() {
             // either an extension or leaf
-            let path = &item0_payload_start[..item0_payload_length];
+            let path = item0_payload;
             let prefix = path[0];
             if (prefix & (2 << 4)) == 0 {
                 // extension node
-                let ext_node_expected_ref =
-                    NodeRef::from_rlp_slice(&item1_header_start[..item1_length]);
+                let ext_node_expected_ref = NodeRef::from_rlp_slice(item1);
                 let ext_node_id = self.decode_trie_internal(bytes, ext_node_expected_ref)?;
                 let node_data = NodeData::Extension(path, ext_node_id);
                 return Ok(self.add_node(node_data, Some(node_ref)));
             } else {
                 // leaf node
-                let value = &item1_payload_start[..item1_payload_length];
-                let node_data = NodeData::Leaf(path, value);
+                let node_data = NodeData::Leaf(path, item1_payload);
                 return Ok(self.add_node(node_data, Some(node_ref)));
             }
         }
 
         // branch
-        let child0_expected_node_ref = NodeRef::from_rlp_slice(&item0_header_start[..item0_length]);
         let child0 = {
-            if is_null_ref(child0_expected_node_ref.as_slice()) {
+            if is_null_ref(item0) {
                 None
             } else {
+                let child0_expected_node_ref = NodeRef::from_rlp_slice(item0);
                 Some(branch_child_id(self.decode_trie_internal(bytes, child0_expected_node_ref)?))
             }
         };
 
-        let child1_expected_node_ref = NodeRef::from_rlp_slice(&item1_header_start[..item1_length]);
         let child1 = {
-            if is_null_ref(child1_expected_node_ref.as_slice()) {
+            if is_null_ref(item1) {
                 None
             } else {
+                let child1_expected_node_ref = NodeRef::from_rlp_slice(item1);
                 Some(branch_child_id(self.decode_trie_internal(bytes, child1_expected_node_ref)?))
             }
         };
@@ -404,20 +360,13 @@ impl<'a> Mpt<'a> {
 
         // Initialize remaining elements
         for child in &mut childs[2..] {
-            let item_header_start = payload;
-            let alloy_rlp::Header { payload_length: item_payload_length, .. } =
-                alloy_rlp::Header::decode(&mut payload)?;
-            // SAFETY: we already decoded the header, so we know the payload length.
-            unsafe { advance_unchecked(&mut payload, item_payload_length) };
-            let item_length = item_header_start.len() - payload.len();
-
-            let child_expected_node_ref =
-                NodeRef::from_rlp_slice(&item_header_start[..item_length]);
+            let (item, _) = decode_rlp_item(&mut payload)?;
 
             *child = MaybeUninit::new({
-                if is_null_ref(child_expected_node_ref.as_slice()) {
+                if is_null_ref(item) {
                     None
                 } else {
+                    let child_expected_node_ref = NodeRef::from_rlp_slice(item);
                     Some(branch_child_id(
                         self.decode_trie_internal(bytes, child_expected_node_ref)?,
                     ))
@@ -440,8 +389,6 @@ impl<'a> Mpt<'a> {
         Ok(node_id)
     }
 }
-
-pub(crate) const NULL_NODE_REF_SLICE: &[u8] = &[alloy_rlp::EMPTY_STRING_CODE];
 
 impl<'a> Mpt<'a> {
     #[inline]
