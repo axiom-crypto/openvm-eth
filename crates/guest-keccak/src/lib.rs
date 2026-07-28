@@ -233,21 +233,39 @@ pub fn keccak256(bytes: &[u8]) -> [u8; OUTPUT_SIZE] {
     sponge.finalize()
 }
 
-/// XORs `len` bytes at `input` into the front of the sponge state with a single XORIN
-/// instruction, emitted directly: the sponge upholds the instruction's alignment
-/// requirements by construction, so `native_xorin`'s per-call checks and staging
-/// fallback are unnecessary.
+/// XORs `len` bytes at `input` into the front of the sponge state.
+///
+/// The preconditions are asserted here rather than inside the target-specific bodies below,
+/// so that host runs check the same contract the XORIN instruction depends on. The byte-wise
+/// stand-in tolerates any length and alignment, so an assertion placed only in the guest body
+/// would be unreachable in tests — exactly where a violated precondition is cheapest to catch.
 ///
 /// # Safety
 ///
 /// `input` must be valid for `len` initialized bytes, 8-byte aligned, with `len` a
 /// multiple of 8 and at most `RATE`.
-#[cfg(any(openvm_intrinsics, target_os = "openvm"))]
 #[inline(always)]
 unsafe fn xorin(state: &mut State, input: *const u8, len: usize) {
+    debug_assert!(
+        len <= RATE && len % GUEST_ALIGN == 0,
+        "XORIN length must be an 8-byte multiple within the rate, got {len}"
+    );
+    debug_assert_eq!(input.addr() % GUEST_ALIGN, 0, "XORIN input must be 8-byte aligned");
+    // SAFETY: forwarded unchanged from this function's own contract.
+    unsafe { xorin_impl(state, input, len) }
+}
+
+/// Emits the XORIN instruction directly: the sponge upholds the instruction's alignment
+/// requirements by construction, so `native_xorin`'s per-call checks and staging fallback are
+/// unnecessary.
+///
+/// # Safety
+///
+/// As [`xorin`].
+#[cfg(any(openvm_intrinsics, target_os = "openvm"))]
+#[inline(always)]
+unsafe fn xorin_impl(state: &mut State, input: *const u8, len: usize) {
     use openvm_keccak256_guest::{OPCODE, XORIN_FUNCT3, XORIN_FUNCT7};
-    debug_assert!(len <= RATE && len % GUEST_ALIGN == 0);
-    debug_assert_eq!(input.addr() % GUEST_ALIGN, 0);
     let mut state_ptr = state.0.as_mut_ptr();
     openvm_platform::custom_insn_r!(
         opcode = OPCODE,
@@ -259,8 +277,13 @@ unsafe fn xorin(state: &mut State, input: *const u8, len: usize) {
     );
 }
 
+/// Byte-wise stand-in for the XORIN instruction on non-guest targets.
+///
+/// # Safety
+///
+/// As [`xorin`].
 #[cfg(not(any(openvm_intrinsics, target_os = "openvm")))]
-unsafe fn xorin(state: &mut State, input: *const u8, len: usize) {
+unsafe fn xorin_impl(state: &mut State, input: *const u8, len: usize) {
     // SAFETY: the caller passes `input` valid for `len` initialized bytes.
     let input = unsafe { core::slice::from_raw_parts(input, len) };
     for (state_byte, input_byte) in state.0.iter_mut().zip(input) {
