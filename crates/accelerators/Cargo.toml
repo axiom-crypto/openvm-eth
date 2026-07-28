@@ -21,5 +21,8 @@ openvm-keccak256 = { workspace = true, features = ["tiny_keccak"] }
 hex-literal.workspace = true
 
 [features]
-default = []
+default = ["ffi"]
+# The extern "C" `zkvm_*` symbols. Rust consumers that only need `ops` can
+# disable this.
+ffi = []
 std = []
