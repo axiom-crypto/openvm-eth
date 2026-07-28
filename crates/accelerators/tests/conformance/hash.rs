@@ -3,8 +3,8 @@
 use hex_literal::hex;
 use openvm_accelerators::{
     ffi::zkvm_keccak256,
-    ops::keccak256,
-    types::{ZkvmKeccak256Hash, ZkvmStatus},
+    ops::{keccak256, sha256},
+    types::{ZkvmKeccak256Hash, ZkvmSha256Hash, ZkvmStatus},
 };
 
 #[test]
@@ -54,4 +54,21 @@ fn zkvm_keccak256_null_pointers() {
 
     let status = unsafe { zkvm_keccak256(data.as_ptr(), data.len(), core::ptr::null_mut()) };
     assert_eq!(status, ZkvmStatus::Fail);
+}
+
+#[test]
+fn sha256_vectors() {
+    let mut output = ZkvmSha256Hash { data: [0; 32] };
+
+    sha256(b"", &mut output);
+    assert_eq!(
+        output.data,
+        hex!("e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855")
+    );
+
+    sha256(b"abc", &mut output);
+    assert_eq!(
+        output.data,
+        hex!("ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad")
+    );
 }
