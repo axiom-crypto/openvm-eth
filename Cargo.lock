@@ -6791,6 +6791,7 @@ version = "0.4.0"
 dependencies = [
  "hex-literal",
  "openvm-keccak256",
+ "openvm-sha2",
 ]
 
 [[package]]
