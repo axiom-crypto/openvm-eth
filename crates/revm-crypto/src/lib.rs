@@ -3,18 +3,13 @@
 //! This module provides OpenVM-optimized implementations of cryptographic operations
 //! for both transaction validation (via Alloy crypto provider) and precompile execution.
 
-use alloy_consensus::crypto::{
-    backend::{install_default_provider, CryptoProvider},
-    RecoveryError,
-};
-use alloy_primitives::Address;
+mod k256;
+
 use openvm_ecc_guest::{
     algebra::IntMod,
     weierstrass::{IntrinsicCurve, WeierstrassPoint},
     AffinePoint, Group,
 };
-use openvm_k256::ecdsa::{signature::hazmat::PrehashVerifier, RecoveryId, Signature, VerifyingKey};
-use openvm_keccak256::keccak256;
 use openvm_kzg::{Bytes32, Bytes48, KzgProof};
 use openvm_pairing::{
     bls12_381::{self as bls, Bls12_381},
@@ -36,7 +31,7 @@ use revm::{
         Crypto, PrecompileHalt,
     },
 };
-use std::{sync::Arc, vec::Vec};
+use std::vec::Vec;
 
 use openvm_curve_utils::SubgroupCheck;
 
@@ -47,67 +42,6 @@ const BN_G2_LEN: usize = 128;
 /// BN_SCALAR_LEN specifies the number of bytes needed to represent an Fr element.
 /// This is an element in the scalar field of BN254.
 const BN_SCALAR_LEN: usize = 32;
-
-/// OpenVM k256 backend for Alloy crypto operations (transaction validation)
-#[derive(Debug, Default)]
-struct OpenVmK256Provider;
-
-impl CryptoProvider for OpenVmK256Provider {
-    fn recover_signer_unchecked(
-        &self,
-        sig: &[u8; 65],
-        msg: &[u8; 32],
-    ) -> Result<Address, RecoveryError> {
-        // Extract components: sig[0..32]=r, sig[32..64]=s, sig[64]=recovery_id
-        // Parse signature using OpenVM k256
-        let mut signature = Signature::from_slice(&sig[..64]).map_err(|_| RecoveryError::new())?;
-
-        // Normalize signature if needed
-        let mut recid = sig[64];
-        if let Some(sig_normalized) = signature.normalize_s() {
-            signature = sig_normalized;
-            recid ^= 1;
-        }
-
-        // Create recovery ID
-        let recovery_id = RecoveryId::from_byte(recid).ok_or(RecoveryError::new())?;
-
-        // Recover public key using OpenVM
-        let recovered_key =
-            VerifyingKey::recover_from_prehash_noverify(msg, &signature.to_bytes(), recovery_id)
-                .map_err(|_| RecoveryError::new())?;
-
-        // Hash the uncompressed SEC1 key without the 0x04 prefix.
-        let public_key = recovered_key.to_encoded_point(false);
-        let encoded_pubkey = &public_key.as_bytes()[1..65];
-
-        // Hash to get Ethereum address
-        let pubkey_hash = keccak256(encoded_pubkey);
-        let address_bytes = &pubkey_hash[12..32]; // Last 20 bytes
-
-        Ok(Address::from_slice(address_bytes))
-    }
-
-    fn verify_and_compute_signer_unchecked(
-        &self,
-        pubkey: &[u8; 65],
-        sig: &[u8; 64],
-        msg: &[u8; 32],
-    ) -> Result<Address, RecoveryError> {
-        let vk = VerifyingKey::from_sec1_bytes(pubkey).map_err(|_| RecoveryError::new())?;
-
-        let mut signature = Signature::from_slice(sig).map_err(|_| RecoveryError::new())?;
-        if let Some(sig_normalized) = signature.normalize_s() {
-            signature = sig_normalized;
-        }
-
-        vk.verify_prehash(msg.as_ref(), &signature).map_err(|_| RecoveryError::new())?;
-
-        // Compute address directly from the provided pubkey bytes (skip 0x04 prefix)
-        let pubkey_hash = keccak256(&pubkey[1..65]);
-        Ok(Address::from_slice(&pubkey_hash[12..32]))
-    }
-}
 
 /// OpenVM custom crypto implementation for faster precompiles
 #[derive(Debug, Default)]
@@ -267,32 +201,10 @@ impl Crypto for OpenVmCrypto {
     fn secp256k1_ecrecover(
         &self,
         sig_bytes: &[u8; 64],
-        mut recid: u8,
+        recid: u8,
         msg_hash: &[u8; 32],
     ) -> Result<[u8; 32], PrecompileHalt> {
-        let mut sig = Signature::from_slice(sig_bytes)
-            .map_err(|_| PrecompileHalt::other("Invalid signature format"))?;
-
-        if let Some(sig_normalized) = sig.normalize_s() {
-            sig = sig_normalized;
-            recid ^= 1;
-        }
-
-        let recovery_id = RecoveryId::from_byte(recid)
-            .ok_or_else(|| PrecompileHalt::other("Invalid recovery ID"))?;
-
-        let recovered_key =
-            VerifyingKey::recover_from_prehash_noverify(msg_hash, &sig.to_bytes(), recovery_id)
-                .map_err(|_| PrecompileHalt::other("Key recovery failed"))?;
-
-        let public_key = recovered_key.to_encoded_point(false);
-        let encoded_pubkey = &public_key.as_bytes()[1..65];
-
-        let pubkey_hash = keccak256(encoded_pubkey);
-        let mut address = [0u8; 32];
-        address[12..].copy_from_slice(&pubkey_hash[12..]);
-
-        Ok(address)
+        k256::secp256k1_ecrecover(sig_bytes, recid, msg_hash)
     }
 
     /// Custom secp256r1 signature verification with openvm optimization
@@ -386,8 +298,7 @@ fn accelerated_modexp_bn254_fr(base: &[u8], exp: &[u8]) -> Vec<u8> {
 
 /// Install OpenVM crypto implementations globally
 pub fn install_openvm_crypto() -> Result<bool, Box<dyn std::error::Error>> {
-    // Install OpenVM k256 provider for Alloy (transaction validation)
-    install_default_provider(Arc::new(OpenVmK256Provider))?;
+    k256::install_alloy_provider()?;
 
     // Install OpenVM crypto for REVM precompiles
     let installed = install_crypto(OpenVmCrypto);
