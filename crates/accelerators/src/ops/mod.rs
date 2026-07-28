@@ -6,7 +6,7 @@
 
 mod hash;
 
-pub use hash::{keccak256, sha256};
+pub use hash::{keccak256, ripemd160, sha256};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Error {
