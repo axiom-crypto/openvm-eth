@@ -6792,6 +6792,7 @@ dependencies = [
  "hex-literal",
  "openvm-keccak256",
  "openvm-sha2",
+ "ripemd",
 ]
 
 [[package]]

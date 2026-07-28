@@ -3,8 +3,8 @@
 use hex_literal::hex;
 use openvm_accelerators::{
     ffi::{zkvm_keccak256, zkvm_sha256},
-    ops::{keccak256, sha256},
-    types::{ZkvmKeccak256Hash, ZkvmSha256Hash, ZkvmStatus},
+    ops::{keccak256, ripemd160, sha256},
+    types::{ZkvmKeccak256Hash, ZkvmRipemd160Hash, ZkvmSha256Hash, ZkvmStatus},
 };
 
 #[test]
@@ -103,4 +103,22 @@ fn zkvm_sha256_null_pointers() {
 
     let status = unsafe { zkvm_sha256(data.as_ptr(), data.len(), core::ptr::null_mut()) };
     assert_eq!(status, ZkvmStatus::Fail);
+}
+
+#[test]
+fn ripemd160_vectors() {
+    // Start from a dirty buffer to check the 12-byte zero padding is written.
+    let mut output = ZkvmRipemd160Hash { data: [0xff; 32] };
+
+    ripemd160(b"", &mut output);
+    assert_eq!(
+        output.data,
+        hex!("0000000000000000000000009c1185a5c5e9fc54612808977ee8f548b2258d31")
+    );
+
+    ripemd160(b"abc", &mut output);
+    assert_eq!(
+        output.data,
+        hex!("0000000000000000000000008eb208f7e05d987a9b044a8e98c6b087f15a0bfc")
+    );
 }
