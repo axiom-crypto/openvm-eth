@@ -7,7 +7,7 @@ use openvm_pairing::bn254 as bn;
 
 use crate::{
     ops::Error,
-    types::{ZkvmBn254G1Point, ZkvmBn254Scalar},
+    types::{ZkvmBn254G1Point, ZkvmBn254G2Point, ZkvmBn254Scalar},
 };
 
 const BN_FQ_LEN: usize = 32;
@@ -18,12 +18,34 @@ fn read_bn_fq(input: &[u8]) -> Result<bn::Fp, Error> {
 }
 
 #[inline]
+fn read_bn_fq2(input: &[u8]) -> Result<bn::Fp2, Error> {
+    // EIP-197 encodes the imaginary part first.
+    let imag = read_bn_fq(&input[..BN_FQ_LEN])?;
+    let real = read_bn_fq(&input[BN_FQ_LEN..BN_FQ_LEN * 2])?;
+    Ok(bn::Fp2::new(real, imag))
+}
+
+#[inline]
 pub(super) fn read_bn_g1_point(input: &ZkvmBn254G1Point) -> Result<bn::G1Affine, Error> {
     let px = read_bn_fq(&input.data[0..BN_FQ_LEN])?;
     let py = read_bn_fq(&input.data[BN_FQ_LEN..])?;
     // SAFETY: `read_bn_fq` produces canonical Fp elements; `from_xy` itself checks the curve
     // equation and returns `None` if `(px, py)` is not on the curve.
     let point = unsafe { bn::G1Affine::from_xy(px, py) }.ok_or(Error::PointNotOnCurve)?;
+    if point.is_in_correct_subgroup() {
+        Ok(point)
+    } else {
+        Err(Error::PointNotInSubgroup)
+    }
+}
+
+#[inline]
+pub(super) fn read_bn_g2_point(input: &ZkvmBn254G2Point) -> Result<bn::G2Affine, Error> {
+    let x = read_bn_fq2(&input.data[..BN_FQ_LEN * 2])?;
+    let y = read_bn_fq2(&input.data[BN_FQ_LEN * 2..])?;
+    // SAFETY: `read_bn_fq2` produces canonical Fp2 elements; `from_xy` itself checks the curve
+    // equation and returns `None` if `(x, y)` is not on the twist.
+    let point = unsafe { bn::G2Affine::from_xy(x, y) }.ok_or(Error::PointNotOnCurve)?;
     if point.is_in_correct_subgroup() {
         Ok(point)
     } else {
