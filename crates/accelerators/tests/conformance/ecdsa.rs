@@ -4,8 +4,9 @@
 
 use hex_literal::hex;
 use openvm_accelerators::{
+    ffi::zkvm_secp256r1_verify,
     ops::{secp256r1_verify, Error},
-    types::{ZkvmSecp256r1Hash, ZkvmSecp256r1Pubkey, ZkvmSecp256r1Signature},
+    types::{ZkvmSecp256r1Hash, ZkvmSecp256r1Pubkey, ZkvmSecp256r1Signature, ZkvmStatus},
 };
 
 /// Splits a 160-byte P256VERIFY input (msg || sig || pk) into its parts.
@@ -57,4 +58,38 @@ fn secp256r1_verify_malformed_inputs() {
     let result = secp256r1_verify(&msg, &sig, &bad_pubkey, &mut verified);
     assert_eq!(result, Err(Error::PointNotOnCurve));
     assert!(!verified);
+}
+
+#[test]
+fn zkvm_secp256r1_verify_smoke() {
+    let (msg, sig, pubkey) = parts(&VALID);
+    let mut verified = false;
+
+    let status = unsafe { zkvm_secp256r1_verify(&msg, &sig, &pubkey, &mut verified) };
+    assert_eq!(status, ZkvmStatus::Ok);
+    assert!(verified);
+
+    // Malformed inputs map to the failure status.
+    let bad_pubkey = ZkvmSecp256r1Pubkey { data: [0; 64] };
+    let status = unsafe { zkvm_secp256r1_verify(&msg, &sig, &bad_pubkey, &mut verified) };
+    assert_eq!(status, ZkvmStatus::Fail);
+    assert!(!verified);
+}
+
+#[test]
+fn zkvm_secp256r1_verify_null_pointers() {
+    let (msg, sig, pubkey) = parts(&VALID);
+    let mut verified = false;
+
+    let status = unsafe { zkvm_secp256r1_verify(core::ptr::null(), &sig, &pubkey, &mut verified) };
+    assert_eq!(status, ZkvmStatus::Fail);
+
+    let status = unsafe { zkvm_secp256r1_verify(&msg, core::ptr::null(), &pubkey, &mut verified) };
+    assert_eq!(status, ZkvmStatus::Fail);
+
+    let status = unsafe { zkvm_secp256r1_verify(&msg, &sig, core::ptr::null(), &mut verified) };
+    assert_eq!(status, ZkvmStatus::Fail);
+
+    let status = unsafe { zkvm_secp256r1_verify(&msg, &sig, &pubkey, core::ptr::null_mut()) };
+    assert_eq!(status, ZkvmStatus::Fail);
 }
