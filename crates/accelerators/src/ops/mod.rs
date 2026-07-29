@@ -7,10 +7,12 @@
 mod blake2;
 mod ecdsa;
 mod hash;
+mod modexp;
 
 pub use blake2::blake2f;
 pub use ecdsa::{secp256k1_ecrecover, secp256k1_verify, secp256r1_verify};
 pub use hash::{keccak256, ripemd160, sha256};
+pub use modexp::modexp;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Error {
