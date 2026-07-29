@@ -1,6 +1,9 @@
 //! ECDSA operations.
 
-use openvm_k256::ecdsa::{signature::hazmat::PrehashVerifier, RecoveryId, Signature, VerifyingKey};
+#[cfg(any(target_os = "none", target_os = "openvm"))]
+use openvm_k256 as k256;
+
+use k256::ecdsa::{signature::hazmat::PrehashVerifier, RecoveryId, Signature, VerifyingKey};
 
 use crate::{
     ops::Error,
@@ -29,9 +32,13 @@ pub fn secp256k1_ecrecover(
     }
     let recovery_id = RecoveryId::from_byte(recid).ok_or(Error::InvalidSignature)?;
 
+    #[cfg(any(target_os = "none", target_os = "openvm"))]
     let key =
         VerifyingKey::recover_from_prehash_noverify(&msg.data, &signature.to_bytes(), recovery_id)
             .map_err(|_| Error::InvalidSignature)?;
+    #[cfg(not(any(target_os = "none", target_os = "openvm")))]
+    let key = VerifyingKey::recover_from_prehash(&msg.data, &signature, recovery_id)
+        .map_err(|_| Error::InvalidSignature)?;
 
     let point = key.to_encoded_point(false);
     output.data.copy_from_slice(&point.as_bytes()[1..65]);
