@@ -1,10 +1,10 @@
-//! C ABI for the BLS12-381 add/MSM accelerators (EIP-2537).
+//! C ABI for the BLS12-381 add/MSM/map accelerators (EIP-2537).
 
 use crate::{
     ops,
     types::{
-        ZkvmBls12381G1MsmPair, ZkvmBls12381G1Point, ZkvmBls12381G2MsmPair, ZkvmBls12381G2Point,
-        ZkvmBls12381PairingPair, ZkvmStatus,
+        ZkvmBls12381Fp, ZkvmBls12381Fp2, ZkvmBls12381G1MsmPair, ZkvmBls12381G1Point,
+        ZkvmBls12381G2MsmPair, ZkvmBls12381G2Point, ZkvmBls12381PairingPair, ZkvmStatus,
     },
 };
 
@@ -143,6 +143,56 @@ pub unsafe extern "C" fn zkvm_bls12_pairing(
     // SAFETY: non-NULL checked above; validity is guaranteed by the caller.
     let verified = unsafe { &mut *verified };
     match ops::bls12_381_pairing_check(pairs, verified) {
+        Ok(()) => ZkvmStatus::Ok,
+        Err(_) => ZkvmStatus::Fail,
+    }
+}
+
+/// BLS12-381 map field element to G1 (precompile 0x10, EIP-2537).
+///
+/// Returns [`ZkvmStatus::Fail`] if either pointer is NULL or the field element
+/// is not canonical.
+///
+/// # Safety
+///
+/// - `field_element`, if non-NULL, must be valid for reads of 48 bytes.
+/// - `result`, if non-NULL, must be valid for writes of 96 bytes.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn zkvm_bls12_map_fp_to_g1(
+    field_element: *const ZkvmBls12381Fp,
+    result: *mut ZkvmBls12381G1Point,
+) -> ZkvmStatus {
+    if field_element.is_null() || result.is_null() {
+        return ZkvmStatus::Fail;
+    }
+    // SAFETY: non-NULL checked above; validity is guaranteed by the caller.
+    let (field_element, result) = unsafe { (&*field_element, &mut *result) };
+    match ops::bls12_381_map_fp_to_g1(field_element, result) {
+        Ok(()) => ZkvmStatus::Ok,
+        Err(_) => ZkvmStatus::Fail,
+    }
+}
+
+/// BLS12-381 map field element to G2 (precompile 0x11, EIP-2537).
+///
+/// Returns [`ZkvmStatus::Fail`] if either pointer is NULL or either half of
+/// the field element is not canonical.
+///
+/// # Safety
+///
+/// - `field_element`, if non-NULL, must be valid for reads of 96 bytes.
+/// - `result`, if non-NULL, must be valid for writes of 192 bytes.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn zkvm_bls12_map_fp2_to_g2(
+    field_element: *const ZkvmBls12381Fp2,
+    result: *mut ZkvmBls12381G2Point,
+) -> ZkvmStatus {
+    if field_element.is_null() || result.is_null() {
+        return ZkvmStatus::Fail;
+    }
+    // SAFETY: non-NULL checked above; validity is guaranteed by the caller.
+    let (field_element, result) = unsafe { (&*field_element, &mut *result) };
+    match ops::bls12_381_map_fp2_to_g2(field_element, result) {
         Ok(()) => ZkvmStatus::Ok,
         Err(_) => ZkvmStatus::Fail,
     }
