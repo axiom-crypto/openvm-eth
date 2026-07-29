@@ -1,11 +1,16 @@
-use core::cell::Cell;
+use core::{cell::Cell, num::NonZeroU32};
 
 use revm_primitives::hex;
 
 pub(crate) type NodeId = u32;
 
+/// Id of a branch child node. `NonZero` so that a child slot (`Option<BranchChildId>`) fits in
+/// 4 bytes — `Option<u32>` has no niche and takes 8. Node id 0 is the null-node sentinel
+/// (`NULL_NODE_ID`) and is never stored as a branch child.
+pub(crate) type BranchChildId = NonZeroU32;
+
 /// Children slots of a branch node, allocated in the trie's bump arena.
-pub(crate) type BranchChildren<'a> = &'a [Cell<Option<NodeId>>; 16];
+pub(crate) type BranchChildren<'a> = &'a [Cell<Option<BranchChildId>>; 16];
 
 /// Node data for arena-based trie with zero-copy optimization.
 ///
