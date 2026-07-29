@@ -112,6 +112,7 @@ openvm-circuit = { git = "https://github.com/openvm-org/openvm.git", branch = "d
 openvm-verify-stark-host = { git = "https://github.com/openvm-org/openvm.git", branch = "develop-v2.1.0", default-features = false }
 openvm-ecc-guest = { git = "https://github.com/openvm-org/openvm.git", branch = "develop-v2.1.0", default-features = false }
 openvm-keccak256 = { git = "https://github.com/openvm-org/openvm.git", branch = "develop-v2.1.0", default-features = false }
+openvm-pairing-guest = { git = "https://github.com/openvm-org/openvm.git", branch = "develop-v2.1.0", default-features = false }
 openvm-pairing = { git = "https://github.com/openvm-org/openvm.git", branch = "develop-v2.1.0", default-features = false, features = [
     "bn254",
     "bls12_381",
