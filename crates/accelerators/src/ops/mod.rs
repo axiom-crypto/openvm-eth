@@ -9,7 +9,7 @@ mod ecdsa;
 mod hash;
 
 pub use blake2::blake2f;
-pub use ecdsa::{secp256k1_ecrecover, secp256k1_verify};
+pub use ecdsa::{secp256k1_ecrecover, secp256k1_verify, secp256r1_verify};
 pub use hash::{keccak256, ripemd160, sha256};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
