@@ -4,6 +4,8 @@
 //! Modules mirror the `src/ops` layout: one file per domain.
 
 mod blake2;
+mod bls12_381;
+mod bn254;
 mod ecdsa;
 mod hash;
 mod kzg;
