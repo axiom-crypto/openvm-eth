@@ -5,7 +5,9 @@
 //! [`crate::types::ZkvmStatus`]. No other logic lives here.
 
 mod blake2;
+mod ecdsa;
 mod hash;
 
 pub use blake2::*;
+pub use ecdsa::*;
 pub use hash::*;
