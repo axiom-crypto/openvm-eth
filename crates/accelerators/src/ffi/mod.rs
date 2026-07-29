@@ -7,7 +7,9 @@
 mod blake2;
 mod ecdsa;
 mod hash;
+mod modexp;
 
 pub use blake2::*;
 pub use ecdsa::*;
 pub use hash::*;
+pub use modexp::*;
