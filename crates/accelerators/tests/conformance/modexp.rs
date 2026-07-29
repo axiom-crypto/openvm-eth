@@ -1,7 +1,7 @@
 //! Modexp conformance vectors.
 
 use hex_literal::hex;
-use openvm_accelerators::ops::modexp;
+use openvm_accelerators::{ffi::zkvm_modexp, ops::modexp, types::ZkvmStatus};
 
 /// BN254 Fr (the scalar field) modulus, big-endian. Not to be confused with
 /// the base field prime, which shares the leading bytes.
@@ -38,4 +38,70 @@ fn modexp_matches_reference() {
     modexp(&[0x12; 40], &[0x34; 3], &modulus, &mut output);
     let reference = aurora_engine_modexp::modexp(&[0x12; 40], &[0x34; 3], &modulus);
     assert_eq!(output[24 - reference.len()..], reference[..]);
+}
+
+#[test]
+fn zkvm_modexp_smoke() {
+    // 3^5 mod 7 = 5
+    let base = [3u8];
+    let exp = [5u8];
+    let modulus = [7u8];
+    let mut output = [0xffu8; 1];
+    let status = unsafe {
+        zkvm_modexp(base.as_ptr(), 1, exp.as_ptr(), 1, modulus.as_ptr(), 1, output.as_mut_ptr())
+    };
+    assert_eq!(status, ZkvmStatus::Ok);
+    assert_eq!(output, [5]);
+}
+
+#[test]
+fn zkvm_modexp_null_pointers() {
+    let base = [3u8];
+    let exp = [5u8];
+    let modulus = [7u8];
+    let mut output = [0xffu8; 1];
+
+    // NULL base and exp with zero lengths are empty inputs: 0^0 mod 7 = 1.
+    let status = unsafe {
+        zkvm_modexp(
+            core::ptr::null(),
+            0,
+            core::ptr::null(),
+            0,
+            modulus.as_ptr(),
+            1,
+            output.as_mut_ptr(),
+        )
+    };
+    assert_eq!(status, ZkvmStatus::Ok);
+    assert_eq!(output, [1]);
+
+    // A NULL pointer with a non-zero length fails.
+    let status = unsafe {
+        zkvm_modexp(core::ptr::null(), 1, exp.as_ptr(), 1, modulus.as_ptr(), 1, output.as_mut_ptr())
+    };
+    assert_eq!(status, ZkvmStatus::Fail);
+
+    let status = unsafe {
+        zkvm_modexp(
+            base.as_ptr(),
+            1,
+            core::ptr::null(),
+            1,
+            modulus.as_ptr(),
+            1,
+            output.as_mut_ptr(),
+        )
+    };
+    assert_eq!(status, ZkvmStatus::Fail);
+
+    let status = unsafe {
+        zkvm_modexp(base.as_ptr(), 1, exp.as_ptr(), 1, core::ptr::null(), 1, output.as_mut_ptr())
+    };
+    assert_eq!(status, ZkvmStatus::Fail);
+
+    let status = unsafe {
+        zkvm_modexp(base.as_ptr(), 1, exp.as_ptr(), 1, modulus.as_ptr(), 1, core::ptr::null_mut())
+    };
+    assert_eq!(status, ZkvmStatus::Fail);
 }
