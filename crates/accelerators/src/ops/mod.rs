@@ -5,9 +5,11 @@
 //! `x_c1 || x_c0 || y_c1 || y_c0` order.
 
 mod blake2;
+mod ecdsa;
 mod hash;
 
 pub use blake2::blake2f;
+pub use ecdsa::{secp256k1_ecrecover, secp256k1_verify};
 pub use hash::{keccak256, ripemd160, sha256};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
