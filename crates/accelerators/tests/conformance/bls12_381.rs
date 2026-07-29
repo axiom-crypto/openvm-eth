@@ -1,18 +1,19 @@
-//! BLS12-381 add/MSM/pairing conformance vectors.
+//! BLS12-381 add/MSM/pairing/map conformance vectors.
 
 use hex_literal::hex;
 use openvm_accelerators::{
     ffi::{
         zkvm_bls12_g1_add, zkvm_bls12_g1_msm, zkvm_bls12_g2_add, zkvm_bls12_g2_msm,
-        zkvm_bls12_pairing,
+        zkvm_bls12_map_fp2_to_g2, zkvm_bls12_map_fp_to_g1, zkvm_bls12_pairing,
     },
     ops::{
         bls12_381_g1_add, bls12_381_g1_msm, bls12_381_g2_add, bls12_381_g2_msm,
-        bls12_381_pairing_check,
+        bls12_381_map_fp2_to_g2, bls12_381_map_fp_to_g1, bls12_381_pairing_check, Error,
     },
     types::{
-        ZkvmBls12381G1MsmPair, ZkvmBls12381G1Point, ZkvmBls12381G2MsmPair, ZkvmBls12381G2Point,
-        ZkvmBls12381PairingPair, ZkvmBls12381Scalar, ZkvmStatus,
+        ZkvmBls12381Fp, ZkvmBls12381Fp2, ZkvmBls12381G1MsmPair, ZkvmBls12381G1Point,
+        ZkvmBls12381G2MsmPair, ZkvmBls12381G2Point, ZkvmBls12381PairingPair, ZkvmBls12381Scalar,
+        ZkvmStatus,
     },
 };
 
@@ -223,5 +224,170 @@ fn zkvm_bls12_null_pointers() {
     assert_eq!(status, ZkvmStatus::Fail);
 
     let status = unsafe { zkvm_bls12_pairing(pairs.as_ptr(), pairs.len(), core::ptr::null_mut()) };
+    assert_eq!(status, ZkvmStatus::Fail);
+}
+
+/* ============================================================================
+ * Map to curve
+ * ============================================================================ */
+
+/// Official EIP-2537 vectors for MAP_FP_TO_G1, from https://github.com/ethereum/EIPs/blob/master/assets/eip-2537/map_fp_to_G1_bls.json
+const MAP_FP_TO_G1_VECTORS: [([u8; 48], [u8; 96]); 2] = [
+    // "bls_g1map_"
+    (
+        hex!("156c8a6a2c184569d69a76be144b5cdc5141d2d2ca4fe341f011e25e3969c55ad9e9b9ce2eb833c81a908e5fa4ac5f03"),
+        hex!(
+            "184bb665c37ff561a89ec2122dd343f20e0f4cbcaec84e3c3052ea81d1834e192c426074b02ed3dca4e7676ce4ce48ba"
+            "04407b8d35af4dacc809927071fc0405218f1401a6d15af775810e4e460064bcc9468beeba82fdc751be70476c888bf3"
+        ),
+    ),
+    // "bls_g1map_616263"
+    (
+        hex!("147e1ed29f06e4c5079b9d14fc89d2820d32419b990c1c7bb7dbea2a36a045124b31ffbde7c99329c05c559af1c6cc82"),
+        hex!(
+            "009769f3ab59bfd551d53a5f846b9984c59b97d6842b20a2c565baa167945e3d026a3755b6345df8ec7e6acb6868ae6d"
+            "1532c00cf61aa3d0ce3e5aa20c3b531a2abd2c770a790a2613818303c6b830ffc0ecf6c357af3317b9575c567f11cd2c"
+        ),
+    ),
+];
+
+/// Official EIP-2537 vectors for MAP_FP2_TO_G2, from https://github.com/ethereum/EIPs/blob/master/assets/eip-2537/map_fp2_to_G2_bls.json
+const MAP_FP2_TO_G2_VECTORS: [([u8; 96], [u8; 192]); 2] = [
+    // "bls_g2map_"
+    (
+        hex!(
+            "07355d25caf6e7f2f0cb2812ca0e513bd026ed09dda65b177500fa31714e09ea0ded3a078b526bed3307f804d4b93b04"
+            "02829ce3c021339ccb5caf3e187f6370e1e2a311dec9b75363117063ab2015603ff52c3d3b98f19c2f65575e99e8b78c"
+        ),
+        hex!(
+            "00e7f4568a82b4b7dc1f14c6aaa055edf51502319c723c4dc2688c7fe5944c213f510328082396515734b6612c4e7bb7"
+            "126b855e9e69b1f691f816e48ac6977664d24d99f8724868a184186469ddfd4617367e94527d4b74fc86413483afb35b"
+            "0caead0fd7b6176c01436833c79d305c78be307da5f6af6c133c47311def6ff1e0babf57a0fb5539fce7ee12407b0a42"
+            "1498aadcf7ae2b345243e281ae076df6de84455d766ab6fcdaad71fab60abb2e8b980a440043cd305db09d283c895e3d"
+        ),
+    ),
+    // "bls_g2map_616263"
+    (
+        hex!(
+            "138879a9559e24cecee8697b8b4ad32cced053138ab913b99872772dc753a2967ed50aabc907937aefb2439ba06cc50c"
+            "0a1ae7999ea9bab1dcc9ef8887a6cb6e8f1e22566015428d220b7eec90ffa70ad1f624018a9ad11e78d588bd3617f9f2"
+        ),
+        hex!(
+            "108ed59fd9fae381abfd1d6bce2fd2fa220990f0f837fa30e0f27914ed6e1454db0d1ee957b219f61da6ff8be0d6441f"
+            "0296238ea82c6d4adb3c838ee3cb2346049c90b96d602d7bb1b469b905c9228be25c627bffee872def773d5b2a2eb57d"
+            "033f90f6057aadacae7963b0a0b379dd46750c1c94a6357c99b65f63b79e321ff50fe3053330911c56b6ceea08fee656"
+            "153606c417e59fb331b7ae6bce4fbf7c5190c33ce9402b5ebe2b70e44fca614f3f1382a3625ed5493843d0b0a652fc3f"
+        ),
+    ),
+];
+
+/// The largest canonical field element.
+const BLS_FP_MAX: [u8; 48] =
+    hex!("1a0111ea397fe69a4b1ba7b6434bacd764774b84f38512bf6730d2a0f6b0f6241eabfffeb153ffffb9feffffffffaaaa");
+
+/// The base field modulus itself, which is not a canonical field element.
+const BLS_FP_MODULUS: [u8; 48] =
+    hex!("1a0111ea397fe69a4b1ba7b6434bacd764774b84f38512bf6730d2a0f6b0f6241eabfffeb153ffffb9feffffffffaaab");
+
+#[test]
+fn bls12_map_fp_to_g1_vectors() {
+    for (input, expected) in MAP_FP_TO_G1_VECTORS {
+        let mut output = ZkvmBls12381G1Point { data: [0xff; 96] };
+        bls12_381_map_fp_to_g1(&ZkvmBls12381Fp { data: input }, &mut output).unwrap();
+        assert_eq!(output.data, expected, "input={input:?}");
+    }
+}
+
+#[test]
+fn bls12_map_fp2_to_g2_vectors() {
+    for (input, expected) in MAP_FP2_TO_G2_VECTORS {
+        let mut output = ZkvmBls12381G2Point { data: [0xff; 192] };
+        bls12_381_map_fp2_to_g2(&ZkvmBls12381Fp2 { data: input }, &mut output).unwrap();
+        assert_eq!(output.data, expected, "input={input:?}");
+    }
+}
+
+/// Mapped points must be valid members of the prime-order subgroup.
+///
+/// MSM re-parses the point and validates subgroup membership, so this is an
+/// independent check that the cofactor was cleared; multiplying by one must
+/// return the point itself.
+#[test]
+fn bls12_map_lands_in_prime_order_subgroup() {
+    let mapped = ZkvmBls12381G1Point { data: MAP_FP_TO_G1_VECTORS[0].1 };
+    let mut output = ZkvmBls12381G1Point { data: [0; 96] };
+    bls12_381_g1_msm(&[ZkvmBls12381G1MsmPair { point: mapped, scalar: scalar(1) }], &mut output)
+        .expect("mapped G1 point must be in the prime-order subgroup");
+    assert_eq!(output.data, mapped.data);
+
+    let mapped = ZkvmBls12381G2Point { data: MAP_FP2_TO_G2_VECTORS[0].1 };
+    let mut output = ZkvmBls12381G2Point { data: [0; 192] };
+    bls12_381_g2_msm(&[ZkvmBls12381G2MsmPair { point: mapped, scalar: scalar(1) }], &mut output)
+        .expect("mapped G2 point must be in the prime-order subgroup");
+    assert_eq!(output.data, mapped.data);
+}
+
+#[test]
+fn bls12_map_field_element_range() {
+    let mut g1 = ZkvmBls12381G1Point { data: [0; 96] };
+    let mut g2 = ZkvmBls12381G2Point { data: [0; 192] };
+
+    // The largest canonical element is accepted, the modulus itself is not.
+    assert_eq!(bls12_381_map_fp_to_g1(&ZkvmBls12381Fp { data: BLS_FP_MAX }, &mut g1), Ok(()));
+    assert_eq!(
+        bls12_381_map_fp_to_g1(&ZkvmBls12381Fp { data: BLS_FP_MODULUS }, &mut g1),
+        Err(Error::FieldElementInvalid)
+    );
+    assert_eq!(
+        bls12_381_map_fp_to_g1(&ZkvmBls12381Fp { data: [0xff; 48] }, &mut g1),
+        Err(Error::FieldElementInvalid)
+    );
+
+    // Either half of an Fp2 input is checked.
+    let mut c0_bad = ZkvmBls12381Fp2 { data: [0; 96] };
+    c0_bad.data[..48].copy_from_slice(&BLS_FP_MODULUS);
+    assert_eq!(bls12_381_map_fp2_to_g2(&c0_bad, &mut g2), Err(Error::FieldElementInvalid));
+
+    let mut c1_bad = ZkvmBls12381Fp2 { data: [0; 96] };
+    c1_bad.data[48..].copy_from_slice(&BLS_FP_MODULUS);
+    assert_eq!(bls12_381_map_fp2_to_g2(&c1_bad, &mut g2), Err(Error::FieldElementInvalid));
+}
+
+#[test]
+fn zkvm_bls12_map_smoke() {
+    let (fp, expected) = MAP_FP_TO_G1_VECTORS[0];
+    let field_element = ZkvmBls12381Fp { data: fp };
+    let mut g1 = ZkvmBls12381G1Point { data: [0xff; 96] };
+    let status = unsafe { zkvm_bls12_map_fp_to_g1(&field_element, &mut g1) };
+    assert_eq!(status, ZkvmStatus::Ok);
+    assert_eq!(g1.data, expected);
+
+    let (fp2, expected) = MAP_FP2_TO_G2_VECTORS[0];
+    let field_element = ZkvmBls12381Fp2 { data: fp2 };
+    let mut g2 = ZkvmBls12381G2Point { data: [0xff; 192] };
+    let status = unsafe { zkvm_bls12_map_fp2_to_g2(&field_element, &mut g2) };
+    assert_eq!(status, ZkvmStatus::Ok);
+    assert_eq!(g2.data, expected);
+
+    // A non-canonical field element maps to the failure status.
+    let not_canonical = ZkvmBls12381Fp { data: BLS_FP_MODULUS };
+    let status = unsafe { zkvm_bls12_map_fp_to_g1(&not_canonical, &mut g1) };
+    assert_eq!(status, ZkvmStatus::Fail);
+}
+
+#[test]
+fn zkvm_bls12_map_null_pointers() {
+    let field_element = ZkvmBls12381Fp { data: MAP_FP_TO_G1_VECTORS[0].0 };
+    let mut g1 = ZkvmBls12381G1Point { data: [0; 96] };
+    let status = unsafe { zkvm_bls12_map_fp_to_g1(core::ptr::null(), &mut g1) };
+    assert_eq!(status, ZkvmStatus::Fail);
+    let status = unsafe { zkvm_bls12_map_fp_to_g1(&field_element, core::ptr::null_mut()) };
+    assert_eq!(status, ZkvmStatus::Fail);
+
+    let field_element = ZkvmBls12381Fp2 { data: MAP_FP2_TO_G2_VECTORS[0].0 };
+    let mut g2 = ZkvmBls12381G2Point { data: [0; 192] };
+    let status = unsafe { zkvm_bls12_map_fp2_to_g2(core::ptr::null(), &mut g2) };
+    assert_eq!(status, ZkvmStatus::Fail);
+    let status = unsafe { zkvm_bls12_map_fp2_to_g2(&field_element, core::ptr::null_mut()) };
     assert_eq!(status, ZkvmStatus::Fail);
 }
