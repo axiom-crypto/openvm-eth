@@ -12,6 +12,7 @@ workspace = true
 [dependencies]
 # openvm
 openvm-ecc-guest.workspace = true
+openvm-kzg = { workspace = true, features = ["use-intrinsics"] }
 openvm-p256.workspace = true
 openvm-pairing = { workspace = true, features = ["bn254"] }
 openvm-keccak256.workspace = true
@@ -30,10 +31,21 @@ openvm-k256.workspace = true
 [target.'cfg(not(any(target_os = "none", target_os = "openvm")))'.dependencies]
 k256 = { version = "0.13", default-features = false, features = ["ecdsa"] }
 openvm-keccak256 = { workspace = true, features = ["tiny_keccak"] }
+# Not imported directly: enables the host pairing backend used by the KZG
+# verification. openvm-pairing's `halo2curves` feature does not forward to
+# openvm-pairing-guest, so the inner feature is enabled explicitly.
+openvm-pairing = { workspace = true, features = ["halo2curves"] }
+openvm-pairing-guest = { workspace = true, features = ["halo2curves"] }
 openvm-sha2 = { workspace = true, features = ["import_sha2"] }
 
 [dev-dependencies]
 hex-literal.workspace = true
+
+[package.metadata.cargo-shear]
+ignored = ["openvm-pairing-guest"]
+
+[package.metadata.cargo-machete]
+ignored = ["openvm-pairing-guest"]
 
 [features]
 default = ["ffi"]
