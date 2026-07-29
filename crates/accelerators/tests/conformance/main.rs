@@ -6,4 +6,5 @@
 mod blake2;
 mod ecdsa;
 mod hash;
+mod kzg;
 mod modexp;
