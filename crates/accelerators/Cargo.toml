@@ -11,10 +11,11 @@ workspace = true
 
 [dependencies]
 # openvm
+openvm-curve-utils = { workspace = true, features = ["bn254", "bls12_381"] }
 openvm-ecc-guest.workspace = true
 openvm-kzg = { workspace = true, features = ["use-intrinsics"] }
 openvm-p256.workspace = true
-openvm-pairing = { workspace = true, features = ["bn254"] }
+openvm-pairing = { workspace = true, features = ["bn254", "bls12_381"] }
 openvm-keccak256.workspace = true
 openvm-sha2.workspace = true
 
