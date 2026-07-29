@@ -1,6 +1,9 @@
 //! BLS12-381 group operations (EIP-2537).
 
 mod codec;
+mod map;
+
+pub use map::{bls12_381_map_fp2_to_g2, bls12_381_map_fp_to_g1};
 
 use alloc::vec::Vec;
 
@@ -22,6 +25,9 @@ use crate::{
         ZkvmBls12381PairingPair,
     },
 };
+
+/// The number of bytes needed to represent an element of the base field Fp.
+const BLS_FP_LEN: usize = 48;
 
 /// BLS12-381 G1 point addition (precompile 0x0b). Inputs are `x || y`.
 ///

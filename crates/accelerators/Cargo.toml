@@ -20,6 +20,9 @@ openvm-keccak256.workspace = true
 openvm-sha2.workspace = true
 
 # crypto
+ark-bls12-381 = { version = "0.5", default-features = false, features = ["curve"] }
+ark-ec = { version = "0.5", default-features = false }
+ark-serialize = { version = "0.5", default-features = false }
 aurora-engine-modexp = { version = "1.2.0", default-features = false }
 ripemd = { version = "0.1.3", default-features = false }
 
