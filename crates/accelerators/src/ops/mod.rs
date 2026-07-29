@@ -14,7 +14,8 @@ mod modexp;
 
 pub use blake2::blake2f;
 pub use bls12_381::{
-    bls12_381_g1_add, bls12_381_g1_msm, bls12_381_g2_add, bls12_381_g2_msm, bls12_381_pairing_check,
+    bls12_381_g1_add, bls12_381_g1_msm, bls12_381_g2_add, bls12_381_g2_msm,
+    bls12_381_map_fp2_to_g2, bls12_381_map_fp_to_g1, bls12_381_pairing_check,
 };
 pub use bn254::{bn254_g1_add, bn254_g1_mul, bn254_pairing_check};
 pub use ecdsa::{secp256k1_ecrecover, secp256k1_verify, secp256r1_verify};

@@ -5,12 +5,11 @@ use openvm_curve_utils::SubgroupCheck;
 use openvm_ecc_guest::{algebra::IntMod, weierstrass::WeierstrassPoint, Group};
 use openvm_pairing::bls12_381 as bls;
 
+use super::BLS_FP_LEN;
 use crate::{
     ops::Error,
     types::{ZkvmBls12381G1Point, ZkvmBls12381G2Point, ZkvmBls12381Scalar},
 };
-
-const BLS_FP_LEN: usize = 48;
 
 #[inline]
 fn read_bls_fp(input: &[u8]) -> Result<bls::Fp, Error> {
