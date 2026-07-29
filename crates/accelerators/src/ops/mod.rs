@@ -5,12 +5,18 @@
 //! `x_c1 || x_c0 || y_c1 || y_c0` order.
 
 mod blake2;
+mod bls12_381;
+mod bn254;
 mod ecdsa;
 mod hash;
 mod kzg;
 mod modexp;
 
 pub use blake2::blake2f;
+pub use bls12_381::{
+    bls12_381_g1_add, bls12_381_g1_msm, bls12_381_g2_add, bls12_381_g2_msm, bls12_381_pairing_check,
+};
+pub use bn254::{bn254_g1_add, bn254_g1_mul, bn254_pairing_check};
 pub use ecdsa::{secp256k1_ecrecover, secp256k1_verify, secp256r1_verify};
 pub use hash::{keccak256, ripemd160, sha256};
 pub use kzg::kzg_point_eval;
