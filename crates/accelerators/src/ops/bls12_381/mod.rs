@@ -1,0 +1,98 @@
+//! BLS12-381 group operations (EIP-2537).
+
+mod codec;
+
+use alloc::vec::Vec;
+
+use codec::{
+    encode_bls_g1_point, encode_bls_g2_point, read_bls_g1_point,
+    read_bls_g1_point_no_subgroup_check, read_bls_g2_point, read_bls_g2_point_no_subgroup_check,
+    read_bls_scalar,
+};
+use openvm_ecc_guest::weierstrass::IntrinsicCurve;
+use openvm_pairing::bls12_381::Bls12_381;
+
+use crate::{
+    ops::Error,
+    types::{
+        ZkvmBls12381G1MsmPair, ZkvmBls12381G1Point, ZkvmBls12381G2MsmPair, ZkvmBls12381G2Point,
+    },
+};
+
+pub(super) const BLS_FP_LEN: usize = 48;
+
+/// BLS12-381 G1 point addition (precompile 0x0b). Inputs are `x || y`.
+///
+/// Per EIP-2537 G1ADD, inputs are validated on-curve only, not for subgroup
+/// membership.
+pub fn bls12_381_g1_add(
+    p1: &ZkvmBls12381G1Point,
+    p2: &ZkvmBls12381G1Point,
+    output: &mut ZkvmBls12381G1Point,
+) -> Result<(), Error> {
+    let p1 = read_bls_g1_point_no_subgroup_check(p1)?;
+    let p2 = read_bls_g1_point_no_subgroup_check(p2)?;
+    encode_bls_g1_point(&(p1 + p2), output);
+    Ok(())
+}
+
+/// BLS12-381 G1 multi-scalar multiplication (precompile 0x0c).
+///
+/// Points must be in the prime-order subgroup; scalars need not be canonical.
+/// An empty input yields the identity (all-zero) encoding.
+pub fn bls12_381_g1_msm(
+    pairs: &[ZkvmBls12381G1MsmPair],
+    output: &mut ZkvmBls12381G1Point,
+) -> Result<(), Error> {
+    if pairs.is_empty() {
+        output.data = [0u8; 96];
+        return Ok(());
+    }
+
+    let mut points = Vec::with_capacity(pairs.len());
+    let mut scalars = Vec::with_capacity(pairs.len());
+    for pair in pairs {
+        points.push(read_bls_g1_point(&pair.point)?);
+        scalars.push(read_bls_scalar(&pair.scalar));
+    }
+    encode_bls_g1_point(&Bls12_381::msm(&scalars, &points), output);
+    Ok(())
+}
+
+/// BLS12-381 G2 point addition (precompile 0x0d).
+///
+/// Per EIP-2537 G2ADD, inputs are validated on-curve only, not for subgroup
+/// membership.
+pub fn bls12_381_g2_add(
+    p1: &ZkvmBls12381G2Point,
+    p2: &ZkvmBls12381G2Point,
+    output: &mut ZkvmBls12381G2Point,
+) -> Result<(), Error> {
+    let p1 = read_bls_g2_point_no_subgroup_check(p1)?;
+    let p2 = read_bls_g2_point_no_subgroup_check(p2)?;
+    encode_bls_g2_point(&(p1 + p2), output);
+    Ok(())
+}
+
+/// BLS12-381 G2 multi-scalar multiplication (precompile 0x0e).
+///
+/// Points must be in the prime-order subgroup; scalars need not be canonical.
+/// An empty input yields the identity (all-zero) encoding.
+pub fn bls12_381_g2_msm(
+    pairs: &[ZkvmBls12381G2MsmPair],
+    output: &mut ZkvmBls12381G2Point,
+) -> Result<(), Error> {
+    if pairs.is_empty() {
+        output.data = [0u8; 192];
+        return Ok(());
+    }
+
+    let mut points = Vec::with_capacity(pairs.len());
+    let mut scalars = Vec::with_capacity(pairs.len());
+    for pair in pairs {
+        points.push(read_bls_g2_point(&pair.point)?);
+        scalars.push(read_bls_scalar(&pair.scalar));
+    }
+    encode_bls_g2_point(&openvm_ecc_guest::msm(&scalars, &points), output);
+    Ok(())
+}
