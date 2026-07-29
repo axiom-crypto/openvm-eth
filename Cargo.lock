@@ -6793,6 +6793,7 @@ dependencies = [
  "k256 0.13.4 (git+https://github.com/openvm-org/openvm.git?branch=develop-v2.1.0)",
  "openvm-keccak256",
  "openvm-sha2",
+ "p256 0.13.2 (git+https://github.com/openvm-org/openvm.git?branch=develop-v2.1.0)",
  "ripemd",
 ]
 
