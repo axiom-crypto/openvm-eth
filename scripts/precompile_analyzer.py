@@ -15,21 +15,21 @@ serves the trace (override with --rpc); public trace-capable fallbacks are tried
 last. Run --check to see which support tracing.
 
 Run it directly (uv installs the dependencies on first use):
-    ./precompile_analyzer.py <block_number>
-    uv run precompile_analyzer.py <block_number>   # equivalent
+    ./scripts/precompile_analyzer.py <block_number>
+    uv run scripts/precompile_analyzer.py <block_number>   # equivalent
 
 Typical workflow — find a slow block with ethproofs_analyzer, then inspect it here:
-    ./ethproofs_analyzer.py --last 1d --metric min --top-k 20   # hardest blocks for every prover
-    ./ethproofs_analyzer.py --last 1d --compare --top-k 20      # blocks where OpenVM trailed most
-    ./precompile_analyzer.py <block_number>                     # why: that block's precompile load
+    ./scripts/ethproofs_analyzer.py --last 1d --metric min --top-k 20  # hardest blocks for every prover
+    ./scripts/ethproofs_analyzer.py --last 1d --compare --top-k 20     # highest OpenVM/fastest ratio
+    ./scripts/precompile_analyzer.py <block_number>                    # inspect its precompile load
 
 Usage:
-    ./precompile_analyzer.py 21000000                       # analyze a block
-    ./precompile_analyzer.py 21000000 --rpc http://host:8545 # against a specific RPC
-    ./precompile_analyzer.py 21000000 -v                    # also report tx and call-frame counts
-    ./precompile_analyzer.py 21000000 --top-k 10            # top 10 transactions
-    ./precompile_analyzer.py 21000000 --filter bn254_add,bn254_mul  # only these precompiles
-    ./precompile_analyzer.py --check                        # verify the RPC supports tracing
+    ./scripts/precompile_analyzer.py 21000000                       # analyze a block
+    ./scripts/precompile_analyzer.py 21000000 --rpc http://host:8545 # against a specific RPC
+    ./scripts/precompile_analyzer.py 21000000 -v                    # include tx and call-frame counts
+    ./scripts/precompile_analyzer.py 21000000 --top-k 10            # top 10 transactions
+    ./scripts/precompile_analyzer.py 21000000 --filter bn254_add,bn254_mul
+    ./scripts/precompile_analyzer.py --check                        # verify tracing support
 """
 
 import argparse
