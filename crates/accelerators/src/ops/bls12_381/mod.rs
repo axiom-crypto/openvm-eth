@@ -23,8 +23,6 @@ use crate::{
     },
 };
 
-pub(super) const BLS_FP_LEN: usize = 48;
-
 /// BLS12-381 G1 point addition (precompile 0x0b). Inputs are `x || y`.
 ///
 /// Per EIP-2537 G1ADD, inputs are validated on-curve only, not for subgroup

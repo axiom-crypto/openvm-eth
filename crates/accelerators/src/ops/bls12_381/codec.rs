@@ -10,7 +10,7 @@ use crate::{
     types::{ZkvmBls12381G1Point, ZkvmBls12381G2Point, ZkvmBls12381Scalar},
 };
 
-use super::BLS_FP_LEN;
+const BLS_FP_LEN: usize = 48;
 
 #[inline]
 fn read_bls_fp(input: &[u8]) -> Result<bls::Fp, Error> {
