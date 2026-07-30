@@ -106,24 +106,24 @@ alloy-rpc-client = { version = "=2.0.5", default-features = false }
 alloy-rpc-types = { version = "=2.0.5", default-features = false }
 alloy-rpc-types-debug = { version = "=2.0.5", default-features = false }
 alloy-transport = { version = "=2.0.5", default-features = false }
-openvm = { git = "https://github.com/openvm-org/openvm.git", branch = "develop-v2.1.0", default-features = false }
-openvm-circuit = { git = "https://github.com/openvm-org/openvm.git", branch = "develop-v2.1.0", default-features = false }
-openvm-verify-stark-host = { git = "https://github.com/openvm-org/openvm.git", branch = "develop-v2.1.0", default-features = false }
-openvm-ecc-guest = { git = "https://github.com/openvm-org/openvm.git", branch = "develop-v2.1.0", default-features = false }
-openvm-keccak256 = { git = "https://github.com/openvm-org/openvm.git", branch = "develop-v2.1.0", default-features = false }
-openvm-pairing = { git = "https://github.com/openvm-org/openvm.git", branch = "develop-v2.1.0", default-features = false, features = [
+openvm = { git = "https://github.com/openvm-org/openvm.git", branch = "feat/zba-b-s-extension-support", default-features = false }
+openvm-circuit = { git = "https://github.com/openvm-org/openvm.git", branch = "feat/zba-b-s-extension-support", default-features = false }
+openvm-verify-stark-host = { git = "https://github.com/openvm-org/openvm.git", branch = "feat/zba-b-s-extension-support", default-features = false }
+openvm-ecc-guest = { git = "https://github.com/openvm-org/openvm.git", branch = "feat/zba-b-s-extension-support", default-features = false }
+openvm-keccak256 = { git = "https://github.com/openvm-org/openvm.git", branch = "feat/zba-b-s-extension-support", default-features = false }
+openvm-pairing = { git = "https://github.com/openvm-org/openvm.git", branch = "feat/zba-b-s-extension-support", default-features = false, features = [
     "bn254",
     "bls12_381",
 ] }
-openvm-sha2 = { git = "https://github.com/openvm-org/openvm.git", branch = "develop-v2.1.0", default-features = false }
-openvm-k256 = { git = "https://github.com/openvm-org/openvm.git", package = "k256", branch = "develop-v2.1.0" }
-openvm-p256 = { git = "https://github.com/openvm-org/openvm.git", package = "p256", branch = "develop-v2.1.0" }
-openvm-algebra-guest = { git = "https://github.com/openvm-org/openvm.git", branch = "develop-v2.1.0", default-features = false }
+openvm-sha2 = { git = "https://github.com/openvm-org/openvm.git", branch = "feat/zba-b-s-extension-support", default-features = false }
+openvm-k256 = { git = "https://github.com/openvm-org/openvm.git", package = "k256", branch = "feat/zba-b-s-extension-support" }
+openvm-p256 = { git = "https://github.com/openvm-org/openvm.git", package = "p256", branch = "feat/zba-b-s-extension-support" }
+openvm-algebra-guest = { git = "https://github.com/openvm-org/openvm.git", branch = "feat/zba-b-s-extension-support", default-features = false }
 
 # openvm (host only)
-openvm-sdk = { git = "https://github.com/openvm-org/openvm.git", branch = "develop-v2.1.0", default-features = false }
-openvm-sdk-config = { git = "https://github.com/openvm-org/openvm.git", branch = "develop-v2.1.0", default-features = false }
-openvm-build = { git = "https://github.com/openvm-org/openvm.git", branch = "develop-v2.1.0", default-features = false }
+openvm-sdk = { git = "https://github.com/openvm-org/openvm.git", branch = "feat/zba-b-s-extension-support", default-features = false }
+openvm-sdk-config = { git = "https://github.com/openvm-org/openvm.git", branch = "feat/zba-b-s-extension-support", default-features = false }
+openvm-build = { git = "https://github.com/openvm-org/openvm.git", branch = "feat/zba-b-s-extension-support", default-features = false }
 openvm-stark-sdk = { git = "https://github.com/openvm-org/stark-backend.git", branch = "develop-v2.1.0", default-features = false }
 
 # crates/kzg
@@ -136,24 +136,6 @@ bls12_381 = { version = "0.8.0", default-features = false, features = [
 spin = { version = "0.10.0", default-features = false, features = ["once"] }
 serde-big-array = { version = "0.5.1", default-features = false }
 serde_yaml = { version = "0.9", default-features = false }
-
-# openvm with the Rv64B bit-manipulation extension (branch feat/zba-b-s-extension-support).
-# TODO(rv64b): swap paths for git rev pins once the branch is pushed.
-[patch."https://github.com/openvm-org/openvm.git"]
-openvm = { path = "../openvm-int-8828-ticket/crates/toolchain/openvm" }
-openvm-circuit = { path = "../openvm-int-8828-ticket/crates/vm" }
-openvm-verify-stark-host = { path = "../openvm-int-8828-ticket/crates/verify" }
-openvm-ecc-guest = { path = "../openvm-int-8828-ticket/extensions/ecc/guest" }
-openvm-keccak256 = { path = "../openvm-int-8828-ticket/guest-libs/keccak256" }
-openvm-pairing = { path = "../openvm-int-8828-ticket/guest-libs/pairing" }
-openvm-sha2 = { path = "../openvm-int-8828-ticket/guest-libs/sha2" }
-k256 = { path = "../openvm-int-8828-ticket/guest-libs/k256" }
-p256 = { path = "../openvm-int-8828-ticket/guest-libs/p256" }
-openvm-algebra-guest = { path = "../openvm-int-8828-ticket/extensions/algebra/guest" }
-openvm-sdk = { path = "../openvm-int-8828-ticket/crates/sdk" }
-openvm-sdk-config = { path = "../openvm-int-8828-ticket/crates/sdk-config" }
-openvm-build = { path = "../openvm-int-8828-ticket/crates/toolchain/build" }
-openvm-transpiler = { path = "../openvm-int-8828-ticket/crates/toolchain/transpiler" }
 
 [workspace.lints]
 rust.missing_debug_implementations = "warn"
