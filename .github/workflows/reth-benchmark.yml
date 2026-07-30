@@ -188,7 +188,7 @@ on:
         value: ${{ jobs.run-reth.outputs.num_segments }}
 
 env:
-  OPENVM_BRANCH: develop-v2.1.0
+  OPENVM_BRANCH: feat/zba-b-s-extension-support
   S3_FIXTURE_READ_ENABLED: ${{ vars.S3_PUBLIC_DATA_BUCKET != '' }}
   S3_PUBLIC_UPLOAD_ENABLED: ${{ vars.S3_PUBLIC_DATA_BUCKET != '' && vars.S3_REGION != '' }}
   S3_WORKFLOW_UPLOAD_ENABLED: ${{ vars.S3_WORKFLOW_DATA_BUCKET != '' }}
@@ -456,7 +456,14 @@ jobs:
         working-directory: bin/stateless-guest
         run: |
           GUEST_PROFILE=${{ steps.set-build-profiles.outputs.guest_profile }}
-          RUSTFLAGS="" cargo openvm build --no-transpile --profile=$GUEST_PROFILE
+          # Guest codegen flags come from the checked-out ref (per compare arm), so
+          # a ref without guest.rustflags builds the plain rv64im guest.
+          GUEST_RUSTFLAGS=""
+          if [ -f guest.rustflags ]; then
+            GUEST_RUSTFLAGS="$(cat guest.rustflags)"
+            echo "Using guest RUSTFLAGS: $GUEST_RUSTFLAGS"
+          fi
+          RUSTFLAGS="$GUEST_RUSTFLAGS" cargo openvm build --no-transpile --profile=$GUEST_PROFILE
           mkdir -p ../reth-benchmark/elf
           cp target/riscv64im-unknown-openvm-elf/$GUEST_PROFILE/openvm-stateless-guest ../reth-benchmark/elf/
 

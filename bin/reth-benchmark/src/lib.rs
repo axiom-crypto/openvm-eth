@@ -243,6 +243,9 @@ pub fn reth_vm_config() -> SdkVmConfig {
         .config
         .with_max_constraint_degree(VM_MAX_CONSTRAINT_DEGREE)
         .with_public_values(32);
+    // Rv64B bit-manipulation extension, matching the guest target features in
+    // bin/stateless-guest/guest.rustflags. Baseline = a ref without this (e.g. main).
+    config.rv64b = Some(Default::default());
     config
 }
 

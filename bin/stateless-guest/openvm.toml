@@ -1,6 +1,9 @@
 [app_vm_config.rv64i]
 [app_vm_config.rv64m]
 [app_vm_config.io]
+# Rv64B bit-manipulation extension; guest is built with the matching target features
+# from guest.rustflags.
+[app_vm_config.rv64b]
 
 [app_vm_config.keccak]
 [app_vm_config.sha2]

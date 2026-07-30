@@ -137,6 +137,24 @@ spin = { version = "0.10.0", default-features = false, features = ["once"] }
 serde-big-array = { version = "0.5.1", default-features = false }
 serde_yaml = { version = "0.9", default-features = false }
 
+# openvm with the Rv64B bit-manipulation extension (branch feat/zba-b-s-extension-support).
+# TODO(rv64b): swap paths for git rev pins once the branch is pushed.
+[patch."https://github.com/openvm-org/openvm.git"]
+openvm = { path = "../openvm-int-8828-ticket/crates/toolchain/openvm" }
+openvm-circuit = { path = "../openvm-int-8828-ticket/crates/vm" }
+openvm-verify-stark-host = { path = "../openvm-int-8828-ticket/crates/verify" }
+openvm-ecc-guest = { path = "../openvm-int-8828-ticket/extensions/ecc/guest" }
+openvm-keccak256 = { path = "../openvm-int-8828-ticket/guest-libs/keccak256" }
+openvm-pairing = { path = "../openvm-int-8828-ticket/guest-libs/pairing" }
+openvm-sha2 = { path = "../openvm-int-8828-ticket/guest-libs/sha2" }
+k256 = { path = "../openvm-int-8828-ticket/guest-libs/k256" }
+p256 = { path = "../openvm-int-8828-ticket/guest-libs/p256" }
+openvm-algebra-guest = { path = "../openvm-int-8828-ticket/extensions/algebra/guest" }
+openvm-sdk = { path = "../openvm-int-8828-ticket/crates/sdk" }
+openvm-sdk-config = { path = "../openvm-int-8828-ticket/crates/sdk-config" }
+openvm-build = { path = "../openvm-int-8828-ticket/crates/toolchain/build" }
+openvm-transpiler = { path = "../openvm-int-8828-ticket/crates/toolchain/transpiler" }
+
 [workspace.lints]
 rust.missing_debug_implementations = "warn"
 rust.unreachable_pub = "warn"
