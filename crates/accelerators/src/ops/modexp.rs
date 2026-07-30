@@ -2,6 +2,7 @@
 
 use alloc::{vec, vec::Vec};
 
+use openvm_ecc_guest::algebra::{ExpBytes, IntMod, Reduce};
 use openvm_pairing::bn254 as bn;
 
 /// The number of bytes needed to represent an element of BN254's scalar
@@ -35,8 +36,6 @@ pub fn modexp(base: &[u8], exp: &[u8], modulus: &[u8], output: &mut [u8]) {
 
 /// Returns true if the modulus (big-endian, possibly with leading zeros) equals BN254 Fr.
 fn is_bn254_fr(modulus: &[u8]) -> bool {
-    use openvm_ecc_guest::algebra::IntMod;
-
     // Strip leading zeros
     let stripped = match modulus.iter().position(|&b| b != 0) {
         Some(i) => &modulus[i..],
@@ -48,8 +47,6 @@ fn is_bn254_fr(modulus: &[u8]) -> bool {
 
 /// Accelerated modexp for BN254 Fr using field arithmetic intrinsics.
 fn accelerated_modexp_bn254_fr(base: &[u8], exp: &[u8]) -> Vec<u8> {
-    use openvm_ecc_guest::algebra::{ExpBytes, IntMod, Reduce};
-
     // OpenVM's field reduction requires inputs to be aligned to the field byte size.
     let padded_len = base.len().next_multiple_of(BN_SCALAR_LEN).max(BN_SCALAR_LEN);
     let mut padded = vec![0u8; padded_len];
@@ -65,7 +62,6 @@ mod tests {
 
     /// BN254 Fr modulus in big-endian bytes
     fn bn254_fr_modulus_be() -> Vec<u8> {
-        use openvm_ecc_guest::algebra::IntMod;
         bn::Scalar::MODULUS.as_ref().iter().rev().copied().collect()
     }
 
