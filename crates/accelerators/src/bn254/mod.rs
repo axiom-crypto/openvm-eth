@@ -6,10 +6,7 @@ use alloc::vec::Vec;
 
 use crate::types::{zkvm_status, ZkvmBytes, ZKVM_EFAIL, ZKVM_EOK};
 use codec::{encode_g1, read_g1, read_g2, read_scalar};
-use openvm_ecc_guest::{
-    weierstrass::{IntrinsicCurve, WeierstrassPoint},
-    AffinePoint,
-};
+use openvm_ecc_guest::{weierstrass::WeierstrassPoint, AffinePoint};
 use openvm_pairing::{bn254::Bn254, PairingCheck};
 
 use crate::error::Error;
@@ -113,7 +110,11 @@ fn g1_add(p1: &[u8; 64], p2: &[u8; 64]) -> Result<[u8; 64], Error> {
 }
 
 fn g1_mul(point: &[u8; 64], scalar: &[u8; 32]) -> Result<[u8; 64], Error> {
-    Ok(encode_g1(Bn254::msm(&[read_scalar(scalar)], &[read_g1(point)?])))
+    let point = read_g1(point)?;
+    let scalar = read_scalar(scalar);
+    // `mul_scalar` reduces the scalar and short-circuits the identity, both of which EIP-196
+    // permits in calldata and neither of which the `EC_MUL` opcode accepts directly.
+    Ok(encode_g1(point.mul_scalar(&scalar)))
 }
 
 fn pairing<'a>(
