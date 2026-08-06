@@ -140,8 +140,9 @@ impl Crypto for OpenVmCrypto {
     ) -> Result<[u8; 64], PrecompileHalt> {
         let p = read_bn_g1_point(point_bytes)?;
         let s = read_bn_scalar(scalar_bytes);
-        let result = Bn254::msm(&[s], &[p]);
-        Ok(encode_bn_g1_point(result))
+        // `mul_scalar` reduces the scalar and short-circuits the identity, both of which EIP-196
+        // permits in calldata and neither of which the `EC_MUL` opcode accepts directly.
+        Ok(encode_bn_g1_point(p.mul_scalar(&s)))
     }
 
     /// Custom BN254 pairing check with openvm optimization
