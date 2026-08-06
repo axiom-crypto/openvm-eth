@@ -106,25 +106,25 @@ alloy-rpc-client = { version = "=2.0.5", default-features = false }
 alloy-rpc-types = { version = "=2.0.5", default-features = false }
 alloy-rpc-types-debug = { version = "=2.0.5", default-features = false }
 alloy-transport = { version = "=2.0.5", default-features = false }
-openvm = { git = "https://github.com/openvm-org/openvm.git", branch = "perf/comm-stream-overlap", default-features = false }
-openvm-circuit = { git = "https://github.com/openvm-org/openvm.git", branch = "perf/comm-stream-overlap", default-features = false }
-openvm-verify-stark-host = { git = "https://github.com/openvm-org/openvm.git", branch = "perf/comm-stream-overlap", default-features = false }
-openvm-ecc-guest = { git = "https://github.com/openvm-org/openvm.git", branch = "perf/comm-stream-overlap", default-features = false }
-openvm-keccak256 = { git = "https://github.com/openvm-org/openvm.git", branch = "perf/comm-stream-overlap", default-features = false }
-openvm-pairing = { git = "https://github.com/openvm-org/openvm.git", branch = "perf/comm-stream-overlap", default-features = false, features = [
+openvm = { git = "https://github.com/openvm-org/openvm.git", branch = "poc/depadding-comm-stream", default-features = false }
+openvm-circuit = { git = "https://github.com/openvm-org/openvm.git", branch = "poc/depadding-comm-stream", default-features = false }
+openvm-verify-stark-host = { git = "https://github.com/openvm-org/openvm.git", branch = "poc/depadding-comm-stream", default-features = false }
+openvm-ecc-guest = { git = "https://github.com/openvm-org/openvm.git", branch = "poc/depadding-comm-stream", default-features = false }
+openvm-keccak256 = { git = "https://github.com/openvm-org/openvm.git", branch = "poc/depadding-comm-stream", default-features = false }
+openvm-pairing = { git = "https://github.com/openvm-org/openvm.git", branch = "poc/depadding-comm-stream", default-features = false, features = [
     "bn254",
     "bls12_381",
 ] }
-openvm-sha2 = { git = "https://github.com/openvm-org/openvm.git", branch = "perf/comm-stream-overlap", default-features = false }
-openvm-k256 = { git = "https://github.com/openvm-org/openvm.git", package = "k256", branch = "perf/comm-stream-overlap" }
-openvm-p256 = { git = "https://github.com/openvm-org/openvm.git", package = "p256", branch = "perf/comm-stream-overlap" }
-openvm-algebra-guest = { git = "https://github.com/openvm-org/openvm.git", branch = "perf/comm-stream-overlap", default-features = false }
+openvm-sha2 = { git = "https://github.com/openvm-org/openvm.git", branch = "poc/depadding-comm-stream", default-features = false }
+openvm-k256 = { git = "https://github.com/openvm-org/openvm.git", package = "k256", branch = "poc/depadding-comm-stream" }
+openvm-p256 = { git = "https://github.com/openvm-org/openvm.git", package = "p256", branch = "poc/depadding-comm-stream" }
+openvm-algebra-guest = { git = "https://github.com/openvm-org/openvm.git", branch = "poc/depadding-comm-stream", default-features = false }
 
 # openvm (host only)
-openvm-sdk = { git = "https://github.com/openvm-org/openvm.git", branch = "perf/comm-stream-overlap", default-features = false }
-openvm-sdk-config = { git = "https://github.com/openvm-org/openvm.git", branch = "perf/comm-stream-overlap", default-features = false }
-openvm-build = { git = "https://github.com/openvm-org/openvm.git", branch = "perf/comm-stream-overlap", default-features = false }
-openvm-stark-sdk = { git = "https://github.com/openvm-org/stark-backend.git", branch = "develop-v2.1.0", default-features = false }
+openvm-sdk = { git = "https://github.com/openvm-org/openvm.git", branch = "poc/depadding-comm-stream", default-features = false }
+openvm-sdk-config = { git = "https://github.com/openvm-org/openvm.git", branch = "poc/depadding-comm-stream", default-features = false }
+openvm-build = { git = "https://github.com/openvm-org/openvm.git", branch = "poc/depadding-comm-stream", default-features = false }
+openvm-stark-sdk = { git = "https://github.com/openvm-org/stark-backend.git", branch = "poc/depadding", default-features = false }
 
 # crates/kzg
 hex = { version = "0.4.3", default-features = false }
@@ -168,3 +168,10 @@ opt-level = 3
 [profile.bench-with-debug]
 inherits = "release"
 debug = 1
+
+[patch."https://github.com/openvm-org/stark-backend.git"]
+# halo2-gpu (branch develop-v2.1.0) also depends on openvm-cuda-common, which carries a
+# `links = "cuda-common"` key; with the workspace now pinning stark-backend at poc/depadding the
+# two branches would bring two copies into the graph. Redirect every cuda-common dependency to a
+# single source (the www. alias dodges cargo's same-source patch check).
+openvm-cuda-common = { git = "https://www.github.com/openvm-org/stark-backend.git", branch = "poc/depadding" }
