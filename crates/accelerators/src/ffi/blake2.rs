@@ -23,15 +23,32 @@ pub unsafe extern "C" fn zkvm_blake2f(
     t: *const ZkvmBlake2fOffset,
     f: u8,
 ) -> ZkvmStatus {
-    if h.is_null() || m.is_null() || t.is_null() {
+    if h.is_null() || m.is_null() || t.is_null() || f > 1 {
         return ZkvmStatus::Fail;
     }
     // SAFETY: the non-NULL inputs are valid for reads. Copy before writing to support overlap.
-    let (mut state, message, offset) = unsafe { (h.read(), m.read(), t.read()) };
-    if ops::blake2f(rounds, &mut state, &message, &offset, f).is_err() {
-        return ZkvmStatus::Fail;
+    let (state, message, offset) = unsafe { (h.read(), m.read(), t.read()) };
+
+    let mut state_words = [0; 8];
+    for (word, bytes) in state_words.iter_mut().zip(state.data.as_chunks::<8>().0) {
+        *word = u64::from_le_bytes(*bytes);
+    }
+    let mut message_words = [0; 16];
+    for (word, bytes) in message_words.iter_mut().zip(message.data.as_chunks::<8>().0) {
+        *word = u64::from_le_bytes(*bytes);
+    }
+    let offset_words = [
+        u64::from_le_bytes(offset.data[..8].try_into().unwrap()),
+        u64::from_le_bytes(offset.data[8..].try_into().unwrap()),
+    ];
+
+    ops::blake2f(rounds, &mut state_words, &message_words, &offset_words, f == 1);
+
+    let mut value = ZkvmBlake2fState { data: [0; 64] };
+    for (bytes, word) in value.data.as_chunks_mut::<8>().0.iter_mut().zip(state_words) {
+        *bytes = word.to_le_bytes();
     }
     // SAFETY: `h` is non-NULL and valid for writes.
-    unsafe { h.write(state) };
+    unsafe { h.write(value) };
     ZkvmStatus::Ok
 }

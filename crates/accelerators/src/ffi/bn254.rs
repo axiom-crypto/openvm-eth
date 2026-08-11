@@ -25,11 +25,10 @@ pub unsafe extern "C" fn zkvm_bn254_g1_add(
     }
     // SAFETY: the non-NULL inputs are valid for reads. Copy before writing to support overlap.
     let (p1, p2) = unsafe { (p1.read(), p2.read()) };
-    let mut value = ZkvmBn254G1Point { data: [0; 64] };
-    match ops::bn254_g1_add(&p1, &p2, &mut value) {
-        Ok(()) => {
+    match ops::bn254_g1_add(&p1.data, &p2.data) {
+        Ok(data) => {
             // SAFETY: `result` is non-NULL and valid for writes.
-            unsafe { result.write(value) };
+            unsafe { result.write(ZkvmBn254G1Point { data }) };
             ZkvmStatus::Ok
         }
         Err(_) => ZkvmStatus::Fail,
@@ -59,11 +58,10 @@ pub unsafe extern "C" fn zkvm_bn254_g1_mul(
     }
     // SAFETY: the non-NULL inputs are valid for reads. Copy before writing to support overlap.
     let (point, scalar) = unsafe { (point.read(), scalar.read()) };
-    let mut value = ZkvmBn254G1Point { data: [0; 64] };
-    match ops::bn254_g1_mul(&point, &scalar, &mut value) {
-        Ok(()) => {
+    match ops::bn254_g1_mul(&point.data, &scalar.data) {
+        Ok(data) => {
             // SAFETY: `result` is non-NULL and valid for writes.
-            unsafe { result.write(value) };
+            unsafe { result.write(ZkvmBn254G1Point { data }) };
             ZkvmStatus::Ok
         }
         Err(_) => ZkvmStatus::Fail,
@@ -91,9 +89,9 @@ pub unsafe extern "C" fn zkvm_bn254_pairing(
     // SAFETY: non-NULL checked above for non-empty input; validity is guaranteed by the caller.
     let pairs =
         if num_pairs == 0 { &[] } else { unsafe { core::slice::from_raw_parts(pairs, num_pairs) } };
-    let mut value = false;
-    match ops::bn254_pairing_check(pairs, &mut value) {
-        Ok(()) => {
+    let pairs = pairs.iter().map(|pair| (pair.g1.data.as_slice(), pair.g2.data.as_slice()));
+    match ops::bn254_pairing_check(pairs) {
+        Ok(value) => {
             // SAFETY: `verified` is non-NULL and valid for writes; input reads are complete.
             unsafe { verified.write(value) };
             ZkvmStatus::Ok

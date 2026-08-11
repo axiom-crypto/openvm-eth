@@ -1,26 +1,40 @@
 //! BLS12-381 add/MSM/pairing/map conformance vectors.
 
+#![cfg(feature = "ffi")]
+
+use core::convert::Infallible;
+
 use hex_literal::hex;
 use openvm_accelerators::{
-    ffi::{
-        zkvm_bls12_g1_add, zkvm_bls12_g1_msm, zkvm_bls12_g2_add, zkvm_bls12_g2_msm,
-        zkvm_bls12_map_fp2_to_g2, zkvm_bls12_map_fp_to_g1, zkvm_bls12_pairing,
-    },
-    ops::{
-        bls12_381_g1_add, bls12_381_g1_msm, bls12_381_g2_add, bls12_381_g2_msm,
-        bls12_381_map_fp2_to_g2, bls12_381_map_fp_to_g1, bls12_381_pairing_check, Error,
-    },
-    types::{
-        ZkvmBls12381Fp, ZkvmBls12381Fp2, ZkvmBls12381G1MsmPair, ZkvmBls12381G1Point,
-        ZkvmBls12381G2MsmPair, ZkvmBls12381G2Point, ZkvmBls12381PairingPair, ZkvmBls12381Scalar,
-        ZkvmStatus,
-    },
+    bls12_381_g1_add, bls12_381_g1_msm, bls12_381_g2_add, bls12_381_g2_msm,
+    bls12_381_map_fp2_to_g2, bls12_381_map_fp_to_g1, bls12_381_pairing_check, zkvm_bls12_g1_add,
+    zkvm_bls12_g1_msm, zkvm_bls12_g2_add, zkvm_bls12_g2_msm, zkvm_bls12_map_fp2_to_g2,
+    zkvm_bls12_map_fp_to_g1, zkvm_bls12_pairing, BlsG1, BlsG2, Error, ZkvmBls12381Fp,
+    ZkvmBls12381Fp2, ZkvmBls12381G1MsmPair, ZkvmBls12381G1Point, ZkvmBls12381G2MsmPair,
+    ZkvmBls12381G2Point, ZkvmBls12381PairingPair, ZkvmBls12381Scalar, ZkvmStatus,
 };
 
 fn scalar(value: u8) -> ZkvmBls12381Scalar {
     let mut scalar = ZkvmBls12381Scalar { data: [0; 32] };
     scalar.data[31] = value;
     scalar
+}
+
+fn bls_g1(point: ZkvmBls12381G1Point) -> BlsG1 {
+    (point.data[..48].try_into().unwrap(), point.data[48..].try_into().unwrap())
+}
+
+fn bls_g2(point: ZkvmBls12381G2Point) -> BlsG2 {
+    (
+        point.data[..48].try_into().unwrap(),
+        point.data[48..96].try_into().unwrap(),
+        point.data[96..144].try_into().unwrap(),
+        point.data[144..].try_into().unwrap(),
+    )
+}
+
+fn bls_fp2(input: [u8; 96]) -> ([u8; 48], [u8; 48]) {
+    (input[..48].try_into().unwrap(), input[48..].try_into().unwrap())
 }
 
 /// BLS12-381 G1 generator (`x || y`).
@@ -65,61 +79,46 @@ const BLS_R_MINUS_1: ZkvmBls12381Scalar = ZkvmBls12381Scalar {
 };
 
 fn neg_g1_generator() -> ZkvmBls12381G1Point {
-    let pairs = [ZkvmBls12381G1MsmPair { point: BLS_G1_GEN, scalar: BLS_R_MINUS_1 }];
-    let mut output = ZkvmBls12381G1Point { data: [0; 96] };
-    bls12_381_g1_msm(&pairs, &mut output).unwrap();
-    output
+    let pairs = [Ok::<_, Infallible>((bls_g1(BLS_G1_GEN), BLS_R_MINUS_1.data))];
+    ZkvmBls12381G1Point { data: bls12_381_g1_msm(pairs).unwrap() }
 }
 
 #[test]
 fn bls12_g1_add_msm_vectors() {
-    let mut output = ZkvmBls12381G1Point { data: [0; 96] };
-    bls12_381_g1_add(&BLS_G1_GEN, &BLS_G1_GEN, &mut output).unwrap();
-    assert_eq!(output, BLS_G1_2GEN);
+    let output = bls12_381_g1_add(bls_g1(BLS_G1_GEN), bls_g1(BLS_G1_GEN)).unwrap();
+    assert_eq!(output, BLS_G1_2GEN.data);
 
-    let pairs = [ZkvmBls12381G1MsmPair { point: BLS_G1_GEN, scalar: scalar(2) }];
-    output.data = [0; 96];
-    bls12_381_g1_msm(&pairs, &mut output).unwrap();
-    assert_eq!(output, BLS_G1_2GEN);
+    let pairs = [Ok::<_, Infallible>((bls_g1(BLS_G1_GEN), scalar(2).data))];
+    let output = bls12_381_g1_msm(pairs).unwrap();
+    assert_eq!(output, BLS_G1_2GEN.data);
 
-    output.data = [0xff; 96];
-    bls12_381_g1_msm(&[], &mut output).unwrap();
-    assert_eq!(output.data, [0u8; 96]);
+    let output =
+        bls12_381_g1_msm(core::iter::empty::<Result<(BlsG1, [u8; 32]), Infallible>>()).unwrap();
+    assert_eq!(output, [0u8; 96]);
 }
 
 #[test]
 fn bls12_g2_add_msm_vectors() {
-    let mut output = ZkvmBls12381G2Point { data: [0; 192] };
-    bls12_381_g2_add(&BLS_G2_GEN, &BLS_G2_GEN, &mut output).unwrap();
-    assert_eq!(output, BLS_G2_2GEN);
+    let output = bls12_381_g2_add(bls_g2(BLS_G2_GEN), bls_g2(BLS_G2_GEN)).unwrap();
+    assert_eq!(output, BLS_G2_2GEN.data);
 
-    let pairs = [ZkvmBls12381G2MsmPair { point: BLS_G2_GEN, scalar: scalar(2) }];
-    output.data = [0; 192];
-    bls12_381_g2_msm(&pairs, &mut output).unwrap();
-    assert_eq!(output, BLS_G2_2GEN);
+    let pairs = [Ok::<_, Infallible>((bls_g2(BLS_G2_GEN), scalar(2).data))];
+    let output = bls12_381_g2_msm(pairs).unwrap();
+    assert_eq!(output, BLS_G2_2GEN.data);
 
-    output.data = [0xff; 192];
-    bls12_381_g2_msm(&[], &mut output).unwrap();
-    assert_eq!(output.data, [0u8; 192]);
+    let output =
+        bls12_381_g2_msm(core::iter::empty::<Result<(BlsG2, [u8; 32]), Infallible>>()).unwrap();
+    assert_eq!(output, [0u8; 192]);
 }
 
 #[test]
 fn bls12_pairing_vectors() {
     let neg_g1 = neg_g1_generator();
-    let pairs = [
-        ZkvmBls12381PairingPair { g1: BLS_G1_GEN, g2: BLS_G2_GEN },
-        ZkvmBls12381PairingPair { g1: neg_g1, g2: BLS_G2_GEN },
-    ];
-    let mut verified = false;
+    let pairs = [(bls_g1(BLS_G1_GEN), bls_g2(BLS_G2_GEN)), (bls_g1(neg_g1), bls_g2(BLS_G2_GEN))];
 
-    bls12_381_pairing_check(&pairs, &mut verified).unwrap();
-    assert!(verified);
-
-    bls12_381_pairing_check(&pairs[..1], &mut verified).unwrap();
-    assert!(!verified);
-
-    bls12_381_pairing_check(&[], &mut verified).unwrap();
-    assert!(verified);
+    assert!(bls12_381_pairing_check(pairs).unwrap());
+    assert!(!bls12_381_pairing_check(pairs[..1].iter().copied()).unwrap());
+    assert!(bls12_381_pairing_check(core::iter::empty::<(BlsG1, BlsG2)>()).unwrap());
 }
 
 #[test]
@@ -169,18 +168,14 @@ fn zkvm_bls12_pairing_smoke() {
 fn bls12_rejects_invalid_points() {
     let mut off_curve_g1 = BLS_G1_GEN;
     off_curve_g1.data[95] ^= 1;
-    let mut g1_output = ZkvmBls12381G1Point { data: [0; 96] };
-    assert!(bls12_381_g1_add(&off_curve_g1, &BLS_G1_GEN, &mut g1_output).is_err());
+    assert!(bls12_381_g1_add(bls_g1(off_curve_g1), bls_g1(BLS_G1_GEN)).is_err());
 
     let mut off_curve_g2 = BLS_G2_GEN;
     off_curve_g2.data[191] ^= 1;
-    let mut g2_output = ZkvmBls12381G2Point { data: [0; 192] };
-    assert!(bls12_381_g2_add(&off_curve_g2, &BLS_G2_GEN, &mut g2_output).is_err());
+    assert!(bls12_381_g2_add(bls_g2(off_curve_g2), bls_g2(BLS_G2_GEN)).is_err());
 
-    let pairs = [ZkvmBls12381PairingPair { g1: off_curve_g1, g2: BLS_G2_GEN }];
-    let mut verified = true;
-    assert_eq!(bls12_381_pairing_check(&pairs, &mut verified), Err(Error::BlsG1PointNotOnCurve));
-    assert!(!verified);
+    let pairs = [(bls_g1(off_curve_g1), bls_g2(BLS_G2_GEN))];
+    assert_eq!(bls12_381_pairing_check(pairs), Err(Error::BlsG1PointNotOnCurve));
 }
 
 #[test]
@@ -292,18 +287,16 @@ const BLS_FP_MODULUS: [u8; 48] =
 #[test]
 fn bls12_map_fp_to_g1_vectors() {
     for (input, expected) in MAP_FP_TO_G1_VECTORS {
-        let mut output = ZkvmBls12381G1Point { data: [0xff; 96] };
-        bls12_381_map_fp_to_g1(&ZkvmBls12381Fp { data: input }, &mut output).unwrap();
-        assert_eq!(output.data, expected, "input={input:?}");
+        let output = bls12_381_map_fp_to_g1(&input).unwrap();
+        assert_eq!(output, expected, "input={input:?}");
     }
 }
 
 #[test]
 fn bls12_map_fp2_to_g2_vectors() {
     for (input, expected) in MAP_FP2_TO_G2_VECTORS {
-        let mut output = ZkvmBls12381G2Point { data: [0xff; 192] };
-        bls12_381_map_fp2_to_g2(&ZkvmBls12381Fp2 { data: input }, &mut output).unwrap();
-        assert_eq!(output.data, expected, "input={input:?}");
+        let output = bls12_381_map_fp2_to_g2(bls_fp2(input)).unwrap();
+        assert_eq!(output, expected, "input={input:?}");
     }
 }
 
@@ -314,47 +307,31 @@ fn bls12_map_fp2_to_g2_vectors() {
 /// return the point itself.
 #[test]
 fn bls12_map_lands_in_prime_order_subgroup() {
-    let mut mapped = ZkvmBls12381G1Point { data: [0; 96] };
-    bls12_381_map_fp_to_g1(&ZkvmBls12381Fp { data: MAP_FP_TO_G1_VECTORS[0].0 }, &mut mapped)
-        .unwrap();
-    let mut output = ZkvmBls12381G1Point { data: [0; 96] };
-    bls12_381_g1_msm(&[ZkvmBls12381G1MsmPair { point: mapped, scalar: scalar(1) }], &mut output)
-        .expect("mapped G1 point must be in the prime-order subgroup");
-    assert_eq!(output.data, mapped.data);
+    let mapped = bls12_381_map_fp_to_g1(&MAP_FP_TO_G1_VECTORS[0].0).unwrap();
+    let pairs =
+        [Ok::<_, Infallible>((bls_g1(ZkvmBls12381G1Point { data: mapped }), scalar(1).data))];
+    let output =
+        bls12_381_g1_msm(pairs).expect("mapped G1 point must be in the prime-order subgroup");
+    assert_eq!(output, mapped);
 
-    let mut mapped = ZkvmBls12381G2Point { data: [0; 192] };
-    bls12_381_map_fp2_to_g2(&ZkvmBls12381Fp2 { data: MAP_FP2_TO_G2_VECTORS[0].0 }, &mut mapped)
-        .unwrap();
-    let mut output = ZkvmBls12381G2Point { data: [0; 192] };
-    bls12_381_g2_msm(&[ZkvmBls12381G2MsmPair { point: mapped, scalar: scalar(1) }], &mut output)
-        .expect("mapped G2 point must be in the prime-order subgroup");
-    assert_eq!(output.data, mapped.data);
+    let mapped = bls12_381_map_fp2_to_g2(bls_fp2(MAP_FP2_TO_G2_VECTORS[0].0)).unwrap();
+    let pairs =
+        [Ok::<_, Infallible>((bls_g2(ZkvmBls12381G2Point { data: mapped }), scalar(1).data))];
+    let output =
+        bls12_381_g2_msm(pairs).expect("mapped G2 point must be in the prime-order subgroup");
+    assert_eq!(output, mapped);
 }
 
 #[test]
 fn bls12_map_field_element_range() {
-    let mut g1 = ZkvmBls12381G1Point { data: [0; 96] };
-    let mut g2 = ZkvmBls12381G2Point { data: [0; 192] };
-
     // The largest canonical element is accepted, the modulus itself is not.
-    assert_eq!(bls12_381_map_fp_to_g1(&ZkvmBls12381Fp { data: BLS_FP_MAX }, &mut g1), Ok(()));
-    assert_eq!(
-        bls12_381_map_fp_to_g1(&ZkvmBls12381Fp { data: BLS_FP_MODULUS }, &mut g1),
-        Err(Error::FieldElementInvalid)
-    );
-    assert_eq!(
-        bls12_381_map_fp_to_g1(&ZkvmBls12381Fp { data: [0xff; 48] }, &mut g1),
-        Err(Error::FieldElementInvalid)
-    );
+    assert!(bls12_381_map_fp_to_g1(&BLS_FP_MAX).is_ok());
+    assert_eq!(bls12_381_map_fp_to_g1(&BLS_FP_MODULUS), Err(Error::FieldElementInvalid));
+    assert_eq!(bls12_381_map_fp_to_g1(&[0xff; 48]), Err(Error::FieldElementInvalid));
 
     // Either half of an Fp2 input is checked.
-    let mut c0_bad = ZkvmBls12381Fp2 { data: [0; 96] };
-    c0_bad.data[..48].copy_from_slice(&BLS_FP_MODULUS);
-    assert_eq!(bls12_381_map_fp2_to_g2(&c0_bad, &mut g2), Err(Error::FieldElementInvalid));
-
-    let mut c1_bad = ZkvmBls12381Fp2 { data: [0; 96] };
-    c1_bad.data[48..].copy_from_slice(&BLS_FP_MODULUS);
-    assert_eq!(bls12_381_map_fp2_to_g2(&c1_bad, &mut g2), Err(Error::FieldElementInvalid));
+    assert_eq!(bls12_381_map_fp2_to_g2((BLS_FP_MODULUS, [0; 48])), Err(Error::FieldElementInvalid));
+    assert_eq!(bls12_381_map_fp2_to_g2(([0; 48], BLS_FP_MODULUS)), Err(Error::FieldElementInvalid));
 }
 
 #[test]

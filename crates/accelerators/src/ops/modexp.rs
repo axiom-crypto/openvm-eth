@@ -9,19 +9,8 @@ use openvm_pairing::bn254 as bn;
 /// field Fr.
 const BN_SCALAR_LEN: usize = 32;
 
-/// Compute `base^exp % modulus` into `output`, left-padded with zeros.
-///
-/// # Panics
-///
-/// Panics if `output.len() != modulus.len()`.
-pub fn modexp(base: &[u8], exp: &[u8], modulus: &[u8], output: &mut [u8]) {
-    assert_eq!(output.len(), modulus.len(), "output must be exactly modulus-sized");
-
-    output.copy_from_slice(&modexp_result(base, exp, modulus));
-}
-
 /// Compute `base^exp % modulus`, returning exactly `modulus.len()` bytes.
-pub fn modexp_result(base: &[u8], exp: &[u8], modulus: &[u8]) -> Vec<u8> {
+pub fn modexp(base: &[u8], exp: &[u8], modulus: &[u8]) -> Vec<u8> {
     let mut result = if is_bn254_fr(modulus) {
         accelerated_modexp_bn254_fr(base, exp)
     } else {

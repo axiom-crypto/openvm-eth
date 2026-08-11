@@ -1,30 +1,30 @@
 //! Hash operations.
 
-use crate::types::{ZkvmKeccak256Hash, ZkvmRipemd160Hash, ZkvmSha256Hash};
-
-/// Compute the Keccak-256 hash of `data` into `output`.
+/// Compute the Keccak-256 hash of `data`.
 #[inline]
-pub fn keccak256(data: &[u8], output: &mut ZkvmKeccak256Hash) {
-    openvm_keccak256::set_keccak256(data, &mut output.data);
+pub fn keccak256(data: &[u8]) -> [u8; 32] {
+    openvm_keccak256::keccak256(data)
 }
 
-/// Compute the SHA-256 hash of `data` into `output`.
+/// Compute the SHA-256 hash of `data`.
 #[inline]
-pub fn sha256(data: &[u8], output: &mut ZkvmSha256Hash) {
+pub fn sha256(data: &[u8]) -> [u8; 32] {
     #[cfg(not(openvm_intrinsics))]
     use openvm_sha2::Digest;
-    output.data = openvm_sha2::Sha256::digest(data).into();
+    openvm_sha2::Sha256::digest(data).into()
 }
 
-/// Compute the RIPEMD-160 hash of `data` into `output`.
+/// Compute the RIPEMD-160 hash of `data`.
 ///
-/// The 20-byte digest is written to `output.data[12..]`; the first 12 bytes
-/// are zeroed, matching the EVM word layout.
+/// The 20-byte digest is written to the final 20 bytes; the first 12 bytes are
+/// zeroed, matching the EVM word layout.
 #[inline]
-pub fn ripemd160(data: &[u8], output: &mut ZkvmRipemd160Hash) {
+pub fn ripemd160(data: &[u8]) -> [u8; 32] {
     use ripemd::Digest;
     let mut hasher = ripemd::Ripemd160::new();
     hasher.update(data);
-    output.data[..12].fill(0);
-    hasher.finalize_into((&mut output.data[12..]).into());
+
+    let mut output = [0; 32];
+    hasher.finalize_into((&mut output[12..]).into());
+    output
 }

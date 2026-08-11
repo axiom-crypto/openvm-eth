@@ -18,13 +18,7 @@ use openvm_ecc_guest::{
 };
 use openvm_pairing::{bls12_381::Bls12_381, PairingCheck};
 
-use crate::{
-    ops::{Error, StreamError},
-    types::{
-        ZkvmBls12381G1MsmPair, ZkvmBls12381G1Point, ZkvmBls12381G2MsmPair, ZkvmBls12381G2Point,
-        ZkvmBls12381PairingPair,
-    },
-};
+use crate::ops::{BlsG1, BlsG2, Error, StreamError};
 
 /// The number of bytes needed to represent an element of the base field Fp.
 const BLS_FP_LEN: usize = 48;
@@ -33,122 +27,75 @@ const BLS_FP_LEN: usize = 48;
 ///
 /// Per EIP-2537 G1ADD, inputs are validated on-curve only, not for subgroup
 /// membership.
-pub fn bls12_381_g1_add(
-    p1: &ZkvmBls12381G1Point,
-    p2: &ZkvmBls12381G1Point,
-    output: &mut ZkvmBls12381G1Point,
-) -> Result<(), Error> {
-    let p1 = read_bls_g1_point_no_subgroup_check(p1)?;
-    let p2 = read_bls_g1_point_no_subgroup_check(p2)?;
-    encode_bls_g1_point(&(p1 + p2), output);
-    Ok(())
+pub fn bls12_381_g1_add(p1: BlsG1, p2: BlsG1) -> Result<[u8; 96], Error> {
+    let p1 = read_bls_g1_point_no_subgroup_check(&p1)?;
+    let p2 = read_bls_g1_point_no_subgroup_check(&p2)?;
+    Ok(encode_bls_g1_point(&(p1 + p2)))
 }
 
 /// BLS12-381 G1 multi-scalar multiplication (precompile 0x0c).
 ///
 /// Points must be in the prime-order subgroup; scalars need not be canonical.
 /// An empty input yields the identity (all-zero) encoding.
-pub fn bls12_381_g1_msm(
-    pairs: &[ZkvmBls12381G1MsmPair],
-    output: &mut ZkvmBls12381G1Point,
-) -> Result<(), Error> {
-    *output = bls12_381_g1_msm_iter(pairs.iter().copied().map(Ok::<_, core::convert::Infallible>))
-        .map_err(|error| match error {
-            StreamError::Operation(error) => error,
-            StreamError::Source(never) => match never {},
-        })?;
-    Ok(())
-}
-
-/// BLS12-381 G1 MSM over a fallible stream, preserving input-error order.
-pub fn bls12_381_g1_msm_iter<E>(
-    pairs: impl IntoIterator<Item = Result<ZkvmBls12381G1MsmPair, E>>,
-) -> Result<ZkvmBls12381G1Point, StreamError<E>> {
+pub fn bls12_381_g1_msm<E>(
+    pairs: impl IntoIterator<Item = Result<(BlsG1, [u8; 32]), E>>,
+) -> Result<[u8; 96], StreamError<E>> {
     let pairs = pairs.into_iter();
     let capacity = pairs.size_hint().0;
 
     let mut points = Vec::with_capacity(capacity);
     let mut scalars = Vec::with_capacity(capacity);
     for pair in pairs {
-        let pair = pair.map_err(StreamError::Source)?;
-        points.push(read_bls_g1_point(&pair.point).map_err(StreamError::Operation)?);
-        scalars.push(read_bls_scalar(&pair.scalar));
+        let (point, scalar) = pair.map_err(StreamError::Source)?;
+        points.push(read_bls_g1_point(&point).map_err(StreamError::Operation)?);
+        scalars.push(read_bls_scalar(&scalar));
     }
-    let mut output = ZkvmBls12381G1Point { data: [0; 96] };
-    if !points.is_empty() {
-        encode_bls_g1_point(&Bls12_381::msm(&scalars, &points), &mut output);
+    if points.is_empty() {
+        Ok([0; 96])
+    } else {
+        Ok(encode_bls_g1_point(&Bls12_381::msm(&scalars, &points)))
     }
-    Ok(output)
 }
 
 /// BLS12-381 G2 point addition (precompile 0x0d).
 ///
 /// Per EIP-2537 G2ADD, inputs are validated on-curve only, not for subgroup
 /// membership.
-pub fn bls12_381_g2_add(
-    p1: &ZkvmBls12381G2Point,
-    p2: &ZkvmBls12381G2Point,
-    output: &mut ZkvmBls12381G2Point,
-) -> Result<(), Error> {
-    let p1 = read_bls_g2_point_no_subgroup_check(p1)?;
-    let p2 = read_bls_g2_point_no_subgroup_check(p2)?;
-    encode_bls_g2_point(&(p1 + p2), output);
-    Ok(())
+pub fn bls12_381_g2_add(p1: BlsG2, p2: BlsG2) -> Result<[u8; 192], Error> {
+    let p1 = read_bls_g2_point_no_subgroup_check(&p1)?;
+    let p2 = read_bls_g2_point_no_subgroup_check(&p2)?;
+    Ok(encode_bls_g2_point(&(p1 + p2)))
 }
 
 /// BLS12-381 G2 multi-scalar multiplication (precompile 0x0e).
 ///
 /// Points must be in the prime-order subgroup; scalars need not be canonical.
 /// An empty input yields the identity (all-zero) encoding.
-pub fn bls12_381_g2_msm(
-    pairs: &[ZkvmBls12381G2MsmPair],
-    output: &mut ZkvmBls12381G2Point,
-) -> Result<(), Error> {
-    *output = bls12_381_g2_msm_iter(pairs.iter().copied().map(Ok::<_, core::convert::Infallible>))
-        .map_err(|error| match error {
-            StreamError::Operation(error) => error,
-            StreamError::Source(never) => match never {},
-        })?;
-    Ok(())
-}
-
-/// BLS12-381 G2 MSM over a fallible stream, preserving input-error order.
-pub fn bls12_381_g2_msm_iter<E>(
-    pairs: impl IntoIterator<Item = Result<ZkvmBls12381G2MsmPair, E>>,
-) -> Result<ZkvmBls12381G2Point, StreamError<E>> {
+pub fn bls12_381_g2_msm<E>(
+    pairs: impl IntoIterator<Item = Result<(BlsG2, [u8; 32]), E>>,
+) -> Result<[u8; 192], StreamError<E>> {
     let pairs = pairs.into_iter();
     let capacity = pairs.size_hint().0;
 
     let mut points = Vec::with_capacity(capacity);
     let mut scalars = Vec::with_capacity(capacity);
     for pair in pairs {
-        let pair = pair.map_err(StreamError::Source)?;
-        points.push(read_bls_g2_point(&pair.point).map_err(StreamError::Operation)?);
-        scalars.push(read_bls_scalar(&pair.scalar));
+        let (point, scalar) = pair.map_err(StreamError::Source)?;
+        points.push(read_bls_g2_point(&point).map_err(StreamError::Operation)?);
+        scalars.push(read_bls_scalar(&scalar));
     }
-    let mut output = ZkvmBls12381G2Point { data: [0; 192] };
-    if !points.is_empty() {
-        encode_bls_g2_point(&openvm_ecc_guest::msm(&scalars, &points), &mut output);
+    if points.is_empty() {
+        Ok([0; 192])
+    } else {
+        Ok(encode_bls_g2_point(&openvm_ecc_guest::msm(&scalars, &points)))
     }
-    Ok(output)
 }
 
 /// BLS12-381 pairing check (precompile 0x0f).
 ///
 /// Points must be in the prime-order subgroup.
 pub fn bls12_381_pairing_check(
-    pairs: &[ZkvmBls12381PairingPair],
-    verified: &mut bool,
-) -> Result<(), Error> {
-    *verified = false;
-    let value = bls12_381_pairing_check_iter(pairs.iter().copied())?;
-    *verified = value;
-    Ok(())
-}
-
-/// BLS12-381 pairing check over a stream of encoded pairs.
-pub fn bls12_381_pairing_check_iter(
-    pairs: impl IntoIterator<Item = ZkvmBls12381PairingPair>,
+    pairs: impl IntoIterator<Item = (BlsG1, BlsG2)>,
 ) -> Result<bool, Error> {
     let pairs = pairs.into_iter();
     let capacity = pairs.size_hint().0;
@@ -156,13 +103,13 @@ pub fn bls12_381_pairing_check_iter(
     let mut g1_points = Vec::with_capacity(capacity);
     let mut g2_points = Vec::with_capacity(capacity);
 
-    for pair in pairs {
-        let g1 = read_bls_g1_point(&pair.g1).map_err(|error| match error {
+    for (g1, g2) in pairs {
+        let g1 = read_bls_g1_point(&g1).map_err(|error| match error {
             Error::PointNotOnCurve => Error::BlsG1PointNotOnCurve,
             Error::PointNotInSubgroup => Error::BlsG1PointNotInSubgroup,
             error => error,
         })?;
-        let g2 = read_bls_g2_point(&pair.g2).map_err(|error| match error {
+        let g2 = read_bls_g2_point(&g2).map_err(|error| match error {
             Error::PointNotOnCurve => Error::BlsG2PointNotOnCurve,
             Error::PointNotInSubgroup => Error::BlsG2PointNotInSubgroup,
             error => error,

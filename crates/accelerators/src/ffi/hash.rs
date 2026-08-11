@@ -26,8 +26,7 @@ pub unsafe extern "C" fn zkvm_keccak256(
     }
     // SAFETY: non-NULL checked above; validity is guaranteed by the caller.
     let data = if len == 0 { &[] } else { unsafe { core::slice::from_raw_parts(data, len) } };
-    let mut value = ZkvmKeccak256Hash { data: [0; 32] };
-    ops::keccak256(data, &mut value);
+    let value = ZkvmKeccak256Hash { data: ops::keccak256(data) };
     // SAFETY: `output` is non-NULL and valid for writes. All input reads are complete, so
     // overlapping input/output storage is supported.
     unsafe { output.write(value) };
@@ -55,8 +54,7 @@ pub unsafe extern "C" fn zkvm_sha256(
     }
     // SAFETY: non-NULL checked above; validity is guaranteed by the caller.
     let data = if len == 0 { &[] } else { unsafe { core::slice::from_raw_parts(data, len) } };
-    let mut value = ZkvmSha256Hash { data: [0; 32] };
-    ops::sha256(data, &mut value);
+    let value = ZkvmSha256Hash { data: ops::sha256(data) };
     // SAFETY: see `zkvm_keccak256`.
     unsafe { output.write(value) };
     ZkvmStatus::Ok
@@ -86,8 +84,7 @@ pub unsafe extern "C" fn zkvm_ripemd160(
     }
     // SAFETY: non-NULL checked above; validity is guaranteed by the caller.
     let data = if len == 0 { &[] } else { unsafe { core::slice::from_raw_parts(data, len) } };
-    let mut value = ZkvmRipemd160Hash { data: [0; 32] };
-    ops::ripemd160(data, &mut value);
+    let value = ZkvmRipemd160Hash { data: ops::ripemd160(data) };
     // SAFETY: see `zkvm_keccak256`.
     unsafe { output.write(value) };
     ZkvmStatus::Ok

@@ -28,11 +28,10 @@ pub unsafe extern "C" fn zkvm_bls12_g1_add(
     }
     // SAFETY: the non-NULL inputs are valid for reads. Copy before writing to support overlap.
     let (p1, p2) = unsafe { (p1.read(), p2.read()) };
-    let mut value = ZkvmBls12381G1Point { data: [0; 96] };
-    match ops::bls12_381_g1_add(&p1, &p2, &mut value) {
-        Ok(()) => {
+    match ops::bls12_381_g1_add(bls_g1(p1.data), bls_g1(p2.data)) {
+        Ok(data) => {
             // SAFETY: `result` is non-NULL and valid for writes.
-            unsafe { result.write(value) };
+            unsafe { result.write(ZkvmBls12381G1Point { data }) };
             ZkvmStatus::Ok
         }
         Err(_) => ZkvmStatus::Fail,
@@ -60,11 +59,13 @@ pub unsafe extern "C" fn zkvm_bls12_g1_msm(
     // SAFETY: non-NULL checked above for non-empty input; validity is guaranteed by the caller.
     let pairs =
         if num_pairs == 0 { &[] } else { unsafe { core::slice::from_raw_parts(pairs, num_pairs) } };
-    let mut value = ZkvmBls12381G1Point { data: [0; 96] };
-    match ops::bls12_381_g1_msm(pairs, &mut value) {
-        Ok(()) => {
+    let pairs = pairs.iter().map(|pair| {
+        Ok::<_, core::convert::Infallible>((bls_g1(pair.point.data), pair.scalar.data))
+    });
+    match ops::bls12_381_g1_msm(pairs) {
+        Ok(data) => {
             // SAFETY: `result` is non-NULL and valid for writes; input reads are complete.
-            unsafe { result.write(value) };
+            unsafe { result.write(ZkvmBls12381G1Point { data }) };
             ZkvmStatus::Ok
         }
         Err(_) => ZkvmStatus::Fail,
@@ -91,11 +92,10 @@ pub unsafe extern "C" fn zkvm_bls12_g2_add(
     }
     // SAFETY: the non-NULL inputs are valid for reads. Copy before writing to support overlap.
     let (p1, p2) = unsafe { (p1.read(), p2.read()) };
-    let mut value = ZkvmBls12381G2Point { data: [0; 192] };
-    match ops::bls12_381_g2_add(&p1, &p2, &mut value) {
-        Ok(()) => {
+    match ops::bls12_381_g2_add(bls_g2(p1.data), bls_g2(p2.data)) {
+        Ok(data) => {
             // SAFETY: `result` is non-NULL and valid for writes.
-            unsafe { result.write(value) };
+            unsafe { result.write(ZkvmBls12381G2Point { data }) };
             ZkvmStatus::Ok
         }
         Err(_) => ZkvmStatus::Fail,
@@ -123,11 +123,13 @@ pub unsafe extern "C" fn zkvm_bls12_g2_msm(
     // SAFETY: non-NULL checked above for non-empty input; validity is guaranteed by the caller.
     let pairs =
         if num_pairs == 0 { &[] } else { unsafe { core::slice::from_raw_parts(pairs, num_pairs) } };
-    let mut value = ZkvmBls12381G2Point { data: [0; 192] };
-    match ops::bls12_381_g2_msm(pairs, &mut value) {
-        Ok(()) => {
+    let pairs = pairs.iter().map(|pair| {
+        Ok::<_, core::convert::Infallible>((bls_g2(pair.point.data), pair.scalar.data))
+    });
+    match ops::bls12_381_g2_msm(pairs) {
+        Ok(data) => {
             // SAFETY: `result` is non-NULL and valid for writes; input reads are complete.
-            unsafe { result.write(value) };
+            unsafe { result.write(ZkvmBls12381G2Point { data }) };
             ZkvmStatus::Ok
         }
         Err(_) => ZkvmStatus::Fail,
@@ -156,9 +158,9 @@ pub unsafe extern "C" fn zkvm_bls12_pairing(
     // SAFETY: non-NULL checked above for non-empty input; validity is guaranteed by the caller.
     let pairs =
         if num_pairs == 0 { &[] } else { unsafe { core::slice::from_raw_parts(pairs, num_pairs) } };
-    let mut value = false;
-    match ops::bls12_381_pairing_check(pairs, &mut value) {
-        Ok(()) => {
+    let pairs = pairs.iter().map(|pair| (bls_g1(pair.g1.data), bls_g2(pair.g2.data)));
+    match ops::bls12_381_pairing_check(pairs) {
+        Ok(value) => {
             // SAFETY: `verified` is non-NULL and valid for writes; input reads are complete.
             unsafe { verified.write(value) };
             ZkvmStatus::Ok
@@ -169,6 +171,19 @@ pub unsafe extern "C" fn zkvm_bls12_pairing(
             ZkvmStatus::Fail
         }
     }
+}
+
+fn bls_g1(data: [u8; 96]) -> ([u8; 48], [u8; 48]) {
+    (data[..48].try_into().unwrap(), data[48..].try_into().unwrap())
+}
+
+fn bls_g2(data: [u8; 192]) -> ([u8; 48], [u8; 48], [u8; 48], [u8; 48]) {
+    (
+        data[..48].try_into().unwrap(),
+        data[48..96].try_into().unwrap(),
+        data[96..144].try_into().unwrap(),
+        data[144..].try_into().unwrap(),
+    )
 }
 
 /// BLS12-381 map field element to G1 (precompile 0x10, EIP-2537).
@@ -190,11 +205,10 @@ pub unsafe extern "C" fn zkvm_bls12_map_fp_to_g1(
     }
     // SAFETY: the non-NULL input is valid for reads. Copy before writing to support overlap.
     let field_element = unsafe { field_element.read() };
-    let mut value = ZkvmBls12381G1Point { data: [0; 96] };
-    match ops::bls12_381_map_fp_to_g1(&field_element, &mut value) {
-        Ok(()) => {
+    match ops::bls12_381_map_fp_to_g1(&field_element.data) {
+        Ok(data) => {
             // SAFETY: `result` is non-NULL and valid for writes.
-            unsafe { result.write(value) };
+            unsafe { result.write(ZkvmBls12381G1Point { data }) };
             ZkvmStatus::Ok
         }
         Err(_) => ZkvmStatus::Fail,
@@ -220,11 +234,14 @@ pub unsafe extern "C" fn zkvm_bls12_map_fp2_to_g2(
     }
     // SAFETY: the non-NULL input is valid for reads. Copy before writing to support overlap.
     let field_element = unsafe { field_element.read() };
-    let mut value = ZkvmBls12381G2Point { data: [0; 192] };
-    match ops::bls12_381_map_fp2_to_g2(&field_element, &mut value) {
-        Ok(()) => {
+    let fp2 = (
+        field_element.data[..48].try_into().unwrap(),
+        field_element.data[48..].try_into().unwrap(),
+    );
+    match ops::bls12_381_map_fp2_to_g2(fp2) {
+        Ok(data) => {
             // SAFETY: `result` is non-NULL and valid for writes.
-            unsafe { result.write(value) };
+            unsafe { result.write(ZkvmBls12381G2Point { data }) };
             ZkvmStatus::Ok
         }
         Err(_) => ZkvmStatus::Fail,

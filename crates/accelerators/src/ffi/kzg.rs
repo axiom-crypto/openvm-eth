@@ -30,8 +30,8 @@ pub unsafe extern "C" fn zkvm_kzg_point_eval(
     // SAFETY: the non-NULL inputs are valid for reads.
     let (commitment, z, y, proof) =
         unsafe { (commitment.read(), z.read(), y.read(), proof.read()) };
-    let mut value = false;
-    let _ = ops::kzg_point_eval(&commitment, &z, &y, &proof, &mut value);
+    let value =
+        ops::kzg_point_eval(&commitment.data, &z.data, &y.data, &proof.data).unwrap_or(false);
     // SAFETY: `verified` is non-NULL and valid for writes.
     unsafe { verified.write(value) };
     ZkvmStatus::Ok

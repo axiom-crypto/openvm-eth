@@ -31,11 +31,10 @@ pub unsafe extern "C" fn zkvm_secp256k1_ecrecover(
     }
     // SAFETY: the non-NULL inputs are valid for reads. Copying before writing supports overlap.
     let (msg, sig) = unsafe { (msg.read(), sig.read()) };
-    let mut value = ZkvmSecp256k1Pubkey { data: [0; 64] };
-    match ops::secp256k1_ecrecover(&msg, &sig, recid, &mut value) {
-        Ok(()) => {
+    match ops::secp256k1_ecrecover(&msg.data, &sig.data, recid) {
+        Ok(data) => {
             // SAFETY: `output` is non-NULL and valid for writes.
-            unsafe { output.write(value) };
+            unsafe { output.write(ZkvmSecp256k1Pubkey { data }) };
             ZkvmStatus::Ok
         }
         Err(_) => ZkvmStatus::Fail,
@@ -66,8 +65,7 @@ pub unsafe extern "C" fn zkvm_secp256k1_verify(
     }
     // SAFETY: the non-NULL inputs are valid for reads.
     let (msg, sig, pubkey) = unsafe { (msg.read(), sig.read(), pubkey.read()) };
-    let mut value = false;
-    let _ = ops::secp256k1_verify(&msg, &sig, &pubkey, &mut value);
+    let value = ops::secp256k1_verify(&msg.data, &sig.data, &pubkey.data);
     // SAFETY: `verified` is non-NULL and valid for writes.
     unsafe { verified.write(value) };
     ZkvmStatus::Ok
@@ -97,8 +95,7 @@ pub unsafe extern "C" fn zkvm_secp256r1_verify(
     }
     // SAFETY: the non-NULL inputs are valid for reads.
     let (msg, sig, pubkey) = unsafe { (msg.read(), sig.read(), pubkey.read()) };
-    let mut value = false;
-    let _ = ops::secp256r1_verify(&msg, &sig, &pubkey, &mut value);
+    let value = ops::secp256r1_verify(&msg.data, &sig.data, &pubkey.data);
     // SAFETY: `verified` is non-NULL and valid for writes.
     unsafe { verified.write(value) };
     ZkvmStatus::Ok
