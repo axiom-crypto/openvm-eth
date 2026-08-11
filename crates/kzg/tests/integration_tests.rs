@@ -39,8 +39,8 @@ fn test_multiple_valid_verify_kzg() {
 }
 
 /// Proves every valid vector with a shared prover so keygen runs once.
-#[ignore = "run via the run-kzg-proving CI label"]
 #[test]
+#[ignore = "expensive: proves every valid KZG vector"]
 fn test_prove_multiple_valid_verify_kzg() {
     let sdk = create_sdk();
     let elf = build_guest(&sdk);

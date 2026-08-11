@@ -93,4 +93,4 @@ jobs:
           cargo openvm toolchain install
 
       - name: Prove all test vectors
-        run: cargo nextest run -p openvm-kzg --release --run-ignored ignored-only test_prove_multiple_valid_verify_kzg
+        run: cargo nextest run -p openvm-kzg --release --run-ignored only test_prove_multiple_valid_verify_kzg
