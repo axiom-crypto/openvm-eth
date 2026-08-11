@@ -29,10 +29,15 @@ pub unsafe extern "C" fn zkvm_secp256k1_ecrecover(
     if msg.is_null() || sig.is_null() || output.is_null() {
         return ZkvmStatus::Fail;
     }
-    // SAFETY: non-NULL checked above; validity is guaranteed by the caller.
-    let (msg, sig, output) = unsafe { (&*msg, &*sig, &mut *output) };
-    match ops::secp256k1_ecrecover(msg, sig, recid, output) {
-        Ok(()) => ZkvmStatus::Ok,
+    // SAFETY: the non-NULL inputs are valid for reads. Copying before writing supports overlap.
+    let (msg, sig) = unsafe { (msg.read(), sig.read()) };
+    let mut value = ZkvmSecp256k1Pubkey { data: [0; 64] };
+    match ops::secp256k1_ecrecover(&msg, &sig, recid, &mut value) {
+        Ok(()) => {
+            // SAFETY: `output` is non-NULL and valid for writes.
+            unsafe { output.write(value) };
+            ZkvmStatus::Ok
+        }
         Err(_) => ZkvmStatus::Fail,
     }
 }
@@ -40,9 +45,8 @@ pub unsafe extern "C" fn zkvm_secp256k1_ecrecover(
 /// Verify an ECDSA signature over secp256k1 against an uncompressed public
 /// key, writing the result to `verified`.
 ///
-/// Returns [`ZkvmStatus::Fail`] if any pointer is NULL or the inputs are
-/// malformed; `verified` is `false` when a well-formed signature does not
-/// verify.
+/// Returns [`ZkvmStatus::Fail`] if any pointer is NULL. Malformed or invalid
+/// cryptographic inputs return [`ZkvmStatus::Ok`] with `verified == false`.
 ///
 /// # Safety
 ///
@@ -60,20 +64,20 @@ pub unsafe extern "C" fn zkvm_secp256k1_verify(
     if msg.is_null() || sig.is_null() || pubkey.is_null() || verified.is_null() {
         return ZkvmStatus::Fail;
     }
-    // SAFETY: non-NULL checked above; validity is guaranteed by the caller.
-    let (msg, sig, pubkey, verified) = unsafe { (&*msg, &*sig, &*pubkey, &mut *verified) };
-    match ops::secp256k1_verify(msg, sig, pubkey, verified) {
-        Ok(()) => ZkvmStatus::Ok,
-        Err(_) => ZkvmStatus::Fail,
-    }
+    // SAFETY: the non-NULL inputs are valid for reads.
+    let (msg, sig, pubkey) = unsafe { (msg.read(), sig.read(), pubkey.read()) };
+    let mut value = false;
+    let _ = ops::secp256k1_verify(&msg, &sig, &pubkey, &mut value);
+    // SAFETY: `verified` is non-NULL and valid for writes.
+    unsafe { verified.write(value) };
+    ZkvmStatus::Ok
 }
 
 /// Verify an ECDSA signature over secp256r1 (P-256) against an uncompressed
 /// public key, writing the result to `verified`.
 ///
-/// Returns [`ZkvmStatus::Fail`] if any pointer is NULL or the inputs are
-/// malformed; `verified` is `false` when a well-formed signature does not
-/// verify.
+/// Returns [`ZkvmStatus::Fail`] if any pointer is NULL. Malformed or invalid
+/// cryptographic inputs return [`ZkvmStatus::Ok`] with `verified == false`.
 ///
 /// # Safety
 ///
@@ -91,10 +95,11 @@ pub unsafe extern "C" fn zkvm_secp256r1_verify(
     if msg.is_null() || sig.is_null() || pubkey.is_null() || verified.is_null() {
         return ZkvmStatus::Fail;
     }
-    // SAFETY: non-NULL checked above; validity is guaranteed by the caller.
-    let (msg, sig, pubkey, verified) = unsafe { (&*msg, &*sig, &*pubkey, &mut *verified) };
-    match ops::secp256r1_verify(msg, sig, pubkey, verified) {
-        Ok(()) => ZkvmStatus::Ok,
-        Err(_) => ZkvmStatus::Fail,
-    }
+    // SAFETY: the non-NULL inputs are valid for reads.
+    let (msg, sig, pubkey) = unsafe { (msg.read(), sig.read(), pubkey.read()) };
+    let mut value = false;
+    let _ = ops::secp256r1_verify(&msg, &sig, &pubkey, &mut value);
+    // SAFETY: `verified` is non-NULL and valid for writes.
+    unsafe { verified.write(value) };
+    ZkvmStatus::Ok
 }

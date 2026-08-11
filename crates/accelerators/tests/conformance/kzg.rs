@@ -70,11 +70,11 @@ fn zkvm_kzg_point_eval_smoke() {
     assert_eq!(status, ZkvmStatus::Ok);
     assert!(verified);
 
-    // Malformed inputs map to the failure status.
+    // Malformed cryptographic inputs are a completed verification with a false result.
     let mut garbage = ZkvmKzgCommitment { data: [0; 48] };
     garbage.data[0] = 0x01;
     let status = unsafe { zkvm_kzg_point_eval(&garbage, &z, &y, &proof, &mut verified) };
-    assert_eq!(status, ZkvmStatus::Fail);
+    assert_eq!(status, ZkvmStatus::Ok);
     assert!(!verified);
 }
 

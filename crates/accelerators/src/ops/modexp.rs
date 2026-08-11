@@ -17,21 +17,36 @@ const BN_SCALAR_LEN: usize = 32;
 pub fn modexp(base: &[u8], exp: &[u8], modulus: &[u8], output: &mut [u8]) {
     assert_eq!(output.len(), modulus.len(), "output must be exactly modulus-sized");
 
-    let result = if is_bn254_fr(modulus) {
+    output.copy_from_slice(&modexp_result(base, exp, modulus));
+}
+
+/// Compute `base^exp % modulus`, returning exactly `modulus.len()` bytes.
+pub fn modexp_result(base: &[u8], exp: &[u8], modulus: &[u8]) -> Vec<u8> {
+    let mut result = if is_bn254_fr(modulus) {
         accelerated_modexp_bn254_fr(base, exp)
     } else {
         aurora_engine_modexp::modexp(base, exp, modulus)
     };
 
-    // The result is numerically reduced, but its byte representation may be
-    // shorter or longer (leading zeros); right-align it.
-    if result.len() >= output.len() {
-        output.copy_from_slice(&result[result.len() - output.len()..]);
-    } else {
-        let pad = output.len() - result.len();
-        output[..pad].fill(0);
-        output[pad..].copy_from_slice(&result);
+    // The result is numerically reduced, but its byte representation may not
+    // be modulus-sized. Reuse its allocation while right-aligning it.
+    let output_len = modulus.len();
+    match result.len().cmp(&output_len) {
+        core::cmp::Ordering::Greater => {
+            let start = result.len() - output_len;
+            result.copy_within(start.., 0);
+            result.truncate(output_len);
+        }
+        core::cmp::Ordering::Less => {
+            let value_len = result.len();
+            let padding = output_len - value_len;
+            result.resize(output_len, 0);
+            result.copy_within(0..value_len, padding);
+            result[..padding].fill(0);
+        }
+        core::cmp::Ordering::Equal => {}
     }
+    result
 }
 
 /// Returns true if the modulus (big-endian, possibly with leading zeros) equals BN254 Fr.
@@ -60,17 +75,18 @@ fn accelerated_modexp_bn254_fr(base: &[u8], exp: &[u8]) -> Vec<u8> {
 mod tests {
     use super::*;
 
-    /// BN254 Fr modulus in big-endian bytes
-    fn bn254_fr_modulus_be() -> Vec<u8> {
-        bn::Scalar::MODULUS.as_ref().iter().rev().copied().collect()
-    }
+    /// EIP-197 BN254 scalar-field modulus, independently specified in big-endian order.
+    const BN254_FR: [u8; 32] = [
+        0x30, 0x64, 0x4e, 0x72, 0xe1, 0x31, 0xa0, 0x29, 0xb8, 0x50, 0x45, 0xb6, 0x81, 0x81, 0x58,
+        0x5d, 0x28, 0x33, 0xe8, 0x48, 0x79, 0xb9, 0x70, 0x91, 0x43, 0xe1, 0xf5, 0x93, 0xf0, 0x00,
+        0x00, 0x01,
+    ];
 
     /// Helper: run the accelerated path and compare against the aurora
     /// reference. The accelerated path always returns BN_SCALAR_LEN bytes,
     /// so the reference output is left-padded to match.
     fn check(base: &[u8], exp: &[u8]) {
-        let modulus = bn254_fr_modulus_be();
-        let expected = aurora_engine_modexp::modexp(base, exp, &modulus);
+        let expected = aurora_engine_modexp::modexp(base, exp, &BN254_FR);
         let actual = accelerated_modexp_bn254_fr(base, exp);
         let mut expected_padded = vec![0u8; BN_SCALAR_LEN];
         let offset = BN_SCALAR_LEN - expected.len();
@@ -81,18 +97,18 @@ mod tests {
     #[test]
     fn test_is_bn254_fr() {
         // Exact modulus
-        assert!(is_bn254_fr(&bn254_fr_modulus_be()));
+        assert!(is_bn254_fr(&BN254_FR));
 
         // With leading zeros
         let mut padded = vec![0u8; 10];
-        padded.extend_from_slice(&bn254_fr_modulus_be());
+        padded.extend_from_slice(&BN254_FR);
         assert!(is_bn254_fr(&padded));
 
         // All zeros → false
         assert!(!is_bn254_fr(&[0u8; 32]));
 
         // Wrong modulus (flip last bit)
-        let mut m = bn254_fr_modulus_be();
+        let mut m = BN254_FR;
         *m.last_mut().unwrap() ^= 1;
         assert!(!is_bn254_fr(&m));
     }
@@ -108,9 +124,8 @@ mod tests {
         check(&[0, 0, 0, 3], &[5]); // leading zeros in base
 
         // --- short base, value >= modulus (triggers the reduce fallback) ---
-        let m = bn254_fr_modulus_be();
-        check(&m, &[1]); // Fr mod Fr = 0, so 0^1 = 0
-        let mut m_plus_1 = m.clone();
+        check(&BN254_FR, &[1]); // Fr mod Fr = 0, so 0^1 = 0
+        let mut m_plus_1 = BN254_FR;
         *m_plus_1.last_mut().unwrap() += 1;
         check(&m_plus_1, &[2]); // (Fr+1)^2 mod Fr = 1
         check(&[0xff; 32], &[1]); // max 256-bit value, >= modulus

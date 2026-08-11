@@ -23,10 +23,15 @@ pub unsafe extern "C" fn zkvm_bn254_g1_add(
     if p1.is_null() || p2.is_null() || result.is_null() {
         return ZkvmStatus::Fail;
     }
-    // SAFETY: non-NULL checked above; validity is guaranteed by the caller.
-    let (p1, p2, result) = unsafe { (&*p1, &*p2, &mut *result) };
-    match ops::bn254_g1_add(p1, p2, result) {
-        Ok(()) => ZkvmStatus::Ok,
+    // SAFETY: the non-NULL inputs are valid for reads. Copy before writing to support overlap.
+    let (p1, p2) = unsafe { (p1.read(), p2.read()) };
+    let mut value = ZkvmBn254G1Point { data: [0; 64] };
+    match ops::bn254_g1_add(&p1, &p2, &mut value) {
+        Ok(()) => {
+            // SAFETY: `result` is non-NULL and valid for writes.
+            unsafe { result.write(value) };
+            ZkvmStatus::Ok
+        }
         Err(_) => ZkvmStatus::Fail,
     }
 }
@@ -52,10 +57,15 @@ pub unsafe extern "C" fn zkvm_bn254_g1_mul(
     if point.is_null() || scalar.is_null() || result.is_null() {
         return ZkvmStatus::Fail;
     }
-    // SAFETY: non-NULL checked above; validity is guaranteed by the caller.
-    let (point, scalar, result) = unsafe { (&*point, &*scalar, &mut *result) };
-    match ops::bn254_g1_mul(point, scalar, result) {
-        Ok(()) => ZkvmStatus::Ok,
+    // SAFETY: the non-NULL inputs are valid for reads. Copy before writing to support overlap.
+    let (point, scalar) = unsafe { (point.read(), scalar.read()) };
+    let mut value = ZkvmBn254G1Point { data: [0; 64] };
+    match ops::bn254_g1_mul(&point, &scalar, &mut value) {
+        Ok(()) => {
+            // SAFETY: `result` is non-NULL and valid for writes.
+            unsafe { result.write(value) };
+            ZkvmStatus::Ok
+        }
         Err(_) => ZkvmStatus::Fail,
     }
 }
@@ -81,10 +91,17 @@ pub unsafe extern "C" fn zkvm_bn254_pairing(
     // SAFETY: non-NULL checked above for non-empty input; validity is guaranteed by the caller.
     let pairs =
         if num_pairs == 0 { &[] } else { unsafe { core::slice::from_raw_parts(pairs, num_pairs) } };
-    // SAFETY: non-NULL checked above; validity is guaranteed by the caller.
-    let verified = unsafe { &mut *verified };
-    match ops::bn254_pairing_check(pairs, verified) {
-        Ok(()) => ZkvmStatus::Ok,
-        Err(_) => ZkvmStatus::Fail,
+    let mut value = false;
+    match ops::bn254_pairing_check(pairs, &mut value) {
+        Ok(()) => {
+            // SAFETY: `verified` is non-NULL and valid for writes; input reads are complete.
+            unsafe { verified.write(value) };
+            ZkvmStatus::Ok
+        }
+        Err(_) => {
+            // SAFETY: `verified` is non-NULL and valid for writes; input reads are complete.
+            unsafe { verified.write(false) };
+            ZkvmStatus::Fail
+        }
     }
 }

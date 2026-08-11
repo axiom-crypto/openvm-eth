@@ -37,12 +37,11 @@ pub unsafe extern "C" fn zkvm_modexp(
     // SAFETY: non-NULL checked above; validity is guaranteed by the caller.
     let modulus =
         if mod_len == 0 { &[] } else { unsafe { core::slice::from_raw_parts(modulus, mod_len) } };
-    // SAFETY: non-NULL checked above; validity is guaranteed by the caller.
-    let output = if mod_len == 0 {
-        &mut [][..]
-    } else {
-        unsafe { core::slice::from_raw_parts_mut(output, mod_len) }
-    };
-    ops::modexp(base, exp, modulus, output);
+    let value = ops::modexp_result(base, exp, modulus);
+    if mod_len != 0 {
+        // SAFETY: `output` is non-NULL and valid for `mod_len` writes. `value` cannot overlap it,
+        // and all caller-provided input reads are complete.
+        unsafe { core::ptr::copy_nonoverlapping(value.as_ptr(), output, mod_len) };
+    }
     ZkvmStatus::Ok
 }
