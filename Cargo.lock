@@ -4321,27 +4321,6 @@ dependencies = [
 
 [[package]]
 name = "halo2-axiom"
-version = "0.5.2"
-source = "git+https://github.com/axiom-crypto/halo2.git?tag=v0.5.2#1eed471495b64ec1edf22f0661bbc65d0e4381d5"
-dependencies = [
- "blake2b_simd",
- "crossbeam",
- "ff 0.13.1",
- "group 0.13.0",
- "halo2curves-axiom",
- "itertools 0.11.0",
- "maybe-rayon",
- "pairing 0.23.0",
- "rand 0.8.5",
- "rand_core 0.6.4",
- "rayon",
- "rustc-hash 1.1.0",
- "sha3 0.10.8",
- "tracing",
-]
-
-[[package]]
-name = "halo2-axiom"
 version = "0.5.3"
 source = "git+https://github.com/axiom-crypto/halo2.git?tag=v0.5.3#5e4f0e524956f23b50d51b3a2f7bb07834948598"
 dependencies = [
@@ -4378,7 +4357,7 @@ dependencies = [
  "ff 0.13.1",
  "git-version",
  "group 0.13.0",
- "halo2-axiom 0.5.3",
+ "halo2-axiom",
  "halo2curves-axiom",
  "itertools 0.11.0",
  "lazy_static",
@@ -4407,7 +4386,7 @@ version = "0.5.5"
 source = "git+https://github.com/axiom-crypto/halo2-lib.git?tag=v0.5.5#9b2006e63efb4e06a6454d8f28a7464e8de10078"
 dependencies = [
  "getset",
- "halo2-axiom 0.5.3",
+ "halo2-axiom",
  "halo2-axiom-gpu",
  "itertools 0.11.0",
  "log",
@@ -7667,7 +7646,7 @@ dependencies = [
  "clap_builder",
  "dotenv",
  "eyre",
- "halo2-axiom 0.5.2",
+ "halo2-axiom",
  "hex",
  "openvm",
  "openvm-circuit",
