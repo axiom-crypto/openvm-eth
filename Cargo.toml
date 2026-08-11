@@ -87,7 +87,6 @@ reth-provider = { git = "https://github.com/paradigmxyz/reth", tag = "v2.3.0", d
 
 # revm
 revm = { version = "=40.0.3", features = ["serde"], default-features = false }
-revm-precompile = { version = "=36.0.3", default-features = false }
 revm-primitives = { version = "=24.0.1", default-features = false }
 
 # alloy

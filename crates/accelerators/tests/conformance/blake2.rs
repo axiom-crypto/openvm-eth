@@ -100,8 +100,10 @@ fn zkvm_blake2f_smoke() {
     );
 
     // An invalid final flag maps to the failure status.
+    let valid_output = h;
     let status = unsafe { zkvm_blake2f(12, &mut h, &m, &t, 2) };
     assert_eq!(status, ZkvmStatus::Fail);
+    assert_eq!(h, valid_output);
 }
 
 #[test]
