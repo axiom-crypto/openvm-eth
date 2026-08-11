@@ -26,10 +26,12 @@ pub unsafe extern "C" fn zkvm_blake2f(
     if h.is_null() || m.is_null() || t.is_null() {
         return ZkvmStatus::Fail;
     }
-    // SAFETY: non-NULL checked above; validity is guaranteed by the caller.
-    let (h, m, t) = unsafe { (&mut *h, &*m, &*t) };
-    match ops::blake2f(rounds, h, m, t, f) {
-        Ok(()) => ZkvmStatus::Ok,
-        Err(_) => ZkvmStatus::Fail,
+    // SAFETY: the non-NULL inputs are valid for reads. Copy before writing to support overlap.
+    let (mut state, message, offset) = unsafe { (h.read(), m.read(), t.read()) };
+    if ops::blake2f(rounds, &mut state, &message, &offset, f).is_err() {
+        return ZkvmStatus::Fail;
     }
+    // SAFETY: `h` is non-NULL and valid for writes.
+    unsafe { h.write(state) };
+    ZkvmStatus::Ok
 }

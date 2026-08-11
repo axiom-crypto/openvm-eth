@@ -27,17 +27,21 @@ fn modexp_small() {
 fn modexp_matches_reference() {
     // The BN254-Fr accelerated path, compared right-aligned against the
     // aurora reference.
-    let mut output = [0u8; 32];
+    let mut output = [0xa5; 32];
     modexp(&[0xab; 32], &[0x07], &BN254_FR, &mut output);
     let reference = aurora_engine_modexp::modexp(&[0xab; 32], &[0x07], &BN254_FR);
-    assert_eq!(output[32 - reference.len()..], reference[..]);
+    let mut expected = [0; 32];
+    expected[32 - reference.len()..].copy_from_slice(&reference);
+    assert_eq!(output, expected);
 
     // The generic path with a non-special modulus.
     let modulus = [0xef; 24];
-    let mut output = [0u8; 24];
+    let mut output = [0xa5; 24];
     modexp(&[0x12; 40], &[0x34; 3], &modulus, &mut output);
     let reference = aurora_engine_modexp::modexp(&[0x12; 40], &[0x34; 3], &modulus);
-    assert_eq!(output[24 - reference.len()..], reference[..]);
+    let mut expected = [0; 24];
+    expected[24 - reference.len()..].copy_from_slice(&reference);
+    assert_eq!(output, expected);
 }
 
 #[test]

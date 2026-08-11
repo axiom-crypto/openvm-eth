@@ -59,6 +59,7 @@ zstd = { version = "0.13", default-features = false }
 
 # workspace
 openvm-curve-utils = { path = "./crates/curve-utils", default-features = false }
+openvm-accelerators = { path = "./crates/accelerators", default-features = false }
 openvm-kzg = { path = "./crates/kzg", default-features = false }
 openvm-mpt = { path = "./crates/mpt" }
 openvm-revm-crypto = { path = "./crates/revm-crypto" }
@@ -86,6 +87,7 @@ reth-provider = { git = "https://github.com/paradigmxyz/reth", tag = "v2.3.0", d
 
 # revm
 revm = { version = "=40.0.3", features = ["serde"], default-features = false }
+revm-precompile = { version = "=36.0.3", default-features = false }
 revm-primitives = { version = "=24.0.1", default-features = false }
 
 # alloy

@@ -179,7 +179,7 @@ fn bls12_rejects_invalid_points() {
 
     let pairs = [ZkvmBls12381PairingPair { g1: off_curve_g1, g2: BLS_G2_GEN }];
     let mut verified = true;
-    assert!(bls12_381_pairing_check(&pairs, &mut verified).is_err());
+    assert_eq!(bls12_381_pairing_check(&pairs, &mut verified), Err(Error::BlsG1PointNotOnCurve));
     assert!(!verified);
 }
 
@@ -314,13 +314,17 @@ fn bls12_map_fp2_to_g2_vectors() {
 /// return the point itself.
 #[test]
 fn bls12_map_lands_in_prime_order_subgroup() {
-    let mapped = ZkvmBls12381G1Point { data: MAP_FP_TO_G1_VECTORS[0].1 };
+    let mut mapped = ZkvmBls12381G1Point { data: [0; 96] };
+    bls12_381_map_fp_to_g1(&ZkvmBls12381Fp { data: MAP_FP_TO_G1_VECTORS[0].0 }, &mut mapped)
+        .unwrap();
     let mut output = ZkvmBls12381G1Point { data: [0; 96] };
     bls12_381_g1_msm(&[ZkvmBls12381G1MsmPair { point: mapped, scalar: scalar(1) }], &mut output)
         .expect("mapped G1 point must be in the prime-order subgroup");
     assert_eq!(output.data, mapped.data);
 
-    let mapped = ZkvmBls12381G2Point { data: MAP_FP2_TO_G2_VECTORS[0].1 };
+    let mut mapped = ZkvmBls12381G2Point { data: [0; 192] };
+    bls12_381_map_fp2_to_g2(&ZkvmBls12381Fp2 { data: MAP_FP2_TO_G2_VECTORS[0].0 }, &mut mapped)
+        .unwrap();
     let mut output = ZkvmBls12381G2Point { data: [0; 192] };
     bls12_381_g2_msm(&[ZkvmBls12381G2MsmPair { point: mapped, scalar: scalar(1) }], &mut output)
         .expect("mapped G2 point must be in the prime-order subgroup");

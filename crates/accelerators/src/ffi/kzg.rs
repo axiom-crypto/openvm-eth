@@ -8,9 +8,8 @@ use crate::{
 /// Verify a KZG proof that the blob committed to by `commitment` evaluates
 /// to `y` at point `z`, writing the result to `verified`.
 ///
-/// Returns [`ZkvmStatus::Fail`] if any pointer is NULL or the inputs are
-/// malformed; `verified` is `false` when a well-formed proof does not
-/// verify.
+/// Returns [`ZkvmStatus::Fail`] if any pointer is NULL. Malformed or invalid
+/// cryptographic inputs return [`ZkvmStatus::Ok`] with `verified == false`.
 ///
 /// # Safety
 ///
@@ -28,11 +27,12 @@ pub unsafe extern "C" fn zkvm_kzg_point_eval(
     if commitment.is_null() || z.is_null() || y.is_null() || proof.is_null() || verified.is_null() {
         return ZkvmStatus::Fail;
     }
-    // SAFETY: non-NULL checked above; validity is guaranteed by the caller.
-    let (commitment, z, y, proof, verified) =
-        unsafe { (&*commitment, &*z, &*y, &*proof, &mut *verified) };
-    match ops::kzg_point_eval(commitment, z, y, proof, verified) {
-        Ok(()) => ZkvmStatus::Ok,
-        Err(_) => ZkvmStatus::Fail,
-    }
+    // SAFETY: the non-NULL inputs are valid for reads.
+    let (commitment, z, y, proof) =
+        unsafe { (commitment.read(), z.read(), y.read(), proof.read()) };
+    let mut value = false;
+    let _ = ops::kzg_point_eval(&commitment, &z, &y, &proof, &mut value);
+    // SAFETY: `verified` is non-NULL and valid for writes.
+    unsafe { verified.write(value) };
+    ZkvmStatus::Ok
 }
