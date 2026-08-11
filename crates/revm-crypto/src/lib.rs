@@ -142,7 +142,7 @@ impl Crypto for OpenVmCrypto {
         a: BlsG1Point,
         b: BlsG1Point,
     ) -> Result<[u8; BLS_G1_LEN], PrecompileHalt> {
-        bls12_381_g1_add(a, b).map_err(map_bls_g1_error)
+        bls12_381_g1_add(&a, &b).map_err(map_bls_g1_error)
     }
 
     fn bls12_381_g1_msm(
@@ -157,7 +157,7 @@ impl Crypto for OpenVmCrypto {
         a: BlsG2Point,
         b: BlsG2Point,
     ) -> Result<[u8; BLS_G2_LEN], PrecompileHalt> {
-        bls12_381_g2_add(a, b).map_err(map_bls_g2_error)
+        bls12_381_g2_add(&a, &b).map_err(map_bls_g2_error)
     }
 
     fn bls12_381_g2_msm(
@@ -185,7 +185,7 @@ impl Crypto for OpenVmCrypto {
         &self,
         fp2: ([u8; BLS_FP_LEN], [u8; BLS_FP_LEN]),
     ) -> Result<[u8; BLS_G2_LEN], PrecompileHalt> {
-        bls12_381_map_fp2_to_g2(fp2).map_err(map_bls_field_error)
+        bls12_381_map_fp2_to_g2(&fp2).map_err(map_bls_field_error)
     }
 }
 

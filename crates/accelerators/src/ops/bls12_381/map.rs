@@ -13,6 +13,7 @@ use super::BLS_FP_LEN;
 use crate::ops::Error;
 
 /// BLS12-381 map field element to G1 (precompile 0x10).
+#[inline]
 pub fn bls12_381_map_fp_to_g1(fp: &[u8; 48]) -> Result<[u8; 96], Error> {
     let fp = read_fq(fp)?;
     let point = WBMap::map_to_curve(fp)
@@ -23,7 +24,8 @@ pub fn bls12_381_map_fp_to_g1(fp: &[u8; 48]) -> Result<[u8; 96], Error> {
 }
 
 /// BLS12-381 map field element to G2 (precompile 0x11).
-pub fn bls12_381_map_fp2_to_g2(fp2: ([u8; 48], [u8; 48])) -> Result<[u8; 192], Error> {
+#[inline]
+pub fn bls12_381_map_fp2_to_g2(fp2: &([u8; 48], [u8; 48])) -> Result<[u8; 192], Error> {
     let c0 = read_fq(&fp2.0)?;
     let c1 = read_fq(&fp2.1)?;
     let point = WBMap::map_to_curve(Fq2::new(c0, c1))
