@@ -1,25 +1,22 @@
+#![cfg(feature = "ffi")]
+
 //! Hash conformance vectors.
 
 use hex_literal::hex;
 use openvm_accelerators::{
-    ffi::{zkvm_keccak256, zkvm_ripemd160, zkvm_sha256},
-    ops::{keccak256, ripemd160, sha256},
-    types::{ZkvmKeccak256Hash, ZkvmRipemd160Hash, ZkvmSha256Hash, ZkvmStatus},
+    keccak256, ripemd160, sha256, zkvm_keccak256, zkvm_ripemd160, zkvm_sha256, ZkvmKeccak256Hash,
+    ZkvmRipemd160Hash, ZkvmSha256Hash, ZkvmStatus,
 };
 
 #[test]
 fn keccak256_vectors() {
-    let mut output = ZkvmKeccak256Hash { data: [0; 32] };
-
-    keccak256(b"", &mut output);
     assert_eq!(
-        output.data,
+        keccak256(b""),
         hex!("c5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470")
     );
 
-    keccak256(b"abc", &mut output);
     assert_eq!(
-        output.data,
+        keccak256(b"abc"),
         hex!("4e03657aea45a94fc7d47ba826c8d667c0d1e6e33a64a036ec44f58fa12d6c45")
     );
 }
@@ -58,17 +55,13 @@ fn zkvm_keccak256_null_pointers() {
 
 #[test]
 fn sha256_vectors() {
-    let mut output = ZkvmSha256Hash { data: [0; 32] };
-
-    sha256(b"", &mut output);
     assert_eq!(
-        output.data,
+        sha256(b""),
         hex!("e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855")
     );
 
-    sha256(b"abc", &mut output);
     assert_eq!(
-        output.data,
+        sha256(b"abc"),
         hex!("ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad")
     );
 }
@@ -107,18 +100,13 @@ fn zkvm_sha256_null_pointers() {
 
 #[test]
 fn ripemd160_vectors() {
-    // Start from a dirty buffer to check the 12-byte zero padding is written.
-    let mut output = ZkvmRipemd160Hash { data: [0xff; 32] };
-
-    ripemd160(b"", &mut output);
     assert_eq!(
-        output.data,
+        ripemd160(b""),
         hex!("0000000000000000000000009c1185a5c5e9fc54612808977ee8f548b2258d31")
     );
 
-    ripemd160(b"abc", &mut output);
     assert_eq!(
-        output.data,
+        ripemd160(b"abc"),
         hex!("0000000000000000000000008eb208f7e05d987a9b044a8e98c6b087f15a0bfc")
     );
 }

@@ -11,65 +11,35 @@ use openvm_ecc_guest::{
 };
 use openvm_pairing::{bn254::Bn254, PairingCheck};
 
-use crate::{
-    ops::{Error, StreamError},
-    types::{ZkvmBn254G1Point, ZkvmBn254PairingPair, ZkvmBn254Scalar},
-};
+use crate::ops::Error;
 
 /// BN254 G1 point addition (precompile 0x06).
-pub fn bn254_g1_add(
-    p1: &ZkvmBn254G1Point,
-    p2: &ZkvmBn254G1Point,
-    output: &mut ZkvmBn254G1Point,
-) -> Result<(), Error> {
+pub fn bn254_g1_add(p1: &[u8], p2: &[u8]) -> Result<[u8; 64], Error> {
     let p1 = read_bn_g1_point(p1)?;
     let p2 = read_bn_g1_point(p2)?;
-    encode_bn_g1_point(p1 + p2, output);
-    Ok(())
+    Ok(encode_bn_g1_point(p1 + p2))
 }
 
 /// BN254 G1 scalar multiplication (precompile 0x07).
-pub fn bn254_g1_mul(
-    point: &ZkvmBn254G1Point,
-    scalar: &ZkvmBn254Scalar,
-    output: &mut ZkvmBn254G1Point,
-) -> Result<(), Error> {
+pub fn bn254_g1_mul(point: &[u8], scalar: &[u8]) -> Result<[u8; 64], Error> {
     let p = read_bn_g1_point(point)?;
-    let s = read_bn_scalar(scalar);
-    encode_bn_g1_point(Bn254::msm(&[s], &[p]), output);
-    Ok(())
+    let s = read_bn_scalar(scalar)?;
+    Ok(encode_bn_g1_point(Bn254::msm(&[s], &[p])))
 }
 
 /// BN254 pairing check (precompile 0x08).
-pub fn bn254_pairing_check(
-    pairs: &[ZkvmBn254PairingPair],
-    verified: &mut bool,
-) -> Result<(), Error> {
-    *verified = false;
-    let value =
-        bn254_pairing_check_iter(pairs.iter().copied().map(Ok::<_, core::convert::Infallible>))
-            .map_err(|error| match error {
-                StreamError::Operation(error) => error,
-                StreamError::Source(never) => match never {},
-            })?;
-    *verified = value;
-    Ok(())
-}
-
-/// BN254 pairing check over a stream of encoded pairs.
-pub fn bn254_pairing_check_iter<E>(
-    pairs: impl IntoIterator<Item = Result<ZkvmBn254PairingPair, E>>,
-) -> Result<bool, StreamError<E>> {
+pub fn bn254_pairing_check<'a>(
+    pairs: impl IntoIterator<Item = (&'a [u8], &'a [u8])>,
+) -> Result<bool, Error> {
     let pairs = pairs.into_iter();
     let capacity = pairs.size_hint().0;
 
     let mut g1_points = Vec::with_capacity(capacity);
     let mut g2_points = Vec::with_capacity(capacity);
 
-    for pair in pairs {
-        let pair = pair.map_err(StreamError::Source)?;
-        let g1 = read_bn_g1_point(&pair.g1).map_err(StreamError::Operation)?;
-        let g2 = read_bn_g2_point(&pair.g2).map_err(StreamError::Operation)?;
+    for (g1, g2) in pairs {
+        let g1 = read_bn_g1_point(g1)?;
+        let g2 = read_bn_g2_point(g2)?;
 
         let (g1_x, g1_y) = g1.into_coords();
         let (g2_x, g2_y) = g2.into_coords();

@@ -1,12 +1,12 @@
 //! BN254 add/mul/pairing conformance vectors.
 
+#![cfg(feature = "ffi")]
+
 use hex_literal::hex;
 use openvm_accelerators::{
-    ffi::{zkvm_bn254_g1_add, zkvm_bn254_g1_mul, zkvm_bn254_pairing},
-    ops::{bn254_g1_add, bn254_g1_mul, bn254_pairing_check, Error},
-    types::{
-        ZkvmBn254G1Point, ZkvmBn254G2Point, ZkvmBn254PairingPair, ZkvmBn254Scalar, ZkvmStatus,
-    },
+    bn254_g1_add, bn254_g1_mul, bn254_pairing_check, zkvm_bn254_g1_add, zkvm_bn254_g1_mul,
+    zkvm_bn254_pairing, Error, ZkvmBn254G1Point, ZkvmBn254G2Point, ZkvmBn254PairingPair,
+    ZkvmBn254Scalar, ZkvmStatus,
 };
 
 fn scalar(value: u8) -> ZkvmBn254Scalar {
@@ -52,14 +52,8 @@ const BN254_G2_GEN: ZkvmBn254G2Point = ZkvmBn254G2Point {
 #[test]
 fn bn254_add_mul_vectors() {
     let point = generator();
-    let mut output = ZkvmBn254G1Point { data: [0; 64] };
-
-    bn254_g1_add(&point, &point, &mut output).unwrap();
-    assert_eq!(output, BN254_2GEN);
-
-    output.data = [0; 64];
-    bn254_g1_mul(&point, &scalar(2), &mut output).unwrap();
-    assert_eq!(output, BN254_2GEN);
+    assert_eq!(bn254_g1_add(&point.data, &point.data).unwrap(), BN254_2GEN.data);
+    assert_eq!(bn254_g1_mul(&point.data, &scalar(2).data).unwrap(), BN254_2GEN.data);
 }
 
 #[test]
@@ -68,16 +62,11 @@ fn bn254_pairing_vectors() {
         ZkvmBn254PairingPair { g1: generator(), g2: BN254_G2_GEN },
         ZkvmBn254PairingPair { g1: BN254_NEG_GEN, g2: BN254_G2_GEN },
     ];
-    let mut verified = false;
-
-    bn254_pairing_check(&pairs, &mut verified).unwrap();
-    assert!(verified);
-
-    bn254_pairing_check(&pairs[..1], &mut verified).unwrap();
-    assert!(!verified);
-
-    bn254_pairing_check(&[], &mut verified).unwrap();
-    assert!(verified);
+    let raw = pairs.iter().map(|pair| (pair.g1.data.as_slice(), pair.g2.data.as_slice()));
+    assert!(bn254_pairing_check(raw).unwrap());
+    assert!(!bn254_pairing_check([(pairs[0].g1.data.as_slice(), pairs[0].g2.data.as_slice(),)])
+        .unwrap());
+    assert!(bn254_pairing_check(core::iter::empty()).unwrap());
 }
 
 #[test]
@@ -118,15 +107,18 @@ fn bn254_rejects_invalid_point() {
     not_on_curve.data[63] = 3;
     let mut output = ZkvmBn254G1Point { data: [0; 64] };
 
-    assert_eq!(bn254_g1_add(&not_on_curve, &generator(), &mut output), Err(Error::PointNotOnCurve));
+    assert_eq!(bn254_g1_add(&not_on_curve.data, &generator().data), Err(Error::PointNotOnCurve));
 
     let status = unsafe { zkvm_bn254_g1_mul(&not_on_curve, &scalar(2), &mut output) };
     assert_eq!(status, ZkvmStatus::Fail);
 
     let pairs = [ZkvmBn254PairingPair { g1: not_on_curve, g2: BN254_G2_GEN }];
-    let mut verified = true;
-    assert_eq!(bn254_pairing_check(&pairs, &mut verified), Err(Error::PointNotOnCurve));
-    assert!(!verified);
+    assert_eq!(
+        bn254_pairing_check(
+            pairs.iter().map(|pair| (pair.g1.data.as_slice(), pair.g2.data.as_slice()))
+        ),
+        Err(Error::PointNotOnCurve)
+    );
 }
 
 #[test]
