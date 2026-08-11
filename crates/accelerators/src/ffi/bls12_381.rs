@@ -28,7 +28,7 @@ pub unsafe extern "C" fn zkvm_bls12_g1_add(
     }
     // SAFETY: the non-NULL inputs are valid for reads. Copy before writing to support overlap.
     let (p1, p2) = unsafe { (p1.read(), p2.read()) };
-    match ops::bls12_381_g1_add(bls_g1(p1.data), bls_g1(p2.data)) {
+    match ops::bls12_381_g1_add(&bls_g1(p1.data), &bls_g1(p2.data)) {
         Ok(data) => {
             // SAFETY: `result` is non-NULL and valid for writes.
             unsafe { result.write(ZkvmBls12381G1Point { data }) };
@@ -92,7 +92,7 @@ pub unsafe extern "C" fn zkvm_bls12_g2_add(
     }
     // SAFETY: the non-NULL inputs are valid for reads. Copy before writing to support overlap.
     let (p1, p2) = unsafe { (p1.read(), p2.read()) };
-    match ops::bls12_381_g2_add(bls_g2(p1.data), bls_g2(p2.data)) {
+    match ops::bls12_381_g2_add(&bls_g2(p1.data), &bls_g2(p2.data)) {
         Ok(data) => {
             // SAFETY: `result` is non-NULL and valid for writes.
             unsafe { result.write(ZkvmBls12381G2Point { data }) };
@@ -238,7 +238,7 @@ pub unsafe extern "C" fn zkvm_bls12_map_fp2_to_g2(
         field_element.data[..48].try_into().unwrap(),
         field_element.data[48..].try_into().unwrap(),
     );
-    match ops::bls12_381_map_fp2_to_g2(fp2) {
+    match ops::bls12_381_map_fp2_to_g2(&fp2) {
         Ok(data) => {
             // SAFETY: `result` is non-NULL and valid for writes.
             unsafe { result.write(ZkvmBls12381G2Point { data }) };
