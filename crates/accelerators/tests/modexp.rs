@@ -1,7 +1,9 @@
 //! Modexp conformance vectors.
 
+#![cfg(feature = "ffi")]
+
 use hex_literal::hex;
-use openvm_accelerators::{ffi::zkvm_modexp, ops::modexp, types::ZkvmStatus};
+use openvm_accelerators::{modexp, zkvm_modexp, ZkvmStatus};
 
 /// BN254 Fr (the scalar field) modulus, big-endian. Not to be confused with
 /// the base field prime, which shares the leading bytes.
@@ -10,25 +12,19 @@ const BN254_FR: [u8; 32] = hex!("30644e72e131a029b85045b68181585d2833e84879b9709
 #[test]
 fn modexp_small() {
     // 3^5 mod 7 = 5
-    let mut output = [0xffu8; 1];
-    modexp(&[3], &[5], &[7], &mut output);
-    assert_eq!(output, [5]);
+    assert_eq!(modexp(&[3], &[5], &[7]), [5]);
 
     // Output is left-padded to the modulus length.
-    let mut output = [0xffu8; 2];
-    modexp(&[3], &[5], &[0, 7], &mut output);
-    assert_eq!(output, [0, 5]);
+    assert_eq!(modexp(&[3], &[5], &[0, 7]), [0, 5]);
 
-    // A zero-length modulus writes nothing.
-    modexp(&[3], &[5], &[], &mut []);
+    assert!(modexp(&[3], &[5], &[]).is_empty());
 }
 
 #[test]
 fn modexp_matches_reference() {
     // The BN254-Fr accelerated path, compared right-aligned against the
     // aurora reference.
-    let mut output = [0xa5; 32];
-    modexp(&[0xab; 32], &[0x07], &BN254_FR, &mut output);
+    let output = modexp(&[0xab; 32], &[0x07], &BN254_FR);
     let reference = aurora_engine_modexp::modexp(&[0xab; 32], &[0x07], &BN254_FR);
     let mut expected = [0; 32];
     expected[32 - reference.len()..].copy_from_slice(&reference);
@@ -36,8 +32,7 @@ fn modexp_matches_reference() {
 
     // The generic path with a non-special modulus.
     let modulus = [0xef; 24];
-    let mut output = [0xa5; 24];
-    modexp(&[0x12; 40], &[0x34; 3], &modulus, &mut output);
+    let output = modexp(&[0x12; 40], &[0x34; 3], &modulus);
     let reference = aurora_engine_modexp::modexp(&[0x12; 40], &[0x34; 3], &modulus);
     let mut expected = [0; 24];
     expected[24 - reference.len()..].copy_from_slice(&reference);

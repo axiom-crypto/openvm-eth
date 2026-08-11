@@ -1,10 +1,10 @@
 //! BLAKE2f conformance: the official EIP-152 test vectors 4-7.
 
+#![cfg(feature = "ffi")]
+
 use hex_literal::hex;
 use openvm_accelerators::{
-    ffi::zkvm_blake2f,
-    ops::{blake2f, Error},
-    types::{ZkvmBlake2fMessage, ZkvmBlake2fOffset, ZkvmBlake2fState, ZkvmStatus},
+    blake2f, zkvm_blake2f, ZkvmBlake2fMessage, ZkvmBlake2fOffset, ZkvmBlake2fState, ZkvmStatus,
 };
 
 /// EIP-152 vectors 4-7 share the same h, m and t inputs.
@@ -20,10 +20,22 @@ fn m() -> ZkvmBlake2fMessage {
     m
 }
 
+fn state_words(bytes: &[u8; 64]) -> [u64; 8] {
+    core::array::from_fn(|i| u64::from_le_bytes(bytes[i * 8..(i + 1) * 8].try_into().unwrap()))
+}
+
+fn message_words(bytes: &[u8; 128]) -> [u64; 16] {
+    core::array::from_fn(|i| u64::from_le_bytes(bytes[i * 8..(i + 1) * 8].try_into().unwrap()))
+}
+
+fn offset_words(bytes: &[u8; 16]) -> [u64; 2] {
+    core::array::from_fn(|i| u64::from_le_bytes(bytes[i * 8..(i + 1) * 8].try_into().unwrap()))
+}
+
 fn check(rounds: u32, f: u8, expected: [u8; 64]) {
-    let mut h = ZkvmBlake2fState { data: H };
-    blake2f(rounds, &mut h, &m(), &ZkvmBlake2fOffset { data: T }, f).unwrap();
-    assert_eq!(h.data, expected, "rounds={rounds}, f={f}");
+    let mut h = state_words(&H);
+    blake2f(rounds, &mut h, &message_words(&m().data), &offset_words(&T), f == 1);
+    assert_eq!(h, state_words(&expected), "rounds={rounds}, f={f}");
 }
 
 #[test]
@@ -72,15 +84,6 @@ fn blake2f_eip152_vector_7_one_round() {
             "a551b3a8333bcdf5f2f7e08993d53923de3d64fcc68c034e717b9293fed7a421"
         ),
     );
-}
-
-#[test]
-fn blake2f_invalid_final_flag() {
-    let mut h = ZkvmBlake2fState { data: H };
-    let result = blake2f(12, &mut h, &m(), &ZkvmBlake2fOffset { data: T }, 2);
-    assert_eq!(result, Err(Error::InvalidFinalFlag));
-    // The state must be untouched on failure.
-    assert_eq!(h.data, H);
 }
 
 #[test]

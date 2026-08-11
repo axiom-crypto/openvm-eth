@@ -15,15 +15,10 @@ use alloy_consensus::crypto::{
 };
 use alloy_primitives::Address;
 use openvm_accelerators::{
-    ops::{self, Error, StreamError},
-    types::{
-        ZkvmBls12381Fp, ZkvmBls12381Fp2, ZkvmBls12381G1MsmPair, ZkvmBls12381G1Point,
-        ZkvmBls12381G2MsmPair, ZkvmBls12381G2Point, ZkvmBls12381PairingPair, ZkvmBn254G1Point,
-        ZkvmBn254G2Point, ZkvmBn254PairingPair, ZkvmBn254Scalar, ZkvmBytes32, ZkvmKeccak256Hash,
-        ZkvmKzgCommitment, ZkvmKzgFieldElement, ZkvmKzgProof, ZkvmRipemd160Hash, ZkvmSecp256k1Hash,
-        ZkvmSecp256k1Pubkey, ZkvmSecp256k1Signature, ZkvmSecp256r1Hash, ZkvmSecp256r1Pubkey,
-        ZkvmSecp256r1Signature, ZkvmSha256Hash,
-    },
+    blake2f, bls12_381_g1_add, bls12_381_g1_msm, bls12_381_g2_add, bls12_381_g2_msm,
+    bls12_381_map_fp2_to_g2, bls12_381_map_fp_to_g1, bls12_381_pairing_check, bn254_g1_add,
+    bn254_g1_mul, bn254_pairing_check, keccak256, kzg_point_eval, modexp, ripemd160,
+    secp256k1_ecrecover, secp256k1_verify, secp256r1_verify, sha256, Error, StreamError,
 };
 use revm::{
     install_crypto,
@@ -48,14 +43,9 @@ impl CryptoProvider for OpenVmK256Provider {
         sig: &[u8; 65],
         msg: &[u8; 32],
     ) -> Result<Address, RecoveryError> {
-        let recovery_id = sig[64];
-        let msg = ZkvmSecp256k1Hash { data: *msg };
-        let sig = ZkvmSecp256k1Signature { data: sig[..64].try_into().unwrap() };
-        let mut pubkey = ZkvmSecp256k1Pubkey { data: [0; 64] };
-        ops::secp256k1_ecrecover(&msg, &sig, recovery_id, &mut pubkey)
+        let pubkey = secp256k1_ecrecover(msg, sig[..64].try_into().unwrap(), sig[64])
             .map_err(|_| RecoveryError::new())?;
-
-        Ok(address_from_pubkey(&pubkey.data))
+        Ok(address_from_pubkey(&pubkey))
     }
 
     fn verify_and_compute_signer_unchecked(
@@ -68,25 +58,17 @@ impl CryptoProvider for OpenVmK256Provider {
             return Err(RecoveryError::new());
         }
 
-        let msg = ZkvmSecp256k1Hash { data: *msg };
-        let sig = ZkvmSecp256k1Signature { data: *sig };
-        let pubkey = ZkvmSecp256k1Pubkey { data: pubkey[1..].try_into().unwrap() };
-        let mut verified = false;
-        ops::secp256k1_verify(&msg, &sig, &pubkey, &mut verified)
-            .map_err(|_| RecoveryError::new())?;
-        if !verified {
+        let pubkey: &[u8; 64] = pubkey[1..].try_into().unwrap();
+        if !secp256k1_verify(msg, sig, pubkey) {
             return Err(RecoveryError::new());
         }
 
-        Ok(address_from_pubkey(&pubkey.data))
+        Ok(address_from_pubkey(pubkey))
     }
 }
 
-// Kept separate so both Alloy provider methods use exactly the standard-interface hash path.
 fn address_from_pubkey(pubkey: &[u8; 64]) -> Address {
-    let mut hash = ZkvmKeccak256Hash { data: [0; 32] };
-    ops::keccak256(pubkey, &mut hash);
-    Address::from_slice(&hash.data[12..])
+    Address::from_slice(&keccak256(pubkey)[12..])
 }
 
 #[derive(Debug, Default)]
@@ -94,51 +76,23 @@ struct OpenVmCrypto;
 
 impl Crypto for OpenVmCrypto {
     fn sha256(&self, input: &[u8]) -> [u8; 32] {
-        let mut output = ZkvmSha256Hash { data: [0; 32] };
-        ops::sha256(input, &mut output);
-        output.data
+        sha256(input)
     }
 
     fn ripemd160(&self, input: &[u8]) -> [u8; 32] {
-        let mut output = ZkvmRipemd160Hash { data: [0; 32] };
-        ops::ripemd160(input, &mut output);
-        output.data
+        ripemd160(input)
     }
 
     fn bn254_g1_add(&self, p1: &[u8], p2: &[u8]) -> Result<[u8; 64], PrecompileHalt> {
-        let p1 =
-            ZkvmBn254G1Point { data: p1.try_into().map_err(|_| PrecompileHalt::Bn254PairLength)? };
-        let p2 =
-            ZkvmBn254G1Point { data: p2.try_into().map_err(|_| PrecompileHalt::Bn254PairLength)? };
-        let mut output = ZkvmBn254G1Point { data: [0; 64] };
-        ops::bn254_g1_add(&p1, &p2, &mut output).map_err(map_bn_error)?;
-        Ok(output.data)
+        bn254_g1_add(p1, p2).map_err(map_bn_error)
     }
 
     fn bn254_g1_mul(&self, point: &[u8], scalar: &[u8]) -> Result<[u8; 64], PrecompileHalt> {
-        let point = ZkvmBn254G1Point {
-            data: point.try_into().map_err(|_| PrecompileHalt::Bn254PairLength)?,
-        };
-        let scalar = ZkvmBn254Scalar {
-            data: scalar.try_into().map_err(|_| PrecompileHalt::Bn254PairLength)?,
-        };
-        let mut output = ZkvmBn254G1Point { data: [0; 64] };
-        ops::bn254_g1_mul(&point, &scalar, &mut output).map_err(map_bn_error)?;
-        Ok(output.data)
+        bn254_g1_mul(point, scalar).map_err(map_bn_error)
     }
 
     fn bn254_pairing_check(&self, pairs: &[(&[u8], &[u8])]) -> Result<bool, PrecompileHalt> {
-        let pairs = pairs.iter().map(|(g1, g2)| {
-            Ok(ZkvmBn254PairingPair {
-                g1: ZkvmBn254G1Point {
-                    data: (*g1).try_into().map_err(|_| PrecompileHalt::Bn254PairLength)?,
-                },
-                g2: ZkvmBn254G2Point {
-                    data: (*g2).try_into().map_err(|_| PrecompileHalt::Bn254PairLength)?,
-                },
-            })
-        });
-        ops::bn254_pairing_check_iter(pairs).map_err(|error| map_stream_error(error, map_bn_error))
+        bn254_pairing_check(pairs.iter().copied()).map_err(map_bn_error)
     }
 
     fn secp256k1_ecrecover(
@@ -147,32 +101,24 @@ impl Crypto for OpenVmCrypto {
         recid: u8,
         msg: &[u8; 32],
     ) -> Result<[u8; 32], PrecompileHalt> {
-        let msg = ZkvmSecp256k1Hash { data: *msg };
-        let sig = ZkvmSecp256k1Signature { data: *sig };
-        let mut pubkey = ZkvmSecp256k1Pubkey { data: [0; 64] };
-        ops::secp256k1_ecrecover(&msg, &sig, recid, &mut pubkey)
+        let pubkey = secp256k1_ecrecover(msg, sig, recid)
             .map_err(|_| PrecompileHalt::Secp256k1RecoverFailed)?;
 
-        let mut hash = ZkvmKeccak256Hash { data: [0; 32] };
-        ops::keccak256(&pubkey.data, &mut hash);
-        hash.data[..12].fill(0);
-        Ok(hash.data)
+        let mut hash = keccak256(&pubkey);
+        hash[..12].fill(0);
+        Ok(hash)
     }
 
     fn modexp(&self, base: &[u8], exp: &[u8], modulus: &[u8]) -> Result<Vec<u8>, PrecompileHalt> {
-        Ok(ops::modexp_result(base, exp, modulus))
+        Ok(modexp(base, exp, modulus))
     }
 
     fn blake2_compress(&self, rounds: u32, h: &mut [u64; 8], m: &[u64; 16], t: &[u64; 2], f: bool) {
-        ops::blake2f_words(rounds, h, m, t, f);
+        blake2f(rounds, h, m, t, f);
     }
 
     fn secp256r1_verify_signature(&self, msg: &[u8; 32], sig: &[u8; 64], pk: &[u8; 64]) -> bool {
-        let msg = ZkvmSecp256r1Hash { data: *msg };
-        let sig = ZkvmSecp256r1Signature { data: *sig };
-        let pubkey = ZkvmSecp256r1Pubkey { data: *pk };
-        let mut verified = false;
-        ops::secp256r1_verify(&msg, &sig, &pubkey, &mut verified).is_ok() && verified
+        secp256r1_verify(msg, sig, pk)
     }
 
     fn verify_kzg_proof(
@@ -182,12 +128,7 @@ impl Crypto for OpenVmCrypto {
         commitment: &[u8; 48],
         proof: &[u8; 48],
     ) -> Result<(), PrecompileHalt> {
-        let commitment = ZkvmKzgCommitment { data: *commitment };
-        let z = ZkvmKzgFieldElement { data: *z };
-        let y = ZkvmKzgFieldElement { data: *y };
-        let proof = ZkvmKzgProof { data: *proof };
-        let mut verified = false;
-        ops::kzg_point_eval(&commitment, &z, &y, &proof, &mut verified)
+        let verified = kzg_point_eval(commitment, z, y, proof)
             .map_err(|_| PrecompileHalt::BlobVerifyKzgProofFailed)?;
         if verified {
             Ok(())
@@ -201,24 +142,14 @@ impl Crypto for OpenVmCrypto {
         a: BlsG1Point,
         b: BlsG1Point,
     ) -> Result<[u8; BLS_G1_LEN], PrecompileHalt> {
-        let a = bls_g1(a);
-        let b = bls_g1(b);
-        let mut output = ZkvmBls12381G1Point { data: [0; BLS_G1_LEN] };
-        ops::bls12_381_g1_add(&a, &b, &mut output).map_err(map_bls_g1_error)?;
-        Ok(output.data)
+        bls12_381_g1_add(a, b).map_err(map_bls_g1_error)
     }
 
     fn bls12_381_g1_msm(
         &self,
         pairs: &mut dyn Iterator<Item = Result<BlsG1PointScalar, PrecompileHalt>>,
     ) -> Result<[u8; BLS_G1_LEN], PrecompileHalt> {
-        let pairs = pairs.map(|pair| {
-            let (point, scalar) = pair?;
-            Ok(ZkvmBls12381G1MsmPair { point: bls_g1(point), scalar: ZkvmBytes32 { data: scalar } })
-        });
-        ops::bls12_381_g1_msm_iter(pairs)
-            .map(|output| output.data)
-            .map_err(|error| map_stream_error(error, map_bls_g1_error))
+        bls12_381_g1_msm(pairs).map_err(|error| map_stream_error(error, map_bls_g1_error))
     }
 
     fn bls12_381_g2_add(
@@ -226,74 +157,36 @@ impl Crypto for OpenVmCrypto {
         a: BlsG2Point,
         b: BlsG2Point,
     ) -> Result<[u8; BLS_G2_LEN], PrecompileHalt> {
-        let a = bls_g2(a);
-        let b = bls_g2(b);
-        let mut output = ZkvmBls12381G2Point { data: [0; BLS_G2_LEN] };
-        ops::bls12_381_g2_add(&a, &b, &mut output).map_err(map_bls_g2_error)?;
-        Ok(output.data)
+        bls12_381_g2_add(a, b).map_err(map_bls_g2_error)
     }
 
     fn bls12_381_g2_msm(
         &self,
         pairs: &mut dyn Iterator<Item = Result<BlsG2PointScalar, PrecompileHalt>>,
     ) -> Result<[u8; BLS_G2_LEN], PrecompileHalt> {
-        let pairs = pairs.map(|pair| {
-            let (point, scalar) = pair?;
-            Ok(ZkvmBls12381G2MsmPair { point: bls_g2(point), scalar: ZkvmBytes32 { data: scalar } })
-        });
-        ops::bls12_381_g2_msm_iter(pairs)
-            .map(|output| output.data)
-            .map_err(|error| map_stream_error(error, map_bls_g2_error))
+        bls12_381_g2_msm(pairs).map_err(|error| map_stream_error(error, map_bls_g2_error))
     }
 
     fn bls12_381_pairing_check(
         &self,
         pairs: &[(BlsG1Point, BlsG2Point)],
     ) -> Result<bool, PrecompileHalt> {
-        let pairs = pairs
-            .iter()
-            .copied()
-            .map(|(g1, g2)| ZkvmBls12381PairingPair { g1: bls_g1(g1), g2: bls_g2(g2) });
-        ops::bls12_381_pairing_check_iter(pairs).map_err(map_bls_pairing_error)
+        bls12_381_pairing_check(pairs.iter().copied()).map_err(map_bls_pairing_error)
     }
 
     fn bls12_381_fp_to_g1(
         &self,
         fp: &[u8; BLS_FP_LEN],
     ) -> Result<[u8; BLS_G1_LEN], PrecompileHalt> {
-        let fp = ZkvmBls12381Fp { data: *fp };
-        let mut output = ZkvmBls12381G1Point { data: [0; BLS_G1_LEN] };
-        ops::bls12_381_map_fp_to_g1(&fp, &mut output).map_err(map_bls_field_error)?;
-        Ok(output.data)
+        bls12_381_map_fp_to_g1(fp).map_err(map_bls_field_error)
     }
 
     fn bls12_381_fp2_to_g2(
         &self,
         fp2: ([u8; BLS_FP_LEN], [u8; BLS_FP_LEN]),
     ) -> Result<[u8; BLS_G2_LEN], PrecompileHalt> {
-        let mut data = [0; BLS_FP_LEN * 2];
-        data[..BLS_FP_LEN].copy_from_slice(&fp2.0);
-        data[BLS_FP_LEN..].copy_from_slice(&fp2.1);
-        let fp2 = ZkvmBls12381Fp2 { data };
-        let mut output = ZkvmBls12381G2Point { data: [0; BLS_G2_LEN] };
-        ops::bls12_381_map_fp2_to_g2(&fp2, &mut output).map_err(map_bls_field_error)?;
-        Ok(output.data)
+        bls12_381_map_fp2_to_g2(fp2).map_err(map_bls_field_error)
     }
-}
-
-fn bls_g1((x, y): BlsG1Point) -> ZkvmBls12381G1Point {
-    let mut data = [0; BLS_G1_LEN];
-    data[..BLS_FP_LEN].copy_from_slice(&x);
-    data[BLS_FP_LEN..].copy_from_slice(&y);
-    ZkvmBls12381G1Point { data }
-}
-
-fn bls_g2((x0, x1, y0, y1): BlsG2Point) -> ZkvmBls12381G2Point {
-    let mut data = [0; BLS_G2_LEN];
-    for (output, coordinate) in data.chunks_exact_mut(BLS_FP_LEN).zip([x0, x1, y0, y1]) {
-        output.copy_from_slice(&coordinate);
-    }
-    ZkvmBls12381G2Point { data }
 }
 
 fn map_stream_error(
@@ -308,6 +201,7 @@ fn map_stream_error(
 
 fn map_bn_error(error: Error) -> PrecompileHalt {
     match error {
+        Error::InvalidLength => PrecompileHalt::Bn254PairLength,
         Error::FieldElementInvalid => PrecompileHalt::Bn254FieldPointNotAMember,
         Error::PointNotOnCurve | Error::PointNotInSubgroup => {
             PrecompileHalt::Bn254AffineGFailedToCreate
@@ -435,24 +329,14 @@ mod tests {
     #[test]
     fn adapters_preserve_revm_error_variants() {
         let invalid_bn_point = [0xff; 64];
-        assert_eq!(
-            OpenVmCrypto.bn254_g1_add(&invalid_bn_point, &[0; 64]),
-            Err(PrecompileHalt::Bn254FieldPointNotAMember)
-        );
-        assert_eq!(
-            OpenVmCrypto.bn254_g1_add(&invalid_bn_point, &[0; 64]),
-            DefaultCrypto.bn254_g1_add(&invalid_bn_point, &[0; 64])
-        );
+        let actual = OpenVmCrypto.bn254_g1_add(&invalid_bn_point, &[0; 64]);
+        assert_eq!(actual, Err(PrecompileHalt::Bn254FieldPointNotAMember));
+        assert_eq!(actual, DefaultCrypto.bn254_g1_add(&invalid_bn_point, &[0; 64]));
 
         let noncanonical_fp = [0xff; BLS_FP_LEN];
-        assert_eq!(
-            OpenVmCrypto.bls12_381_fp_to_g1(&noncanonical_fp),
-            Err(PrecompileHalt::NonCanonicalFp)
-        );
-        assert_eq!(
-            OpenVmCrypto.bls12_381_fp_to_g1(&noncanonical_fp),
-            DefaultCrypto.bls12_381_fp_to_g1(&noncanonical_fp)
-        );
+        let actual = OpenVmCrypto.bls12_381_fp_to_g1(&noncanonical_fp);
+        assert_eq!(actual, Err(PrecompileHalt::NonCanonicalFp));
+        assert_eq!(actual, DefaultCrypto.bls12_381_fp_to_g1(&noncanonical_fp));
 
         assert_eq!(
             OpenVmCrypto.secp256k1_ecrecover(&[0; 64], 0, &[0; 32]),

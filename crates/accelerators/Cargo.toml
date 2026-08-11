@@ -1,6 +1,6 @@
 [package]
 name = "openvm-accelerators"
-description = "OpenVM implementation of the zkVM Cryptographic Accelerators C Interface"
+description = "OpenVM cryptographic accelerator interface"
 version.workspace = true
 edition.workspace = true
 homepage.workspace = true
@@ -51,14 +51,7 @@ ignored = ["openvm-pairing-guest"]
 [package.metadata.cargo-machete]
 ignored = ["openvm-pairing-guest"]
 
-[[test]]
-name = "conformance"
-path = "tests/conformance/main.rs"
-required-features = ["ffi"]
-
 [features]
 default = ["ffi"]
-# The extern "C" `zkvm_*` symbols. Rust consumers that only need `ops` can
-# disable this.
 ffi = []
 std = []

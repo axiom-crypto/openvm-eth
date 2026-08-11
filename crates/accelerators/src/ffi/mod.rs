@@ -1,8 +1,7 @@
 //! The `extern "C"` layer: `zkvm_*` symbols matching `zkvm_accelerators.h`.
 //!
-//! Every function is a thin wrapper over [`crate::ops`]: it checks pointers,
-//! converts them to references, calls the operation, and maps the result to
-//! [`crate::types::ZkvmStatus`]. No other logic lives here.
+//! Each function validates the ABI inputs, converts their representation,
+//! calls [`crate::ops`], and maps the result to [`crate::types::ZkvmStatus`].
 
 mod blake2;
 mod bls12_381;
