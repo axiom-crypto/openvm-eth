@@ -85,7 +85,7 @@ fn neg_g1_generator() -> ZkvmBls12381G1Point {
 
 #[test]
 fn bls12_g1_add_msm_vectors() {
-    let output = bls12_381_g1_add(bls_g1(BLS_G1_GEN), bls_g1(BLS_G1_GEN)).unwrap();
+    let output = bls12_381_g1_add(&bls_g1(BLS_G1_GEN), &bls_g1(BLS_G1_GEN)).unwrap();
     assert_eq!(output, BLS_G1_2GEN.data);
 
     let pairs = [Ok::<_, Infallible>((bls_g1(BLS_G1_GEN), scalar(2).data))];
@@ -99,7 +99,7 @@ fn bls12_g1_add_msm_vectors() {
 
 #[test]
 fn bls12_g2_add_msm_vectors() {
-    let output = bls12_381_g2_add(bls_g2(BLS_G2_GEN), bls_g2(BLS_G2_GEN)).unwrap();
+    let output = bls12_381_g2_add(&bls_g2(BLS_G2_GEN), &bls_g2(BLS_G2_GEN)).unwrap();
     assert_eq!(output, BLS_G2_2GEN.data);
 
     let pairs = [Ok::<_, Infallible>((bls_g2(BLS_G2_GEN), scalar(2).data))];
@@ -168,11 +168,11 @@ fn zkvm_bls12_pairing_smoke() {
 fn bls12_rejects_invalid_points() {
     let mut off_curve_g1 = BLS_G1_GEN;
     off_curve_g1.data[95] ^= 1;
-    assert!(bls12_381_g1_add(bls_g1(off_curve_g1), bls_g1(BLS_G1_GEN)).is_err());
+    assert!(bls12_381_g1_add(&bls_g1(off_curve_g1), &bls_g1(BLS_G1_GEN)).is_err());
 
     let mut off_curve_g2 = BLS_G2_GEN;
     off_curve_g2.data[191] ^= 1;
-    assert!(bls12_381_g2_add(bls_g2(off_curve_g2), bls_g2(BLS_G2_GEN)).is_err());
+    assert!(bls12_381_g2_add(&bls_g2(off_curve_g2), &bls_g2(BLS_G2_GEN)).is_err());
 
     let pairs = [(bls_g1(off_curve_g1), bls_g2(BLS_G2_GEN))];
     assert_eq!(bls12_381_pairing_check(pairs), Err(Error::BlsG1PointNotOnCurve));
@@ -295,7 +295,7 @@ fn bls12_map_fp_to_g1_vectors() {
 #[test]
 fn bls12_map_fp2_to_g2_vectors() {
     for (input, expected) in MAP_FP2_TO_G2_VECTORS {
-        let output = bls12_381_map_fp2_to_g2(bls_fp2(input)).unwrap();
+        let output = bls12_381_map_fp2_to_g2(&bls_fp2(input)).unwrap();
         assert_eq!(output, expected, "input={input:?}");
     }
 }
@@ -314,7 +314,7 @@ fn bls12_map_lands_in_prime_order_subgroup() {
         bls12_381_g1_msm(pairs).expect("mapped G1 point must be in the prime-order subgroup");
     assert_eq!(output, mapped);
 
-    let mapped = bls12_381_map_fp2_to_g2(bls_fp2(MAP_FP2_TO_G2_VECTORS[0].0)).unwrap();
+    let mapped = bls12_381_map_fp2_to_g2(&bls_fp2(MAP_FP2_TO_G2_VECTORS[0].0)).unwrap();
     let pairs =
         [Ok::<_, Infallible>((bls_g2(ZkvmBls12381G2Point { data: mapped }), scalar(1).data))];
     let output =
@@ -330,8 +330,14 @@ fn bls12_map_field_element_range() {
     assert_eq!(bls12_381_map_fp_to_g1(&[0xff; 48]), Err(Error::FieldElementInvalid));
 
     // Either half of an Fp2 input is checked.
-    assert_eq!(bls12_381_map_fp2_to_g2((BLS_FP_MODULUS, [0; 48])), Err(Error::FieldElementInvalid));
-    assert_eq!(bls12_381_map_fp2_to_g2(([0; 48], BLS_FP_MODULUS)), Err(Error::FieldElementInvalid));
+    assert_eq!(
+        bls12_381_map_fp2_to_g2(&(BLS_FP_MODULUS, [0; 48])),
+        Err(Error::FieldElementInvalid)
+    );
+    assert_eq!(
+        bls12_381_map_fp2_to_g2(&([0; 48], BLS_FP_MODULUS)),
+        Err(Error::FieldElementInvalid)
+    );
 }
 
 #[test]

@@ -27,9 +27,10 @@ const BLS_FP_LEN: usize = 48;
 ///
 /// Per EIP-2537 G1ADD, inputs are validated on-curve only, not for subgroup
 /// membership.
-pub fn bls12_381_g1_add(p1: BlsG1, p2: BlsG1) -> Result<[u8; 96], Error> {
-    let p1 = read_bls_g1_point_no_subgroup_check(&p1)?;
-    let p2 = read_bls_g1_point_no_subgroup_check(&p2)?;
+#[inline]
+pub fn bls12_381_g1_add(p1: &BlsG1, p2: &BlsG1) -> Result<[u8; 96], Error> {
+    let p1 = read_bls_g1_point_no_subgroup_check(p1)?;
+    let p2 = read_bls_g1_point_no_subgroup_check(p2)?;
     Ok(encode_bls_g1_point(&(p1 + p2)))
 }
 
@@ -61,9 +62,10 @@ pub fn bls12_381_g1_msm<E>(
 ///
 /// Per EIP-2537 G2ADD, inputs are validated on-curve only, not for subgroup
 /// membership.
-pub fn bls12_381_g2_add(p1: BlsG2, p2: BlsG2) -> Result<[u8; 192], Error> {
-    let p1 = read_bls_g2_point_no_subgroup_check(&p1)?;
-    let p2 = read_bls_g2_point_no_subgroup_check(&p2)?;
+#[inline]
+pub fn bls12_381_g2_add(p1: &BlsG2, p2: &BlsG2) -> Result<[u8; 192], Error> {
+    let p1 = read_bls_g2_point_no_subgroup_check(p1)?;
+    let p2 = read_bls_g2_point_no_subgroup_check(p2)?;
     Ok(encode_bls_g2_point(&(p1 + p2)))
 }
 
