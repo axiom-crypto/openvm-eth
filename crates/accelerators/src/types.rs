@@ -139,34 +139,12 @@ pub type ZkvmKzgCommitment = ZkvmBytes48;
 pub type ZkvmKzgProof = ZkvmBytes48;
 pub type ZkvmKzgFieldElement = ZkvmBytes32;
 
-// Assert 8-byte alignment and sizes.
+// Pin the non-trivial aggregate layouts exposed by the canonical C header.
 const _: () = {
-    use core::mem::{align_of, size_of};
+    use core::mem::size_of;
 
-    assert!(size_of::<ZkvmStatus>() == 4);
-    assert!(align_of::<ZkvmStatus>() == 4);
-
-    assert!(size_of::<ZkvmBytes16>() == 16);
-    assert!(size_of::<ZkvmBytes32>() == 32);
-    assert!(size_of::<ZkvmBytes48>() == 48);
-    assert!(size_of::<ZkvmBytes64>() == 64);
-    assert!(size_of::<ZkvmBytes96>() == 96);
-    assert!(size_of::<ZkvmBytes128>() == 128);
-    assert!(size_of::<ZkvmBytes192>() == 192);
     assert!(size_of::<ZkvmBn254PairingPair>() == 192);
     assert!(size_of::<ZkvmBls12381G1MsmPair>() == 128);
     assert!(size_of::<ZkvmBls12381G2MsmPair>() == 224);
     assert!(size_of::<ZkvmBls12381PairingPair>() == 288);
-
-    assert!(align_of::<ZkvmBytes16>() == 8);
-    assert!(align_of::<ZkvmBytes32>() == 8);
-    assert!(align_of::<ZkvmBytes48>() == 8);
-    assert!(align_of::<ZkvmBytes64>() == 8);
-    assert!(align_of::<ZkvmBytes96>() == 8);
-    assert!(align_of::<ZkvmBytes128>() == 8);
-    assert!(align_of::<ZkvmBytes192>() == 8);
-    assert!(align_of::<ZkvmBn254PairingPair>() == 8);
-    assert!(align_of::<ZkvmBls12381G1MsmPair>() == 8);
-    assert!(align_of::<ZkvmBls12381G2MsmPair>() == 8);
-    assert!(align_of::<ZkvmBls12381PairingPair>() == 8);
 };

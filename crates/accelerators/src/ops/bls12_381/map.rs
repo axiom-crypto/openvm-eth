@@ -21,7 +21,9 @@ pub fn bls12_381_map_fp_to_g1(
     output: &mut ZkvmBls12381G1Point,
 ) -> Result<(), Error> {
     let fp = read_fq(&fp.data)?;
-    let point = WBMap::map_to_curve(fp).map_err(|_| Error::FieldElementInvalid)?.clear_cofactor();
+    let point = WBMap::map_to_curve(fp)
+        .expect("the arkworks WB map is defined for every field element")
+        .clear_cofactor();
 
     encode_g1_point(&point, output);
     Ok(())
@@ -35,7 +37,7 @@ pub fn bls12_381_map_fp2_to_g2(
     let c0 = read_fq(&fp2.data[..BLS_FP_LEN])?;
     let c1 = read_fq(&fp2.data[BLS_FP_LEN..])?;
     let point = WBMap::map_to_curve(Fq2::new(c0, c1))
-        .map_err(|_| Error::FieldElementInvalid)?
+        .expect("the arkworks WB map is defined for every field element")
         .clear_cofactor();
 
     encode_g2_point(&point, output);
@@ -53,7 +55,7 @@ fn read_fq(input_be: &[u8]) -> Result<Fq, Error> {
 
 /// Writes a field element as big-endian bytes.
 fn encode_fq(fq: &Fq, output: &mut [u8]) {
-    fq.serialize_uncompressed(&mut output[..]).expect("Failed to serialize field element");
+    fq.serialize_uncompressed(&mut output[..]).expect("field element serialization is infallible");
     output.reverse();
 }
 

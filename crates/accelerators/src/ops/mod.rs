@@ -12,16 +12,25 @@ mod hash;
 mod kzg;
 mod modexp;
 
-pub use blake2::blake2f;
+pub use blake2::{blake2f, blake2f_words};
 pub use bls12_381::{
-    bls12_381_g1_add, bls12_381_g1_msm, bls12_381_g2_add, bls12_381_g2_msm,
-    bls12_381_map_fp2_to_g2, bls12_381_map_fp_to_g1, bls12_381_pairing_check,
+    bls12_381_g1_add, bls12_381_g1_msm, bls12_381_g1_msm_iter, bls12_381_g2_add, bls12_381_g2_msm,
+    bls12_381_g2_msm_iter, bls12_381_map_fp2_to_g2, bls12_381_map_fp_to_g1,
+    bls12_381_pairing_check, bls12_381_pairing_check_iter,
 };
-pub use bn254::{bn254_g1_add, bn254_g1_mul, bn254_pairing_check};
+pub use bn254::{bn254_g1_add, bn254_g1_mul, bn254_pairing_check, bn254_pairing_check_iter};
 pub use ecdsa::{secp256k1_ecrecover, secp256k1_verify, secp256r1_verify};
 pub use hash::{keccak256, ripemd160, sha256};
 pub use kzg::kzg_point_eval;
-pub use modexp::modexp;
+pub use modexp::{modexp, modexp_result};
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum StreamError<E> {
+    /// The input iterator produced an error.
+    Source(E),
+    /// An accelerator operation rejected an input.
+    Operation(Error),
+}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Error {
@@ -31,6 +40,14 @@ pub enum Error {
     PointNotOnCurve,
     /// A point is on the curve but not in the prime-order subgroup.
     PointNotInSubgroup,
+    /// A BLS12-381 pairing G1 point does not satisfy the curve equation.
+    BlsG1PointNotOnCurve,
+    /// A BLS12-381 pairing G1 point is not in the prime-order subgroup.
+    BlsG1PointNotInSubgroup,
+    /// A BLS12-381 pairing G2 point does not satisfy the curve equation.
+    BlsG2PointNotOnCurve,
+    /// A BLS12-381 pairing G2 point is not in the prime-order subgroup.
+    BlsG2PointNotInSubgroup,
     /// The BLAKE2f final-block flag is neither 0 nor 1.
     InvalidFinalFlag,
     /// A signature could not be parsed or key recovery failed.

@@ -4,7 +4,7 @@
 
 use hex_literal::hex;
 use openvm_accelerators::{
-    ffi::zkvm_secp256r1_verify,
+    ffi::{zkvm_secp256k1_ecrecover, zkvm_secp256k1_verify, zkvm_secp256r1_verify},
     ops::{keccak256, secp256k1_ecrecover, secp256k1_verify, secp256r1_verify, Error},
     types::{
         ZkvmKeccak256Hash, ZkvmSecp256k1Hash, ZkvmSecp256k1Pubkey, ZkvmSecp256k1Signature,
@@ -72,10 +72,10 @@ fn zkvm_secp256r1_verify_smoke() {
     assert_eq!(status, ZkvmStatus::Ok);
     assert!(verified);
 
-    // Malformed inputs map to the failure status.
+    // Malformed cryptographic inputs are a completed verification with a false result.
     let bad_pubkey = ZkvmSecp256r1Pubkey { data: [0; 64] };
     let status = unsafe { zkvm_secp256r1_verify(&msg, &sig, &bad_pubkey, &mut verified) };
-    assert_eq!(status, ZkvmStatus::Fail);
+    assert_eq!(status, ZkvmStatus::Ok);
     assert!(!verified);
 }
 
@@ -154,5 +154,24 @@ fn secp256k1_verify_roundtrip() {
     let bad_pubkey = ZkvmSecp256k1Pubkey { data: [0xff; 64] };
     let result = secp256k1_verify(&K1_MSG, &K1_SIG, &bad_pubkey, &mut verified);
     assert_eq!(result, Err(Error::PointNotOnCurve));
+    assert!(!verified);
+}
+
+#[test]
+fn zkvm_secp256k1_recover_and_verify() {
+    let mut pubkey = core::mem::MaybeUninit::<ZkvmSecp256k1Pubkey>::uninit();
+    let status = unsafe { zkvm_secp256k1_ecrecover(&K1_MSG, &K1_SIG, 1, pubkey.as_mut_ptr()) };
+    assert_eq!(status, ZkvmStatus::Ok);
+    let pubkey = unsafe { pubkey.assume_init() };
+
+    let mut verified = core::mem::MaybeUninit::<bool>::uninit();
+    let status = unsafe { zkvm_secp256k1_verify(&K1_MSG, &K1_SIG, &pubkey, verified.as_mut_ptr()) };
+    assert_eq!(status, ZkvmStatus::Ok);
+    let mut verified = unsafe { verified.assume_init() };
+    assert!(verified);
+
+    let bad_pubkey = ZkvmSecp256k1Pubkey { data: [0xff; 64] };
+    let status = unsafe { zkvm_secp256k1_verify(&K1_MSG, &K1_SIG, &bad_pubkey, &mut verified) };
+    assert_eq!(status, ZkvmStatus::Ok);
     assert!(!verified);
 }

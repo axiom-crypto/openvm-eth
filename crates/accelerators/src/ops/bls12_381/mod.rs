@@ -19,7 +19,7 @@ use openvm_ecc_guest::{
 use openvm_pairing::{bls12_381::Bls12_381, PairingCheck};
 
 use crate::{
-    ops::Error,
+    ops::{Error, StreamError},
     types::{
         ZkvmBls12381G1MsmPair, ZkvmBls12381G1Point, ZkvmBls12381G2MsmPair, ZkvmBls12381G2Point,
         ZkvmBls12381PairingPair,
@@ -52,19 +52,33 @@ pub fn bls12_381_g1_msm(
     pairs: &[ZkvmBls12381G1MsmPair],
     output: &mut ZkvmBls12381G1Point,
 ) -> Result<(), Error> {
-    if pairs.is_empty() {
-        output.data = [0u8; 96];
-        return Ok(());
-    }
+    *output = bls12_381_g1_msm_iter(pairs.iter().copied().map(Ok::<_, core::convert::Infallible>))
+        .map_err(|error| match error {
+            StreamError::Operation(error) => error,
+            StreamError::Source(never) => match never {},
+        })?;
+    Ok(())
+}
 
-    let mut points = Vec::with_capacity(pairs.len());
-    let mut scalars = Vec::with_capacity(pairs.len());
+/// BLS12-381 G1 MSM over a fallible stream, preserving input-error order.
+pub fn bls12_381_g1_msm_iter<E>(
+    pairs: impl IntoIterator<Item = Result<ZkvmBls12381G1MsmPair, E>>,
+) -> Result<ZkvmBls12381G1Point, StreamError<E>> {
+    let pairs = pairs.into_iter();
+    let capacity = pairs.size_hint().0;
+
+    let mut points = Vec::with_capacity(capacity);
+    let mut scalars = Vec::with_capacity(capacity);
     for pair in pairs {
-        points.push(read_bls_g1_point(&pair.point)?);
+        let pair = pair.map_err(StreamError::Source)?;
+        points.push(read_bls_g1_point(&pair.point).map_err(StreamError::Operation)?);
         scalars.push(read_bls_scalar(&pair.scalar));
     }
-    encode_bls_g1_point(&Bls12_381::msm(&scalars, &points), output);
-    Ok(())
+    let mut output = ZkvmBls12381G1Point { data: [0; 96] };
+    if !points.is_empty() {
+        encode_bls_g1_point(&Bls12_381::msm(&scalars, &points), &mut output);
+    }
+    Ok(output)
 }
 
 /// BLS12-381 G2 point addition (precompile 0x0d).
@@ -90,19 +104,33 @@ pub fn bls12_381_g2_msm(
     pairs: &[ZkvmBls12381G2MsmPair],
     output: &mut ZkvmBls12381G2Point,
 ) -> Result<(), Error> {
-    if pairs.is_empty() {
-        output.data = [0u8; 192];
-        return Ok(());
-    }
+    *output = bls12_381_g2_msm_iter(pairs.iter().copied().map(Ok::<_, core::convert::Infallible>))
+        .map_err(|error| match error {
+            StreamError::Operation(error) => error,
+            StreamError::Source(never) => match never {},
+        })?;
+    Ok(())
+}
 
-    let mut points = Vec::with_capacity(pairs.len());
-    let mut scalars = Vec::with_capacity(pairs.len());
+/// BLS12-381 G2 MSM over a fallible stream, preserving input-error order.
+pub fn bls12_381_g2_msm_iter<E>(
+    pairs: impl IntoIterator<Item = Result<ZkvmBls12381G2MsmPair, E>>,
+) -> Result<ZkvmBls12381G2Point, StreamError<E>> {
+    let pairs = pairs.into_iter();
+    let capacity = pairs.size_hint().0;
+
+    let mut points = Vec::with_capacity(capacity);
+    let mut scalars = Vec::with_capacity(capacity);
     for pair in pairs {
-        points.push(read_bls_g2_point(&pair.point)?);
+        let pair = pair.map_err(StreamError::Source)?;
+        points.push(read_bls_g2_point(&pair.point).map_err(StreamError::Operation)?);
         scalars.push(read_bls_scalar(&pair.scalar));
     }
-    encode_bls_g2_point(&openvm_ecc_guest::msm(&scalars, &points), output);
-    Ok(())
+    let mut output = ZkvmBls12381G2Point { data: [0; 192] };
+    if !points.is_empty() {
+        encode_bls_g2_point(&openvm_ecc_guest::msm(&scalars, &points), &mut output);
+    }
+    Ok(output)
 }
 
 /// BLS12-381 pairing check (precompile 0x0f).
@@ -113,18 +141,32 @@ pub fn bls12_381_pairing_check(
     verified: &mut bool,
 ) -> Result<(), Error> {
     *verified = false;
+    let value = bls12_381_pairing_check_iter(pairs.iter().copied())?;
+    *verified = value;
+    Ok(())
+}
 
-    if pairs.is_empty() {
-        *verified = true;
-        return Ok(());
-    }
+/// BLS12-381 pairing check over a stream of encoded pairs.
+pub fn bls12_381_pairing_check_iter(
+    pairs: impl IntoIterator<Item = ZkvmBls12381PairingPair>,
+) -> Result<bool, Error> {
+    let pairs = pairs.into_iter();
+    let capacity = pairs.size_hint().0;
 
-    let mut g1_points = Vec::with_capacity(pairs.len());
-    let mut g2_points = Vec::with_capacity(pairs.len());
+    let mut g1_points = Vec::with_capacity(capacity);
+    let mut g2_points = Vec::with_capacity(capacity);
 
     for pair in pairs {
-        let g1 = read_bls_g1_point(&pair.g1)?;
-        let g2 = read_bls_g2_point(&pair.g2)?;
+        let g1 = read_bls_g1_point(&pair.g1).map_err(|error| match error {
+            Error::PointNotOnCurve => Error::BlsG1PointNotOnCurve,
+            Error::PointNotInSubgroup => Error::BlsG1PointNotInSubgroup,
+            error => error,
+        })?;
+        let g2 = read_bls_g2_point(&pair.g2).map_err(|error| match error {
+            Error::PointNotOnCurve => Error::BlsG2PointNotOnCurve,
+            Error::PointNotInSubgroup => Error::BlsG2PointNotInSubgroup,
+            error => error,
+        })?;
 
         let (g1_x, g1_y) = g1.into_coords();
         let (g2_x, g2_y) = g2.into_coords();
@@ -133,6 +175,8 @@ pub fn bls12_381_pairing_check(
         g2_points.push(AffinePoint::new(g2_x, g2_y));
     }
 
-    *verified = Bls12_381::pairing_check(&g1_points, &g2_points).is_ok();
-    Ok(())
+    if g1_points.is_empty() {
+        return Ok(true);
+    }
+    Ok(Bls12_381::pairing_check(&g1_points, &g2_points).is_ok())
 }
