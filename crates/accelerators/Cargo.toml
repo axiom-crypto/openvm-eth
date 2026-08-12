@@ -52,6 +52,5 @@ ignored = ["openvm-pairing-guest"]
 ignored = ["openvm-pairing-guest"]
 
 [features]
-default = ["ffi"]
-ffi = []
+default = []
 std = []

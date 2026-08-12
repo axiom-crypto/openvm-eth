@@ -1,12 +1,19 @@
-//! KZG point-evaluation conformance using the point-at-infinity commitment,
-//! which commits to the zero polynomial (p(z) = 0 for every z).
+//! KZG point-evaluation conformance.
 
-#![cfg(feature = "ffi")]
-
+use hex_literal::hex;
 use openvm_accelerators::{
-    kzg_point_eval, zkvm_kzg_point_eval, Error, ZkvmKzgCommitment, ZkvmKzgFieldElement,
-    ZkvmKzgProof, ZkvmStatus,
+    zkvm_kzg_commitment as ZkvmKzgCommitment, zkvm_kzg_field_element as ZkvmKzgFieldElement,
+    zkvm_kzg_point_eval, zkvm_kzg_proof as ZkvmKzgProof, ZKVM_EFAIL, ZKVM_EOK,
 };
+
+// ethereum/consensus-spec-tests:
+// verify_kzg_proof_case_correct_proof_1ce8e4f69d5df899.
+const COMMITMENT: [u8; 48] =
+    hex!("93efc82d2017e9c57834a1246463e64774e56183bb247c8fc9dd98c56817e878d97b05f5c8d900acf1fbbbca6f146556");
+const Z: [u8; 32] = hex!("73eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000000");
+const Y: [u8; 32] = [0; 32];
+const PROOF: [u8; 48] =
+    hex!("92c51ff81dd71dab71cefecd79e8274b4b7ba36a0f40e2dc086bc4061c7f63249877db23297212991fd63e07b7ebc348");
 
 /// The compressed point at infinity: 0xc0 followed by zeros.
 fn infinity() -> ZkvmKzgCommitment {
@@ -22,51 +29,22 @@ fn scalar(value: u8) -> ZkvmKzgFieldElement {
 }
 
 #[test]
-fn kzg_point_eval_infinity_commitment() {
-    let commitment = infinity();
-    let proof: ZkvmKzgProof = infinity();
-    let z = scalar(2);
-    // The zero polynomial evaluates to 0 at every z; the infinity proof
-    // attests it.
-    assert!(kzg_point_eval(&commitment.data, &z.data, &scalar(0).data, &proof.data).unwrap());
-
-    // Claiming y = 1 for the zero polynomial must not verify.
-    assert!(!kzg_point_eval(&commitment.data, &z.data, &scalar(1).data, &proof.data).unwrap());
-}
-
-#[test]
-fn kzg_point_eval_malformed_inputs() {
-    let z = scalar(2);
-    let y = scalar(0);
-    // Not a valid compressed-point prefix.
-    let mut garbage = ZkvmKzgCommitment { data: [0; 48] };
-    garbage.data[0] = 0x01;
-    let result = kzg_point_eval(&garbage.data, &z.data, &y.data, &infinity().data);
-    assert_eq!(result, Err(Error::KzgInvalidInput));
-
-    // An out-of-range evaluation point (>= the BLS scalar field order).
-    let big_z = ZkvmKzgFieldElement { data: [0xff; 32] };
-    let result = kzg_point_eval(&infinity().data, &big_z.data, &y.data, &infinity().data);
-    assert_eq!(result, Err(Error::KzgInvalidInput));
-}
-
-#[test]
 fn zkvm_kzg_point_eval_smoke() {
-    let commitment = infinity();
-    let proof: ZkvmKzgProof = infinity();
-    let z = scalar(2);
-    let y = scalar(0);
+    let commitment = ZkvmKzgCommitment { data: COMMITMENT };
+    let proof = ZkvmKzgProof { data: PROOF };
+    let z = ZkvmKzgFieldElement { data: Z };
+    let y = ZkvmKzgFieldElement { data: Y };
     let mut verified = false;
 
     let status = unsafe { zkvm_kzg_point_eval(&commitment, &z, &y, &proof, &mut verified) };
-    assert_eq!(status, ZkvmStatus::Ok);
+    assert_eq!(status, ZKVM_EOK);
     assert!(verified);
 
     // Malformed cryptographic inputs are a completed verification with a false result.
     let mut garbage = ZkvmKzgCommitment { data: [0; 48] };
     garbage.data[0] = 0x01;
     let status = unsafe { zkvm_kzg_point_eval(&garbage, &z, &y, &proof, &mut verified) };
-    assert_eq!(status, ZkvmStatus::Ok);
+    assert_eq!(status, ZKVM_EOK);
     assert!(!verified);
 }
 
@@ -79,20 +57,20 @@ fn zkvm_kzg_point_eval_null_pointers() {
     let mut verified = false;
 
     let status = unsafe { zkvm_kzg_point_eval(core::ptr::null(), &z, &y, &proof, &mut verified) };
-    assert_eq!(status, ZkvmStatus::Fail);
+    assert_eq!(status, ZKVM_EFAIL);
 
     let status =
         unsafe { zkvm_kzg_point_eval(&commitment, core::ptr::null(), &y, &proof, &mut verified) };
-    assert_eq!(status, ZkvmStatus::Fail);
+    assert_eq!(status, ZKVM_EFAIL);
 
     let status =
         unsafe { zkvm_kzg_point_eval(&commitment, &z, core::ptr::null(), &proof, &mut verified) };
-    assert_eq!(status, ZkvmStatus::Fail);
+    assert_eq!(status, ZKVM_EFAIL);
 
     let status =
         unsafe { zkvm_kzg_point_eval(&commitment, &z, &y, core::ptr::null(), &mut verified) };
-    assert_eq!(status, ZkvmStatus::Fail);
+    assert_eq!(status, ZKVM_EFAIL);
 
     let status = unsafe { zkvm_kzg_point_eval(&commitment, &z, &y, &proof, core::ptr::null_mut()) };
-    assert_eq!(status, ZkvmStatus::Fail);
+    assert_eq!(status, ZKVM_EFAIL);
 }

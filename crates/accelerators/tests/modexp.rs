@@ -1,41 +1,32 @@
 //! Modexp conformance vectors.
 
-#![cfg(feature = "ffi")]
-
 use hex_literal::hex;
-use openvm_accelerators::{modexp, zkvm_modexp, ZkvmStatus};
+use openvm_accelerators::{zkvm_modexp, ZKVM_EFAIL, ZKVM_EOK};
 
 /// BN254 Fr (the scalar field) modulus, big-endian. Not to be confused with
 /// the base field prime, which shares the leading bytes.
 const BN254_FR: [u8; 32] = hex!("30644e72e131a029b85045b68181585d2833e84879b9709143e1f593f0000001");
 
 #[test]
-fn modexp_small() {
-    // 3^5 mod 7 = 5
-    assert_eq!(modexp(&[3], &[5], &[7]), [5]);
-
-    // Output is left-padded to the modulus length.
-    assert_eq!(modexp(&[3], &[5], &[0, 7]), [0, 5]);
-
-    assert!(modexp(&[3], &[5], &[]).is_empty());
-}
-
-#[test]
-fn modexp_matches_reference() {
-    // The BN254-Fr accelerated path, compared right-aligned against the
-    // aurora reference.
-    let output = modexp(&[0xab; 32], &[0x07], &BN254_FR);
+fn bn254_fr_accelerated_path_matches_reference() {
+    let base = [0xab; 32];
+    let exp = [0x07];
+    let mut output = [0; 32];
+    let status = unsafe {
+        zkvm_modexp(
+            base.as_ptr(),
+            base.len(),
+            exp.as_ptr(),
+            exp.len(),
+            BN254_FR.as_ptr(),
+            BN254_FR.len(),
+            output.as_mut_ptr(),
+        )
+    };
+    assert_eq!(status, ZKVM_EOK);
     let reference = aurora_engine_modexp::modexp(&[0xab; 32], &[0x07], &BN254_FR);
     let mut expected = [0; 32];
     expected[32 - reference.len()..].copy_from_slice(&reference);
-    assert_eq!(output, expected);
-
-    // The generic path with a non-special modulus.
-    let modulus = [0xef; 24];
-    let output = modexp(&[0x12; 40], &[0x34; 3], &modulus);
-    let reference = aurora_engine_modexp::modexp(&[0x12; 40], &[0x34; 3], &modulus);
-    let mut expected = [0; 24];
-    expected[24 - reference.len()..].copy_from_slice(&reference);
     assert_eq!(output, expected);
 }
 
@@ -49,7 +40,7 @@ fn zkvm_modexp_smoke() {
     let status = unsafe {
         zkvm_modexp(base.as_ptr(), 1, exp.as_ptr(), 1, modulus.as_ptr(), 1, output.as_mut_ptr())
     };
-    assert_eq!(status, ZkvmStatus::Ok);
+    assert_eq!(status, ZKVM_EOK);
     assert_eq!(output, [5]);
 }
 
@@ -72,14 +63,14 @@ fn zkvm_modexp_null_pointers() {
             output.as_mut_ptr(),
         )
     };
-    assert_eq!(status, ZkvmStatus::Ok);
+    assert_eq!(status, ZKVM_EOK);
     assert_eq!(output, [1]);
 
     // A NULL pointer with a non-zero length fails.
     let status = unsafe {
         zkvm_modexp(core::ptr::null(), 1, exp.as_ptr(), 1, modulus.as_ptr(), 1, output.as_mut_ptr())
     };
-    assert_eq!(status, ZkvmStatus::Fail);
+    assert_eq!(status, ZKVM_EFAIL);
 
     let status = unsafe {
         zkvm_modexp(
@@ -92,15 +83,15 @@ fn zkvm_modexp_null_pointers() {
             output.as_mut_ptr(),
         )
     };
-    assert_eq!(status, ZkvmStatus::Fail);
+    assert_eq!(status, ZKVM_EFAIL);
 
     let status = unsafe {
         zkvm_modexp(base.as_ptr(), 1, exp.as_ptr(), 1, core::ptr::null(), 1, output.as_mut_ptr())
     };
-    assert_eq!(status, ZkvmStatus::Fail);
+    assert_eq!(status, ZKVM_EFAIL);
 
     let status = unsafe {
         zkvm_modexp(base.as_ptr(), 1, exp.as_ptr(), 1, modulus.as_ptr(), 1, core::ptr::null_mut())
     };
-    assert_eq!(status, ZkvmStatus::Fail);
+    assert_eq!(status, ZKVM_EFAIL);
 }

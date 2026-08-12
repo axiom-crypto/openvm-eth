@@ -1,12 +1,11 @@
 //! BN254 add/mul/pairing conformance vectors.
 
-#![cfg(feature = "ffi")]
-
 use hex_literal::hex;
 use openvm_accelerators::{
-    bn254_g1_add, bn254_g1_mul, bn254_pairing_check, zkvm_bn254_g1_add, zkvm_bn254_g1_mul,
-    zkvm_bn254_pairing, Error, ZkvmBn254G1Point, ZkvmBn254G2Point, ZkvmBn254PairingPair,
-    ZkvmBn254Scalar, ZkvmStatus,
+    zkvm_bn254_g1_add, zkvm_bn254_g1_mul, zkvm_bn254_g1_point as ZkvmBn254G1Point,
+    zkvm_bn254_g2_point as ZkvmBn254G2Point, zkvm_bn254_pairing,
+    zkvm_bn254_pairing_pair as ZkvmBn254PairingPair, zkvm_bn254_scalar as ZkvmBn254Scalar,
+    ZKVM_EFAIL, ZKVM_EOK,
 };
 
 fn scalar(value: u8) -> ZkvmBn254Scalar {
@@ -50,38 +49,18 @@ const BN254_G2_GEN: ZkvmBn254G2Point = ZkvmBn254G2Point {
 };
 
 #[test]
-fn bn254_add_mul_vectors() {
-    let point = generator();
-    assert_eq!(bn254_g1_add(&point.data, &point.data).unwrap(), BN254_2GEN.data);
-    assert_eq!(bn254_g1_mul(&point.data, &scalar(2).data).unwrap(), BN254_2GEN.data);
-}
-
-#[test]
-fn bn254_pairing_vectors() {
-    let pairs = [
-        ZkvmBn254PairingPair { g1: generator(), g2: BN254_G2_GEN },
-        ZkvmBn254PairingPair { g1: BN254_NEG_GEN, g2: BN254_G2_GEN },
-    ];
-    let raw = pairs.iter().map(|pair| (pair.g1.data.as_slice(), pair.g2.data.as_slice()));
-    assert!(bn254_pairing_check(raw).unwrap());
-    assert!(!bn254_pairing_check([(pairs[0].g1.data.as_slice(), pairs[0].g2.data.as_slice(),)])
-        .unwrap());
-    assert!(bn254_pairing_check(core::iter::empty()).unwrap());
-}
-
-#[test]
 fn zkvm_bn254_add_mul_smoke() {
     let point = generator();
     let mut output = ZkvmBn254G1Point { data: [0; 64] };
 
     let status = unsafe { zkvm_bn254_g1_add(&point, &point, &mut output) };
-    assert_eq!(status, ZkvmStatus::Ok);
-    assert_eq!(output, BN254_2GEN);
+    assert_eq!(status, ZKVM_EOK);
+    assert_eq!(output.data, BN254_2GEN.data);
 
     output.data = [0; 64];
     let status = unsafe { zkvm_bn254_g1_mul(&point, &scalar(2), &mut output) };
-    assert_eq!(status, ZkvmStatus::Ok);
-    assert_eq!(output, BN254_2GEN);
+    assert_eq!(status, ZKVM_EOK);
+    assert_eq!(output.data, BN254_2GEN.data);
 }
 
 #[test]
@@ -93,11 +72,11 @@ fn zkvm_bn254_pairing_smoke() {
     let mut verified = false;
 
     let status = unsafe { zkvm_bn254_pairing(pairs.as_ptr(), pairs.len(), &mut verified) };
-    assert_eq!(status, ZkvmStatus::Ok);
+    assert_eq!(status, ZKVM_EOK);
     assert!(verified);
 
     let status = unsafe { zkvm_bn254_pairing(pairs.as_ptr(), 1, &mut verified) };
-    assert_eq!(status, ZkvmStatus::Ok);
+    assert_eq!(status, ZKVM_EOK);
     assert!(!verified);
 }
 
@@ -107,18 +86,14 @@ fn bn254_rejects_invalid_point() {
     not_on_curve.data[63] = 3;
     let mut output = ZkvmBn254G1Point { data: [0; 64] };
 
-    assert_eq!(bn254_g1_add(&not_on_curve.data, &generator().data), Err(Error::PointNotOnCurve));
-
     let status = unsafe { zkvm_bn254_g1_mul(&not_on_curve, &scalar(2), &mut output) };
-    assert_eq!(status, ZkvmStatus::Fail);
+    assert_eq!(status, ZKVM_EFAIL);
 
     let pairs = [ZkvmBn254PairingPair { g1: not_on_curve, g2: BN254_G2_GEN }];
-    assert_eq!(
-        bn254_pairing_check(
-            pairs.iter().map(|pair| (pair.g1.data.as_slice(), pair.g2.data.as_slice()))
-        ),
-        Err(Error::PointNotOnCurve)
-    );
+    let mut verified = true;
+    let status = unsafe { zkvm_bn254_pairing(pairs.as_ptr(), pairs.len(), &mut verified) };
+    assert_eq!(status, ZKVM_EFAIL);
+    assert!(verified);
 }
 
 #[test]
@@ -128,33 +103,33 @@ fn zkvm_bn254_null_pointers() {
     let mut output = ZkvmBn254G1Point { data: [0; 64] };
 
     let status = unsafe { zkvm_bn254_g1_add(core::ptr::null(), &point, &mut output) };
-    assert_eq!(status, ZkvmStatus::Fail);
+    assert_eq!(status, ZKVM_EFAIL);
 
     let status = unsafe { zkvm_bn254_g1_add(&point, core::ptr::null(), &mut output) };
-    assert_eq!(status, ZkvmStatus::Fail);
+    assert_eq!(status, ZKVM_EFAIL);
 
     let status = unsafe { zkvm_bn254_g1_add(&point, &point, core::ptr::null_mut()) };
-    assert_eq!(status, ZkvmStatus::Fail);
+    assert_eq!(status, ZKVM_EFAIL);
 
     let status = unsafe { zkvm_bn254_g1_mul(core::ptr::null(), &scalar, &mut output) };
-    assert_eq!(status, ZkvmStatus::Fail);
+    assert_eq!(status, ZKVM_EFAIL);
 
     let status = unsafe { zkvm_bn254_g1_mul(&point, core::ptr::null(), &mut output) };
-    assert_eq!(status, ZkvmStatus::Fail);
+    assert_eq!(status, ZKVM_EFAIL);
 
     let status = unsafe { zkvm_bn254_g1_mul(&point, &scalar, core::ptr::null_mut()) };
-    assert_eq!(status, ZkvmStatus::Fail);
+    assert_eq!(status, ZKVM_EFAIL);
 
     let pairs = [ZkvmBn254PairingPair { g1: point, g2: BN254_G2_GEN }];
     let mut verified = false;
 
     let status = unsafe { zkvm_bn254_pairing(core::ptr::null(), 0, &mut verified) };
-    assert_eq!(status, ZkvmStatus::Ok);
+    assert_eq!(status, ZKVM_EOK);
     assert!(verified);
 
     let status = unsafe { zkvm_bn254_pairing(core::ptr::null(), 1, &mut verified) };
-    assert_eq!(status, ZkvmStatus::Fail);
+    assert_eq!(status, ZKVM_EFAIL);
 
     let status = unsafe { zkvm_bn254_pairing(pairs.as_ptr(), pairs.len(), core::ptr::null_mut()) };
-    assert_eq!(status, ZkvmStatus::Fail);
+    assert_eq!(status, ZKVM_EFAIL);
 }
