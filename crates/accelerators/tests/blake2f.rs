@@ -1,10 +1,9 @@
-//! BLAKE2f conformance: the official EIP-152 test vectors 4-7.
-
-#![cfg(feature = "ffi")]
+//! BLAKE2f conformance using the official EIP-152 test vectors 4-7.
 
 use hex_literal::hex;
 use openvm_accelerators::{
-    blake2f, zkvm_blake2f, ZkvmBlake2fMessage, ZkvmBlake2fOffset, ZkvmBlake2fState, ZkvmStatus,
+    zkvm_blake2f, zkvm_blake2f_message, zkvm_blake2f_offset, zkvm_blake2f_state, ZKVM_EFAIL,
+    ZKVM_EOK,
 };
 
 /// EIP-152 vectors 4-7 share the same h, m and t inputs.
@@ -14,28 +13,20 @@ const H: [u8; 64] = hex!(
 );
 const T: [u8; 16] = hex!("03000000000000000000000000000000");
 
-fn m() -> ZkvmBlake2fMessage {
-    let mut m = ZkvmBlake2fMessage { data: [0; 128] };
+fn m() -> zkvm_blake2f_message {
+    let mut m = zkvm_blake2f_message { data: [0; 128] };
     m.data[..3].copy_from_slice(b"abc");
     m
 }
 
-fn state_words(bytes: &[u8; 64]) -> [u64; 8] {
-    core::array::from_fn(|i| u64::from_le_bytes(bytes[i * 8..(i + 1) * 8].try_into().unwrap()))
-}
-
-fn message_words(bytes: &[u8; 128]) -> [u64; 16] {
-    core::array::from_fn(|i| u64::from_le_bytes(bytes[i * 8..(i + 1) * 8].try_into().unwrap()))
-}
-
-fn offset_words(bytes: &[u8; 16]) -> [u64; 2] {
-    core::array::from_fn(|i| u64::from_le_bytes(bytes[i * 8..(i + 1) * 8].try_into().unwrap()))
-}
-
 fn check(rounds: u32, f: u8, expected: [u8; 64]) {
-    let mut h = state_words(&H);
-    blake2f(rounds, &mut h, &message_words(&m().data), &offset_words(&T), f == 1);
-    assert_eq!(h, state_words(&expected), "rounds={rounds}, f={f}");
+    let mut h = zkvm_blake2f_state { data: H };
+    let m = m();
+    let t = zkvm_blake2f_offset { data: T };
+
+    let status = unsafe { zkvm_blake2f(rounds, &mut h, &m, &t, f) };
+    assert_eq!(status, ZKVM_EOK, "rounds={rounds}, f={f}");
+    assert_eq!(h.data, expected, "rounds={rounds}, f={f}");
 }
 
 #[test]
@@ -87,42 +78,30 @@ fn blake2f_eip152_vector_7_one_round() {
 }
 
 #[test]
-fn zkvm_blake2f_smoke() {
-    let mut h = ZkvmBlake2fState { data: H };
+fn zkvm_blake2f_invalid_final_flag_preserves_state() {
+    let mut h = zkvm_blake2f_state { data: H };
     let m = m();
-    let t = ZkvmBlake2fOffset { data: T };
+    let t = zkvm_blake2f_offset { data: T };
 
-    let status = unsafe { zkvm_blake2f(12, &mut h, &m, &t, 1) };
-    assert_eq!(status, ZkvmStatus::Ok);
-    assert_eq!(
-        h.data,
-        hex!(
-            "ba80a53f981c4d0d6a2797b69f12f6e94c212f14685ac4b74b12bb6fdbffa2d1"
-            "7d87c5392aab792dc252d5de4533cc9518d38aa8dbf1925ab92386edd4009923"
-        )
-    );
-
-    // An invalid final flag maps to the failure status.
-    let valid_output = h;
     let status = unsafe { zkvm_blake2f(12, &mut h, &m, &t, 2) };
-    assert_eq!(status, ZkvmStatus::Fail);
-    assert_eq!(h, valid_output);
+    assert_eq!(status, ZKVM_EFAIL);
+    assert_eq!(h.data, H);
 }
 
 #[test]
 fn zkvm_blake2f_null_pointers() {
-    let mut h = ZkvmBlake2fState { data: H };
+    let mut h = zkvm_blake2f_state { data: H };
     let m = m();
-    let t = ZkvmBlake2fOffset { data: T };
+    let t = zkvm_blake2f_offset { data: T };
 
     let status = unsafe { zkvm_blake2f(12, core::ptr::null_mut(), &m, &t, 1) };
-    assert_eq!(status, ZkvmStatus::Fail);
+    assert_eq!(status, ZKVM_EFAIL);
 
     let status = unsafe { zkvm_blake2f(12, &mut h, core::ptr::null(), &t, 1) };
-    assert_eq!(status, ZkvmStatus::Fail);
+    assert_eq!(status, ZKVM_EFAIL);
 
     let status = unsafe { zkvm_blake2f(12, &mut h, &m, core::ptr::null(), 1) };
-    assert_eq!(status, ZkvmStatus::Fail);
+    assert_eq!(status, ZKVM_EFAIL);
     // The state must be untouched when a pointer is NULL.
     assert_eq!(h.data, H);
 }
