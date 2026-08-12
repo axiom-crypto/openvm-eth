@@ -161,7 +161,7 @@ strip = "none"
 
 [profile.maxperf]
 inherits = "release"
-lto = "fat"
+lto = "thin"
 codegen-units = 1
 
 [profile.dev]

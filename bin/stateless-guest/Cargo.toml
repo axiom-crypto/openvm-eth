@@ -39,7 +39,7 @@ heap-embedded-alloc = ["openvm/heap-embedded-alloc"]
 
 [profile.release]
 panic = "abort"
-lto = "fat"
+lto = "thin"
 strip = true
 
 [profile.profiling]
