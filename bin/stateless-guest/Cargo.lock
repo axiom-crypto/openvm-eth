@@ -318,7 +318,7 @@ dependencies = [
  "alloy-rlp",
  "alloy-serde",
  "alloy-sol-types",
- "itertools 0.13.0",
+ "itertools 0.14.0",
  "serde",
  "serde_json",
  "serde_with",
@@ -4947,6 +4947,41 @@ dependencies = [
 ]
 
 [[patch.unused]]
+name = "openvm-codec-derive"
+version = "2.0.0"
+source = "git+ssh://git@github.com/openvm-org/stark-backend.git?rev=8f23bfc4b209869aab8cd57ac0100f3bd0277c6b#8f23bfc4b209869aab8cd57ac0100f3bd0277c6b"
+
+[[patch.unused]]
+name = "openvm-cpu-backend"
+version = "2.0.0"
+source = "git+ssh://git@github.com/openvm-org/stark-backend.git?rev=8f23bfc4b209869aab8cd57ac0100f3bd0277c6b#8f23bfc4b209869aab8cd57ac0100f3bd0277c6b"
+
+[[patch.unused]]
+name = "openvm-cuda-backend"
+version = "2.0.0"
+source = "git+ssh://git@github.com/openvm-org/stark-backend.git?rev=8f23bfc4b209869aab8cd57ac0100f3bd0277c6b#8f23bfc4b209869aab8cd57ac0100f3bd0277c6b"
+
+[[patch.unused]]
+name = "openvm-cuda-builder"
+version = "2.0.0"
+source = "git+ssh://git@github.com/openvm-org/stark-backend.git?rev=8f23bfc4b209869aab8cd57ac0100f3bd0277c6b#8f23bfc4b209869aab8cd57ac0100f3bd0277c6b"
+
+[[patch.unused]]
+name = "openvm-cuda-common"
+version = "2.0.0"
+source = "git+ssh://git@github.com/openvm-org/stark-backend.git?rev=8f23bfc4b209869aab8cd57ac0100f3bd0277c6b#8f23bfc4b209869aab8cd57ac0100f3bd0277c6b"
+
+[[patch.unused]]
+name = "openvm-stark-backend"
+version = "2.0.0"
+source = "git+ssh://git@github.com/openvm-org/stark-backend.git?rev=8f23bfc4b209869aab8cd57ac0100f3bd0277c6b#8f23bfc4b209869aab8cd57ac0100f3bd0277c6b"
+
+[[patch.unused]]
+name = "openvm-stark-sdk"
+version = "2.0.0"
+source = "git+ssh://git@github.com/openvm-org/stark-backend.git?rev=8f23bfc4b209869aab8cd57ac0100f3bd0277c6b#8f23bfc4b209869aab8cd57ac0100f3bd0277c6b"
+
+[[patch.unused]]
 name = "openvm-algebra-circuit"
 version = "2.0.0"
 source = "git+ssh://git@github.com/openvm-org/openvm.git?rev=d20c0b3823528afb27888a9ca6e90ab2015d0cbd#d20c0b3823528afb27888a9ca6e90ab2015d0cbd"
@@ -5125,38 +5160,3 @@ source = "git+ssh://git@github.com/openvm-org/openvm.git?rev=d20c0b3823528afb278
 name = "openvm-verify-stark-host"
 version = "2.0.0"
 source = "git+ssh://git@github.com/openvm-org/openvm.git?rev=d20c0b3823528afb27888a9ca6e90ab2015d0cbd#d20c0b3823528afb27888a9ca6e90ab2015d0cbd"
-
-[[patch.unused]]
-name = "openvm-codec-derive"
-version = "2.0.0"
-source = "git+ssh://git@github.com/openvm-org/stark-backend.git?rev=8f23bfc4b209869aab8cd57ac0100f3bd0277c6b#8f23bfc4b209869aab8cd57ac0100f3bd0277c6b"
-
-[[patch.unused]]
-name = "openvm-cpu-backend"
-version = "2.0.0"
-source = "git+ssh://git@github.com/openvm-org/stark-backend.git?rev=8f23bfc4b209869aab8cd57ac0100f3bd0277c6b#8f23bfc4b209869aab8cd57ac0100f3bd0277c6b"
-
-[[patch.unused]]
-name = "openvm-cuda-backend"
-version = "2.0.0"
-source = "git+ssh://git@github.com/openvm-org/stark-backend.git?rev=8f23bfc4b209869aab8cd57ac0100f3bd0277c6b#8f23bfc4b209869aab8cd57ac0100f3bd0277c6b"
-
-[[patch.unused]]
-name = "openvm-cuda-builder"
-version = "2.0.0"
-source = "git+ssh://git@github.com/openvm-org/stark-backend.git?rev=8f23bfc4b209869aab8cd57ac0100f3bd0277c6b#8f23bfc4b209869aab8cd57ac0100f3bd0277c6b"
-
-[[patch.unused]]
-name = "openvm-cuda-common"
-version = "2.0.0"
-source = "git+ssh://git@github.com/openvm-org/stark-backend.git?rev=8f23bfc4b209869aab8cd57ac0100f3bd0277c6b#8f23bfc4b209869aab8cd57ac0100f3bd0277c6b"
-
-[[patch.unused]]
-name = "openvm-stark-backend"
-version = "2.0.0"
-source = "git+ssh://git@github.com/openvm-org/stark-backend.git?rev=8f23bfc4b209869aab8cd57ac0100f3bd0277c6b#8f23bfc4b209869aab8cd57ac0100f3bd0277c6b"
-
-[[patch.unused]]
-name = "openvm-stark-sdk"
-version = "2.0.0"
-source = "git+ssh://git@github.com/openvm-org/stark-backend.git?rev=8f23bfc4b209869aab8cd57ac0100f3bd0277c6b#8f23bfc4b209869aab8cd57ac0100f3bd0277c6b"
