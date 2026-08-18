@@ -56,6 +56,25 @@ const BLS_R_MINUS_1: zkvm_bls12_381_scalar = zkvm_bls12_381_scalar {
     data: hex!("73eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000000"),
 };
 
+/// BLS12-381 scalar field order.
+const BLS_R: zkvm_bls12_381_scalar = zkvm_bls12_381_scalar {
+    data: hex!("73eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000001"),
+};
+
+/// BLS12-381 scalar field order plus one.
+const BLS_R_PLUS_1: zkvm_bls12_381_scalar = zkvm_bls12_381_scalar {
+    data: hex!("73eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000002"),
+};
+
+/// The on-curve order-three point `(0, 2)`, which is not in the G1 prime-order subgroup.
+const BLS_G1_ORDER_3: zkvm_bls12_381_g1_point = zkvm_bls12_381_g1_point {
+    data: {
+        let mut data = [0; 96];
+        data[95] = 2;
+        data
+    },
+};
+
 fn neg_g1_generator() -> zkvm_bls12_381_g1_point {
     let pairs = [zkvm_bls12_381_g1_msm_pair { point: BLS_G1_GEN, scalar: BLS_R_MINUS_1 }];
     let mut output = zkvm_bls12_381_g1_point { data: [0; 96] };
@@ -76,6 +95,28 @@ fn bls12_g1_add_msm_vectors() {
     let status = unsafe { zkvm_bls12_g1_msm(pairs.as_ptr(), pairs.len(), &mut output) };
     assert_eq!(status, ZKVM_EOK);
     assert_eq!(output.data, BLS_G1_2GEN.data);
+
+    for (input, expected) in [(BLS_R, [0; 96]), (BLS_R_PLUS_1, BLS_G1_GEN.data)] {
+        let pairs = [zkvm_bls12_381_g1_msm_pair { point: BLS_G1_GEN, scalar: input }];
+        output.data.fill(0xff);
+        let status = unsafe { zkvm_bls12_g1_msm(pairs.as_ptr(), pairs.len(), &mut output) };
+        assert_eq!(status, ZKVM_EOK);
+        assert_eq!(output.data, expected);
+    }
+}
+
+#[test]
+fn bls12_g1_add_accepts_off_subgroup_but_msm_rejects_it() {
+    let identity = zkvm_bls12_381_g1_point { data: [0; 96] };
+    let mut output = zkvm_bls12_381_g1_point { data: [0; 96] };
+    let status = unsafe { zkvm_bls12_g1_add(&BLS_G1_ORDER_3, &identity, &mut output) };
+    assert_eq!(status, ZKVM_EOK);
+    assert_eq!(output.data, BLS_G1_ORDER_3.data);
+
+    // A zero scalar must not bypass the subgroup check.
+    let pairs = [zkvm_bls12_381_g1_msm_pair { point: BLS_G1_ORDER_3, scalar: scalar(0) }];
+    let status = unsafe { zkvm_bls12_g1_msm(pairs.as_ptr(), pairs.len(), &mut output) };
+    assert_eq!(status, ZKVM_EFAIL);
 }
 
 #[test]

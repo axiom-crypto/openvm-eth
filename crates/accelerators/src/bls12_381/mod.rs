@@ -10,10 +10,7 @@ use codec::{
     encode_g1, encode_g2, read_g1, read_g1_no_subgroup_check, read_g2, read_g2_no_subgroup_check,
     read_scalar,
 };
-use openvm_ecc_guest::{
-    weierstrass::{IntrinsicCurve, WeierstrassPoint},
-    AffinePoint,
-};
+use openvm_ecc_guest::{weierstrass::WeierstrassPoint, AffinePoint};
 use openvm_pairing::{bls12_381::Bls12_381, PairingCheck};
 
 use crate::error::Error;
@@ -250,7 +247,9 @@ fn g1_msm(pairs: &[zkvm_bls12_381_g1_msm_pair]) -> Result<[u8; 96], Error> {
     if points.is_empty() {
         Ok([0; 96])
     } else {
-        Ok(encode_g1(&Bls12_381::msm(&scalars, &points)))
+        // SAFETY: `read_g1` checked that every point is in the G1 prime-order subgroup.
+        let result = unsafe { Bls12_381::msm_prime_subgroup_unchecked(&scalars, &points) };
+        Ok(encode_g1(&result))
     }
 }
 

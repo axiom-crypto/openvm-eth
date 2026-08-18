@@ -266,23 +266,18 @@ mod impl_bn {
 
 #[cfg(feature = "bls12_381")]
 mod impl_bls {
-    use core::ops::{MulAssign, Neg};
+    use core::ops::Neg;
 
     use hex_literal::hex;
-    use openvm_ecc_guest::{algebra::field::FieldExtension, weierstrass::WeierstrassPoint, Group};
+    use openvm_ecc_guest::{algebra::field::FieldExtension, weierstrass::WeierstrassPoint};
     use openvm_pairing::bls12_381 as bls;
 
     /// The BLS12-381 curve parameter `|u| = 0xd201000000010000`. The parameter `u`
     /// is negative; the sign is applied via explicit `.neg()` in the algorithms.
     const X: [u64; 1] = [0xd201000000010000];
 
-    /// A non-trivial cube root of unity in Fq (`β³ = 1, β ≠ 1`), used for the GLV
-    /// endomorphism `σ: (x, y) → (βx, y)` on G1.
-    ///
-    /// Ref: [arkworks bls12_381/g1.rs](https://github.com/arkworks-rs/algebra/blob/master/curves/bls12_381/src/curves/g1.rs).
-    const BETA: bls::Fp = bls::Fp::from_const_bytes(hex!(
-        "fefffeffffff012e02000a6213d817de8896f8e63ba9b3ddea770f6a07c669ba51ce76df2f67195f0000000000000000"
-    ));
+    // Set this to `false` to benchmark the endomorphism check.
+    const USE_EC_MUL_G1_SUBGROUP_CHECK: bool = true;
 
     /// Fp2 coefficient for the untwist-Frobenius-twist endomorphism ψ on BLS12-381's
     /// G2 twist curve. Has `c0 = 0`, which the implementation exploits to replace a
@@ -311,39 +306,14 @@ mod impl_bls {
         )),
     );
 
-    /// BLS12-381 G1 has cofactor > 1, so not every point on the curve is in the
-    /// prime-order subgroup.
-    ///
-    /// Implements section 6 of https://eprint.iacr.org/2021/1130.
+    /// BLS12-381 G1 has cofactor > 1, so every input needs a subgroup check.
     impl super::SubgroupCheck for bls::G1Affine {
         fn is_in_correct_subgroup(&self) -> bool {
-            // 1. Compute [x]P using double-and-add.
-            //
-            // `CHECK_SETUP=true` given that bls12_381::G1Affine is implemented via [`sw_declare`]
-            // that does in fact do a setup.
-            //
-            // If [x]P == P but P != identity then point is not in the right subgroup.
-            let x_times_point = super::scalar_mul::<_, true>(self, X);
-            if self.eq(&x_times_point) && !self.is_identity() {
-                return false;
+            if USE_EC_MUL_G1_SUBGROUP_CHECK {
+                self.is_in_prime_subgroup_via_projection()
+            } else {
+                self.is_in_prime_subgroup_via_endomorphism()
             }
-
-            // 2. Compute -[x²]P.
-            //
-            // Here we can assume `CHECK_SETUP=false` since setup has necessarily been done above.
-            let minus_x_squared_times_point =
-                super::scalar_mul::<_, false>(&x_times_point, X).neg();
-
-            // 2. Compute endomorphism
-            //
-            // - σ: (x, y) → (βx, y)
-            let endomorphism_point = {
-                let mut result = self.clone();
-                result.x_mut().mul_assign(&BETA);
-                result
-            };
-
-            minus_x_squared_times_point.eq(&endomorphism_point)
         }
     }
 
@@ -365,8 +335,7 @@ mod impl_bls {
                 let psi_y = self.y().frobenius_map(1) * P_POWER_ENDOMORPHISM_COEFF_1;
                 // SAFETY: ψ maps the BLS12-381 G2 twist curve to itself, so applying it to
                 // `self` (already on the curve by precondition of this trait) yields a point
-                // on the curve. The identity is not produced because the Frobenius image of a
-                // non-identity coordinate pair is non-zero.
+                // on the curve and preserves the `(0, 0)` identity representation.
                 unsafe { Self::from_xy_unchecked(psi_x, psi_y) }
             };
 
@@ -379,13 +348,6 @@ mod impl_bls {
         use super::*;
         use crate::SubgroupCheck;
         use openvm_ecc_guest::{algebra::IntMod, weierstrass::WeierstrassPoint, CyclicGroup};
-
-        #[test]
-        fn test_beta() {
-            use ark_ff::{BigInteger, MontFp, PrimeField};
-            let beta: ark_bls12_381::Fq = MontFp!("793479390729215512621379701633421447060886740281060493010456487427281649075476305620758731620350");
-            assert_eq!(beta.into_bigint().to_bytes_le(), BETA.as_le_bytes());
-        }
 
         #[test]
         fn test_p_power_endomorphism_coeff_0() {

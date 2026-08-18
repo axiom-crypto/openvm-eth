@@ -12,7 +12,7 @@ use openvm_algebra_guest::{field::FieldExtension, IntMod};
 use openvm_curve_utils::SubgroupCheck;
 use openvm_ecc_guest::{
     weierstrass::{CachedMulTable, IntrinsicCurve, WeierstrassPoint},
-    AffinePoint, CyclicGroup, Group,
+    AffinePoint, Group,
 };
 use openvm_pairing::bls12_381::{
     Bls12_381 as Bls12_381_G1, Fp, Fp2, G1Affine as Bls12_381G1Affine,
@@ -73,18 +73,13 @@ impl KzgProof {
             }
         }
 
-        // We use the fact that g2_affine_generator has prime order.
+        // EC_MUL supports only G1. This table uses the fixed prime-order G2 generator.
         let table = CachedMulTable::<Bls12_381_G2>::new_with_prime_order(&[G2_AFFINE_GENERATOR], 4);
         let g2_z = table.windowed_mul(&[z]);
 
         let x_minus_z = openvm_kzg_g2_point - g2_z;
 
-        // We use the fact that Bls12_381G1Affine::GENERATOR has prime order.
-        let table = CachedMulTable::<Bls12_381_G1>::new_with_prime_order(
-            &[Bls12_381G1Affine::GENERATOR],
-            4,
-        );
-        let g1_y = table.windowed_mul(&[y]);
+        let g1_y = Bls12_381_G1::mul_generator(&y);
 
         let p_minus_y = commitment - g1_y;
 
