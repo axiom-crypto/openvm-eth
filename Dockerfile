@@ -17,7 +17,7 @@ RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
 ENV CARGO_HOME="/root/.cargo" \
     RUSTUP_HOME="/root/.rustup" \
     PATH="/root/.cargo/bin:${PATH}"
-RUN rustup toolchain install nightly-2026-01-18
+RUN rustup toolchain install nightly-2026-03-15
 
 # Install cargo-openvm (builds the guest ELF)
 RUN cargo +1.91.1 install --git https://github.com/openvm-org/openvm.git --branch develop-v2.1.0 --locked --force cargo-openvm
@@ -46,7 +46,7 @@ ARG PROFILE="release"
 # CUDA SASS targets: 89 = Ada, 120 = Blackwell
 ARG CUDA_ARCH="89,120"
 ENV CUDA_ARCH=${CUDA_ARCH}
-RUN cargo +nightly-2026-01-18 build --bin openvm-reth-benchmark --profile=${PROFILE} --no-default-features --features=${FEATURES}
+RUN cargo +nightly-2026-03-15 build --bin openvm-reth-benchmark --profile=${PROFILE} --no-default-features --features=${FEATURES}
 
 # Runtime image
 FROM nvidia/cuda:12.8.1-runtime-ubuntu24.04 AS runtime

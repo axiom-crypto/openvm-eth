@@ -95,7 +95,7 @@ cd ../..
 If this is your first time using `cargo-openvm`, cargo may prompt you to install the `rust-src` component for a nightly toolchain. This will look like:
 
 ```bash
-rustup component add rust-src --toolchain nightly-2026-01-18-$arch-unknown-linux-gnu
+rustup component add rust-src --toolchain nightly-2026-03-15-$arch-unknown-linux-gnu
 ```
 
 where `$arch` is the architecture of your machine (e.g. `x86_64` or `aarch64`).

@@ -54,8 +54,8 @@ jobs:
       # compiles with OpenVM's named rustup toolchain.
       - name: Install OpenVM guest toolchain
         run: |
-          rustup install nightly-2026-01-18
-          rustup component add rust-src --toolchain nightly-2026-01-18
+          rustup install nightly-2026-03-15
+          rustup component add rust-src --toolchain nightly-2026-03-15
           cargo install --git https://github.com/openvm-org/openvm.git --branch "$OPENVM_BRANCH" --locked --force cargo-openvm
           cargo openvm toolchain install
 
@@ -87,8 +87,8 @@ jobs:
 
       - name: Install OpenVM guest toolchain
         run: |
-          rustup install nightly-2026-01-18
-          rustup component add rust-src --toolchain nightly-2026-01-18
+          rustup install nightly-2026-03-15
+          rustup component add rust-src --toolchain nightly-2026-03-15
           cargo install --git https://github.com/openvm-org/openvm.git --branch "$OPENVM_BRANCH" --locked --force cargo-openvm
           cargo openvm toolchain install
 
