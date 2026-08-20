@@ -52,7 +52,7 @@ DEST="$REPO_ROOT/bin/reth-benchmark/elf/openvm-stateless-guest"
 
 build_openvm_guest_elf() {
     cd "$REPO_ROOT/bin/stateless-guest"
-    cargo openvm build
+    cargo openvm build --ignore-rust-version
     mkdir -p ../reth-benchmark/elf
     SRC="target/riscv64im-unknown-openvm-elf/release/openvm-stateless-guest"
     if [ ! -f "$DEST" ] || ! cmp -s "$SRC" "$DEST"; then

@@ -84,13 +84,15 @@ Before running the benchmark, you must first compile the guest program using `ca
 
 ```bash
 cd bin/stateless-guest
-cargo openvm build
+cargo openvm build --ignore-rust-version
 mkdir -p ../reth-benchmark/elf
 cp target/riscv64im-unknown-openvm-elf/release/openvm-stateless-guest ../reth-benchmark/elf/
 cd ../..
 ```
 
 `run.sh` builds and embeds this guest ELF before compiling the benchmark binary.
+
+The OpenVM 2.1 guest compiler predates reth 2.5.1's declared Rust 1.95 minimum, so guest builds must ignore dependency `rust-version` declarations.
 
 If this is your first time using `cargo-openvm`, cargo may prompt you to install the `rust-src` component for a nightly toolchain. This will look like:
 
