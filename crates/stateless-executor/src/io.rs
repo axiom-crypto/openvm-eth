@@ -78,6 +78,7 @@ pub mod serde_bincode_compat {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use alloc::vec;
     use alloy_consensus::{BlockBody, Signed, TxLegacy};
     use alloy_primitives::Signature;
     use reth_ethereum_primitives::TransactionSigned;
