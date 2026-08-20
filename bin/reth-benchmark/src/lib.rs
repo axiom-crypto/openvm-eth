@@ -232,7 +232,7 @@ pub fn build_reth_workload(
 
 pub fn build_reth_exe(vm_config: &SdkVmConfig, openvm_client_eth_elf: &[u8]) -> Result<VmExe<F>> {
     let transpiler = vm_config.transpiler().clone();
-    let elf = Elf::decode(openvm_client_eth_elf, MEM_SIZE as u32)?;
+    let elf = Elf::decode(openvm_client_eth_elf, MEM_SIZE as u64)?;
     Ok(VmExe::from_elf(elf, transpiler)?)
 }
 
