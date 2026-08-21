@@ -34,9 +34,8 @@ use openvm_stark_sdk::openvm_stark_backend::codec::Decode;
 use openvm_stark_sdk::{
     bench::run_with_metric_collection,
     config::{
-        app_params_with_100_bits_security, baby_bear_poseidon2::F,
-        internal_params_with_100_bits_security, leaf_params_with_100_bits_security,
-        MAX_APP_LOG_STACKED_HEIGHT, SECURITY_BITS_TARGET,
+        app_params_with_100_bits_security, internal_params_with_100_bits_security,
+        leaf_params_with_100_bits_security, MAX_APP_LOG_STACKED_HEIGHT, SECURITY_BITS_TARGET,
     },
     openvm_stark_backend::{
         air_builders::symbolic::{SymbolicExpressionDag, SymbolicExpressionNode},
@@ -202,7 +201,7 @@ pub struct HostArgs {
 }
 
 pub struct RethWorkload {
-    pub exe: VmExe<F>,
+    pub exe: VmExe,
     pub stdin: StdIn,
 }
 
@@ -230,9 +229,9 @@ pub fn build_reth_workload(
     Ok(RethWorkload { exe, stdin })
 }
 
-pub fn build_reth_exe(vm_config: &SdkVmConfig, openvm_client_eth_elf: &[u8]) -> Result<VmExe<F>> {
+pub fn build_reth_exe(vm_config: &SdkVmConfig, openvm_client_eth_elf: &[u8]) -> Result<VmExe> {
     let transpiler = vm_config.transpiler().clone();
-    let elf = Elf::decode(openvm_client_eth_elf, MEM_SIZE as u32)?;
+    let elf = Elf::decode(openvm_client_eth_elf, MEM_SIZE as u64)?;
     Ok(VmExe::from_elf(elf, transpiler)?)
 }
 
