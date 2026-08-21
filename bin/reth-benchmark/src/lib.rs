@@ -35,8 +35,7 @@ use openvm_stark_sdk::{
     bench::run_with_metric_collection,
     config::{
         app_params_with_100_bits_security, internal_params_with_100_bits_security,
-        leaf_params_with_100_bits_security,
-        MAX_APP_LOG_STACKED_HEIGHT, SECURITY_BITS_TARGET,
+        leaf_params_with_100_bits_security, MAX_APP_LOG_STACKED_HEIGHT, SECURITY_BITS_TARGET,
     },
     openvm_stark_backend::{
         air_builders::symbolic::{SymbolicExpressionDag, SymbolicExpressionNode},
