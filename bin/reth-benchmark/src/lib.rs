@@ -522,7 +522,12 @@ pub async fn run_reth_benchmark(args: HostArgs, openvm_client_eth_elf: &[u8]) ->
                 }
                 BenchMode::ExecuteMetered => {
                     let compiled = sdk.compile_metered(exe)?;
-                    let (public_values, _) = sdk.execute_metered(&compiled, stdin)?;
+                    let (public_values, _) = info_span!(
+                        "execute_metered",
+                        group = "execute_metered",
+                        program = %program_name
+                    )
+                    .in_scope(|| sdk.execute_metered(&compiled, stdin))?;
                     let block_hash = hex::encode(&public_values);
                     info!("Execute metered completed, block hash: {}", block_hash);
                     println!("BENCH_BLOCK_HASH={block_hash}");
