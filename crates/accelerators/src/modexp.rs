@@ -87,7 +87,9 @@ fn accelerated_modexp_bn254_fr(base: &[u8], exp: &[u8]) -> Vec<u8> {
     let mut padded = vec![0u8; padded_len];
     padded[padded_len - base.len()..].copy_from_slice(base);
     let base_fr = bn::Scalar::reduce_be_bytes(&padded);
-    base_fr.exp_bytes(true, exp).to_be_bytes().as_ref().to_vec()
+    let result = base_fr.exp_bytes(true, exp);
+    result.assert_reduced();
+    result.to_be_bytes().as_ref().to_vec()
 }
 
 #[cfg(test)]
