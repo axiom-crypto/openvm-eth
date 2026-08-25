@@ -58,6 +58,8 @@ pub(super) fn encode_g1(point: &bls::G1Affine) -> [u8; 96] {
         return output;
     }
 
+    point.x().assert_reduced();
+    point.y().assert_reduced();
     let x: &[u8] = point.x().as_le_bytes();
     let y: &[u8] = point.y().as_le_bytes();
     for index in 0..FP_LEN {
@@ -76,6 +78,10 @@ pub(super) fn encode_g2(point: &bls::G2Affine) -> [u8; 192] {
 
     let x = point.x();
     let y = point.y();
+    x.c0.assert_reduced();
+    x.c1.assert_reduced();
+    y.c0.assert_reduced();
+    y.c1.assert_reduced();
     let x_c0 = x.c0.as_le_bytes();
     let x_c1 = x.c1.as_le_bytes();
     let y_c0 = y.c0.as_le_bytes();

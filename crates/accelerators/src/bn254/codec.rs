@@ -44,6 +44,8 @@ pub(super) fn read_scalar(input: &[u8; 32]) -> bn::Scalar {
 #[inline]
 pub(super) fn encode_g1(point: bn::G1Affine) -> [u8; 64] {
     let mut output = [0; 64];
+    point.x().assert_reduced();
+    point.y().assert_reduced();
     let x: &[u8] = point.x().as_le_bytes();
     let y: &[u8] = point.y().as_le_bytes();
     for index in 0..FQ_LEN {
