@@ -1,6 +1,8 @@
 //! secp256k1 ECDSA accelerator.
 
 #[cfg(any(target_os = "none", target_os = "openvm"))]
+use openvm_ecc_guest::{algebra::IntMod, weierstrass::WeierstrassPoint};
+#[cfg(any(target_os = "none", target_os = "openvm"))]
 use openvm_k256 as k256;
 
 use crate::types::{zkvm_status, ZkvmBytes, ZKVM_EFAIL, ZKVM_EOK};
@@ -74,6 +76,12 @@ fn recover(msg: &[u8; 32], sig: &[u8; 64], mut recid: u8) -> Option<[u8; 64]> {
         .ok()?;
     #[cfg(not(any(target_os = "none", target_os = "openvm")))]
     let key = VerifyingKey::recover_from_prehash(msg, &signature, recovery_id).ok()?;
+
+    #[cfg(any(target_os = "none", target_os = "openvm"))]
+    {
+        WeierstrassPoint::x(key.as_affine()).assert_reduced();
+        WeierstrassPoint::y(key.as_affine()).assert_reduced();
+    }
 
     key.to_encoded_point(false).as_bytes().get(1..65)?.try_into().ok()
 }
