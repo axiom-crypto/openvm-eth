@@ -13,6 +13,9 @@ openvm-stateless-executor = { path = "../../crates/stateless-executor", default-
 openvm = { git = "https://github.com/openvm-org/openvm.git", branch = "develop-v2.1.0", default-features = false, features = ["getrandom-unsupported"] }
 openvm-algebra-guest = { git = "https://github.com/openvm-org/openvm.git", branch = "develop-v2.1.0", optional = true }
 openvm-ecc-guest = { git = "https://github.com/openvm-org/openvm.git", branch = "develop-v2.1.0", optional = true }
+# Defines the 256-bit instruction shims that the patched `ruint` below calls. Nothing here
+# references it directly; it is linked in to provide those symbols.
+openvm-bigint-guest = { git = "https://github.com/openvm-org/openvm.git", branch = "develop-v2.1.0", features = ["export-intrinsics"] }
 
 # Enable std feature for host builds (provides critical-section implementation)
 [target.'cfg(not(any(target_os = "none", target_os = "openvm")))'.dependencies]
@@ -20,6 +23,12 @@ openvm-stateless-executor = { path = "../../crates/stateless-executor", default-
 
 [package.metadata.cargo-machete]
 ignored = ["openvm-algebra-guest", "openvm-ecc-guest"]
+
+# `ruint`'s 256-bit multiply, shifts and comparison each become a single OpenVM instruction
+# instead of a limb loop. Only this workspace is patched, because only the guest has the
+# instructions; host builds keep the released crate.
+[patch.crates-io]
+ruint = { git = "https://github.com/Qumeric/uint", rev = "cf03e356e38133ad27ee72644e0c4ef7c8e6433e" }
 
 [lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = [
