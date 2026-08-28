@@ -2,7 +2,6 @@
 //! the input format used by the OpenVM stateless executor. The provided functions are intended for
 //! use either within the Reth SDK, as part of a Reth ExEx, or by Reth RPC clients.
 use alloy_consensus::{BlockHeader as _, Header};
-use alloy_rlp::Encodable;
 use alloy_rpc_types_debug::ExecutionWitness;
 use bumpalo::Bump;
 use itertools::Itertools;
@@ -51,17 +50,20 @@ pub struct BlockExecutionWitness {
 pub fn generate_stateless_input_from_witness(
     witness: BlockExecutionWitness,
 ) -> WitnessResult<StatelessExecutorInput> {
-    let headers_bytes = &witness.execution_witness.headers;
+    let ancestor_headers = decode_ancestor_headers(&witness.execution_witness.headers)?;
 
-    let mut ancestor_headers = Vec::with_capacity(headers_bytes.len());
-    for header_bytes in headers_bytes {
+    generate_stateless_input_from_witness_and_ancestor_headers(witness, ancestor_headers)
+}
+
+fn decode_ancestor_headers(headers: &[Bytes]) -> WitnessResult<Vec<Header>> {
+    let mut ancestor_headers = Vec::with_capacity(headers.len());
+    for header_bytes in headers {
         let sealed = Header::decode_sealed(&mut &header_bytes[..])?;
         ancestor_headers.push(sealed.into_inner());
     }
-    // Ancestor headers start from most recent
+    // Ancestor headers start from most recent.
     ancestor_headers.reverse();
-
-    generate_stateless_input_from_witness_and_ancestor_headers(witness, ancestor_headers)
+    Ok(ancestor_headers)
 }
 
 #[instrument(skip_all)]
@@ -95,8 +97,7 @@ pub fn generate_stateless_input_from_witness_and_ancestor_headers(
 }
 
 /// Returns `(block_execution_witness, ancestor_headers)`. The `ancestor_headers` are serialized
-/// within `block_execution_witness` but we return it in deserialized form to avoid another
-/// deserialization for performance.
+/// within `block_execution_witness` and returned in deserialized form for execution.
 #[instrument(skip(provider, evm_config, recovered_block))]
 pub fn generate_block_execution_witness<Node>(
     provider: Node::Provider,
@@ -126,56 +127,35 @@ where
     };
     let db = StateProviderDatabase::new(&state_provider);
     let executor = evm_config.executor(db);
-    let mut witness_record = ExecutionWitnessRecord::default();
 
-    let (reth_state, codes, keys, lowest_block_number) = time!("reth_input_gen", {
+    let execution_witness = time!("reth_input_gen", {
         let span = info_span!("reth_input_gen");
         span.in_scope(|| -> WitnessResult<_> {
+            let mut execution_witness = None;
             let _ =
                 executor.execute_with_state_closure(&recovered_block, |statedb: &State<_>| {
-                    witness_record.record_executed_state(statedb, ExecutionWitnessMode::Legacy);
+                    execution_witness =
+                        Some(ExecutionWitnessRecord::new(statedb).into_execution_witness(
+                            state_provider.as_ref(),
+                            &provider,
+                            number,
+                            ExecutionWitnessMode::Legacy,
+                        ));
                 })?;
 
-            let ExecutionWitnessRecord { hashed_state, codes, keys, lowest_block_number } =
-                witness_record;
-            let reth_state = state_provider.witness(
-                Default::default(),
-                hashed_state,
-                ExecutionWitnessMode::Legacy,
-            )?;
-            Ok((reth_state, codes, keys, lowest_block_number))
+            Ok(execution_witness.expect("state closure is called after successful execution")?)
         })?
     });
 
-    let (serialized_headers, mut ancestor_headers): (Vec<_>, Vec<_>) = {
-        let smallest = match lowest_block_number {
-            Some(smallest) => smallest,
-            None => {
-                // Return only the parent header, if there were no calls to the
-                // BLOCKHASH opcode.
-                number.saturating_sub(1)
-            }
-        };
-        let range = smallest..number;
-        provider
-            .headers_range(range)?
-            .into_iter()
-            .map(|header| {
-                let mut serialized_header = Vec::new();
-                header.encode(&mut serialized_header);
-                (serialized_header.into(), header)
-            })
-            .unzip()
-    };
-    // Ancestor headers start from most recent
-    ancestor_headers.reverse();
+    let ancestor_headers = decode_ancestor_headers(&execution_witness.headers)?;
 
     // Sort for deterministic witness ordering.
+    let ExecutionWitness { state, codes, keys, headers } = execution_witness;
     let execution_witness = ExecutionWitness {
-        state: reth_state.into_iter().sorted().collect(),
+        state: state.into_iter().sorted().collect(),
         codes: codes.into_iter().sorted().collect(),
         keys: keys.into_iter().sorted().collect(),
-        headers: serialized_headers,
+        headers,
     };
 
     Ok((

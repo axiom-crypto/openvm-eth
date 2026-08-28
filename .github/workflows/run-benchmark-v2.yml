@@ -70,7 +70,7 @@ jobs:
 
             # Build client binary
             cd bin/stateless-guest
-            cargo openvm build
+            cargo openvm build --ignore-rust-version
             mkdir -p ../reth-benchmark/elf
             SRC="target/riscv64im-unknown-openvm-elf/release/openvm-stateless-guest"
             DEST="../reth-benchmark/elf/openvm-stateless-guest"

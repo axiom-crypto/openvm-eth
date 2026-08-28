@@ -454,7 +454,7 @@ jobs:
         working-directory: bin/stateless-guest
         run: |
           GUEST_PROFILE=${{ steps.set-build-profiles.outputs.guest_profile }}
-          RUSTFLAGS="" cargo openvm build --no-transpile --profile=$GUEST_PROFILE
+          RUSTFLAGS="" cargo openvm build --ignore-rust-version --no-transpile --profile=$GUEST_PROFILE
           mkdir -p ../reth-benchmark/elf
           cp target/riscv64im-unknown-openvm-elf/$GUEST_PROFILE/openvm-stateless-guest ../reth-benchmark/elf/
 
