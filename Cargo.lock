@@ -7942,6 +7942,7 @@ dependencies = [
  "tracing",
  "tracing-actix-web",
  "tracing-subscriber 0.3.23",
+ "url",
 ]
 
 [[package]]
@@ -8302,6 +8303,26 @@ dependencies = [
  "p3-field",
  "serde",
  "thiserror 1.0.69",
+ "zstd",
+]
+
+[[package]]
+name = "openvm-zilkworm-benchmark"
+version = "0.4.0"
+dependencies = [
+ "clap",
+ "dotenv",
+ "eyre",
+ "hex",
+ "openvm-circuit",
+ "openvm-cuda-backend",
+ "openvm-sdk",
+ "openvm-sdk-config",
+ "openvm-stark-sdk",
+ "openvm-transpiler",
+ "openvm-verify-stark-host",
+ "tracing",
+ "tracing-subscriber 0.3.23",
  "zstd",
 ]
 
