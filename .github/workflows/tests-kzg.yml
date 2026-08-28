@@ -26,7 +26,7 @@ env:
   CARGO_TERM_COLOR: always
   CARGO_NET_GIT_FETCH_WITH_CLI: "true"
   OPENVM_FAST_TEST: "1"
-  OPENVM_BRANCH: develop-v2.1.0
+  OPENVM_BRANCH: develop-v2.x.0
 
 jobs:
   test:

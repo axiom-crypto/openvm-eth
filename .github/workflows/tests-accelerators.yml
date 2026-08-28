@@ -58,7 +58,7 @@ jobs:
 
       - name: Install OpenVM CLI
         run: |
-          cargo install --git https://github.com/openvm-org/openvm.git --branch develop-v2.1.0 --locked --force cargo-openvm
+          cargo install --git https://github.com/openvm-org/openvm.git --branch develop-v2.x.0 --locked --force cargo-openvm
           cargo openvm toolchain install
 
       - name: Build for the guest target
