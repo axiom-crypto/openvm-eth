@@ -49,7 +49,16 @@ smallvec = "1.13"
 bumpalo = { version = "3.19.0", default-features = false, features = ["collections"] }
 bytes = { version = "1", default-features = false }
 itertools = { version = "0.14", default-features = false }
-actix-web = "4"
+actix-web = { version = "4", default-features = false, features = [
+    "macros",
+    "compress-brotli",
+    "compress-gzip",
+    "compress-zstd",
+    "cookies",
+    "unicode",
+    "compat",
+    "ws",
+] }
 reqwest = "0.12.20"
 tracing-actix-web = "0.7"
 clap = "4.5.54"
