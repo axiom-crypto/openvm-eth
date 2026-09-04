@@ -1,0 +1,56 @@
+[package]
+name = "openvm-accelerators"
+description = "OpenVM cryptographic accelerator interface"
+version.workspace = true
+edition.workspace = true
+homepage.workspace = true
+repository.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+# openvm
+openvm-curve-utils = { workspace = true, features = ["bn254", "bls12_381"] }
+openvm-ecc-guest.workspace = true
+openvm-kzg = { workspace = true, features = ["use-intrinsics"] }
+openvm-p256.workspace = true
+openvm-pairing = { workspace = true, features = ["bn254", "bls12_381"] }
+openvm-keccak256.workspace = true
+openvm-sha2.workspace = true
+
+# crypto
+ark-bls12-381 = { version = "0.5", default-features = false, features = ["curve"] }
+ark-ec = { version = "0.5", default-features = false }
+ark-serialize = { version = "0.5", default-features = false }
+aurora-engine-modexp = { version = "1.2.0", default-features = false }
+ripemd = { version = "0.1.3", default-features = false }
+
+# The OpenVM-accelerated k256 fork; its ECDSA recovery relies on zkVM hints
+# and is unimplemented outside the guest.
+[target.'cfg(any(target_os = "none", target_os = "openvm"))'.dependencies]
+openvm-k256.workspace = true
+
+# Host implementations when not building for the zkVM guest.
+[target.'cfg(not(any(target_os = "none", target_os = "openvm")))'.dependencies]
+k256 = { version = "0.13", default-features = false, features = ["ecdsa"] }
+openvm-keccak256 = { workspace = true, features = ["tiny_keccak"] }
+# Not imported directly: enables the host pairing backend used by the KZG
+# verification. openvm-pairing's `halo2curves` feature does not forward to
+# openvm-pairing-guest, so the inner feature is enabled explicitly.
+openvm-pairing = { workspace = true, features = ["halo2curves"] }
+openvm-pairing-guest = { workspace = true, features = ["halo2curves"] }
+openvm-sha2 = { workspace = true, features = ["import_sha2"] }
+
+[dev-dependencies]
+hex-literal.workspace = true
+
+[package.metadata.cargo-shear]
+ignored = ["openvm-pairing-guest"]
+
+[package.metadata.cargo-machete]
+ignored = ["openvm-pairing-guest"]
+
+[features]
+default = []
+std = []

@@ -5,7 +5,6 @@ members = [
     "crates/mpt",
     "crates/revm-crypto",
     "crates/stateless-executor",
-    "crates/guest-mem",
     "crates/chainspec",
     "crates/stateless-witness",
     "crates/mpt-tools",
@@ -13,6 +12,7 @@ members = [
     "crates/curve-utils",
     "crates/kzg",
     "crates/kzg/tests/programs/verify_kzg",
+    "crates/accelerators",
 ]
 exclude = []
 resolver = "3"
@@ -25,8 +25,6 @@ edition = "2024"
 exclude = ["**/target"]
 
 [workspace.dependencies]
-# Not directly used, just to have rayon feature always
-hashbrown = { version = "0.15.4", features = ["rayon"] }
 eyre = "0.6"
 tracing = { version = "0.1", default-features = false }
 tracing-subscriber = "0.3"
@@ -36,9 +34,9 @@ tokio = { version = "1.44.2", default-features = false, features = [
 ] }
 serde_json = "1.0.110"
 serde = { version = "1.0", default-features = false, features = ["derive"] }
-serde_with = "3.13.0"
+serde_with = { version = "3.13.0", default-features = false, features = ["macros", "alloc"] }
 url = "2.3"
-thiserror = "2.0.12"
+thiserror = { version = "2.0.12", default-features = false }
 hex-literal = "1.0.0"
 rayon = "1.10.0"
 bincode = { version = "2.0.1", default-features = false, features = [
@@ -48,11 +46,19 @@ bincode = { version = "2.0.1", default-features = false, features = [
 ] }
 toml = "0.9.2"
 smallvec = "1.13"
-bumpalo = "3.19.0"
-bytes = "1"
-bitcode = { version = "0.6.5", default-features = false, features = ["serde"] }
-itertools = "0.14"
-actix-web = "4"
+bumpalo = { version = "3.19.0", default-features = false, features = ["collections"] }
+bytes = { version = "1", default-features = false }
+itertools = { version = "0.14", default-features = false }
+actix-web = { version = "4", default-features = false, features = [
+    "macros",
+    "compress-brotli",
+    "compress-gzip",
+    "compress-zstd",
+    "cookies",
+    "unicode",
+    "compat",
+    "ws",
+] }
 reqwest = "0.12.20"
 tracing-actix-web = "0.7"
 clap = "4.5.54"
@@ -62,16 +68,15 @@ zstd = { version = "0.13", default-features = false }
 
 # workspace
 openvm-curve-utils = { path = "./crates/curve-utils", default-features = false }
+openvm-accelerators = { path = "./crates/accelerators", default-features = false }
 openvm-kzg = { path = "./crates/kzg", default-features = false }
 openvm-mpt = { path = "./crates/mpt" }
 openvm-revm-crypto = { path = "./crates/revm-crypto" }
-openvm-guest-mem = { path = "./crates/guest-mem" }
 openvm-stateless-executor = { path = "./crates/stateless-executor" }
 openvm-chainspec = { path = "./crates/chainspec" }
 # workspace (host only)
 openvm-stateless-witness = { path = "./crates/stateless-witness", default-features = false }
 openvm-rpc-proxy = { path = "./crates/rpc-proxy" }
-openvm-reth-benchmark = { path = "./bin/reth-benchmark", default-features = false }
 
 # reth
 reth-primitives-traits = { version = "=0.4.1", default-features = false }
@@ -112,29 +117,26 @@ alloy-rpc-client = { version = "=2.0.5", default-features = false }
 alloy-rpc-types = { version = "=2.0.5", default-features = false }
 alloy-rpc-types-debug = { version = "=2.0.5", default-features = false }
 alloy-transport = { version = "=2.0.5", default-features = false }
-alloy-transport-http = { version = "=2.0.5", default-features = false, features = [
-    "reqwest-rustls-tls",
-] }
-
-openvm = { git = "https://github.com/openvm-org/openvm.git", branch = "main", default-features = false }
-openvm-circuit = { git = "https://github.com/openvm-org/openvm.git", branch = "main", default-features = false }
-openvm-verify-stark-host = { git = "https://github.com/openvm-org/openvm.git", branch = "main", default-features = false }
-openvm-ecc-guest = { git = "https://github.com/openvm-org/openvm.git", branch = "main", default-features = false }
-openvm-keccak256 = { git = "https://github.com/openvm-org/openvm.git", branch = "main", default-features = false }
-openvm-pairing = { git = "https://github.com/openvm-org/openvm.git", branch = "main", default-features = false, features = [
+openvm = { git = "https://github.com/openvm-org/openvm.git", branch = "develop-v2.x.0", default-features = false }
+openvm-circuit = { git = "https://github.com/openvm-org/openvm.git", branch = "develop-v2.x.0", default-features = false }
+openvm-verify-stark-host = { git = "https://github.com/openvm-org/openvm.git", branch = "develop-v2.x.0", default-features = false }
+openvm-ecc-guest = { git = "https://github.com/openvm-org/openvm.git", branch = "develop-v2.x.0", default-features = false }
+openvm-keccak256 = { git = "https://github.com/openvm-org/openvm.git", branch = "develop-v2.x.0", default-features = false }
+openvm-pairing-guest = { git = "https://github.com/openvm-org/openvm.git", branch = "develop-v2.x.0", default-features = false }
+openvm-pairing = { git = "https://github.com/openvm-org/openvm.git", branch = "develop-v2.x.0", default-features = false, features = [
     "bn254",
     "bls12_381",
 ] }
-openvm-sha2 = { git = "https://github.com/openvm-org/openvm.git", branch = "main", default-features = false }
-openvm-k256 = { git = "https://github.com/openvm-org/openvm.git", package = "k256", branch = "main" }
-openvm-p256 = { git = "https://github.com/openvm-org/openvm.git", package = "p256", branch = "main" }
-openvm-algebra-guest = { git = "https://github.com/openvm-org/openvm.git", branch = "main", default-features = false }
+openvm-sha2 = { git = "https://github.com/openvm-org/openvm.git", branch = "develop-v2.x.0", default-features = false }
+openvm-k256 = { git = "https://github.com/openvm-org/openvm.git", package = "k256", branch = "develop-v2.x.0" }
+openvm-p256 = { git = "https://github.com/openvm-org/openvm.git", package = "p256", branch = "develop-v2.x.0" }
+openvm-algebra-guest = { git = "https://github.com/openvm-org/openvm.git", branch = "develop-v2.x.0", default-features = false }
 
 # openvm (host only)
-openvm-sdk = { git = "https://github.com/openvm-org/openvm.git", branch = "main", default-features = false }
-openvm-sdk-config = { git = "https://github.com/openvm-org/openvm.git", branch = "main", default-features = false }
-openvm-build = { git = "https://github.com/openvm-org/openvm.git", branch = "main", default-features = false }
-openvm-stark-sdk = { git = "https://github.com/openvm-org/stark-backend.git", tag = "v2.0.0", default-features = false }
+openvm-sdk = { git = "https://github.com/openvm-org/openvm.git", branch = "develop-v2.x.0", default-features = false }
+openvm-sdk-config = { git = "https://github.com/openvm-org/openvm.git", branch = "develop-v2.x.0", default-features = false }
+openvm-build = { git = "https://github.com/openvm-org/openvm.git", branch = "develop-v2.x.0", default-features = false }
+openvm-stark-sdk = { git = "https://github.com/openvm-org/stark-backend.git", branch = "main", default-features = false }
 
 # crates/kzg
 hex = { version = "0.4.3", default-features = false }
@@ -152,6 +154,10 @@ rust.missing_debug_implementations = "warn"
 rust.unreachable_pub = "warn"
 rust.unused_must_use = "deny"
 rust.rust_2018_idioms = { level = "deny", priority = -1 }
+rust.unexpected_cfgs = { level = "warn", check-cfg = [
+    "cfg(openvm_intrinsics)",
+    'cfg(target_os, values("openvm"))',
+] }
 rustdoc.all = "warn"
 
 [profile.release]
@@ -164,7 +170,7 @@ strip = "none"
 
 [profile.maxperf]
 inherits = "release"
-lto = "fat"
+lto = "thin"
 codegen-units = 1
 
 [profile.dev]

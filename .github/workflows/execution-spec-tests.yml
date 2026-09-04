@@ -38,8 +38,8 @@ jobs:
       - name: Verify OpenVM dependency revision
         shell: bash
         run: |
-          root_revision=$(sed -n 's|^source = "git+https://github.com/openvm-org/openvm.git?branch=main#\([0-9a-f]\{40\}\)"$|\1|p' Cargo.lock | sort -u)
-          test_revision=$(sed -n 's|^source = "git+https://github.com/openvm-org/openvm.git?branch=main#\([0-9a-f]\{40\}\)"$|\1|p' tests/execution-spec-tests/Cargo.lock | sort -u)
+          root_revision=$(sed -n 's|^source = "git+https://github.com/openvm-org/openvm.git?branch=develop-v2.x.0#\([0-9a-f]\{40\}\)"$|\1|p' Cargo.lock | sort -u)
+          test_revision=$(sed -n 's|^source = "git+https://github.com/openvm-org/openvm.git?branch=develop-v2.x.0#\([0-9a-f]\{40\}\)"$|\1|p' tests/execution-spec-tests/Cargo.lock | sort -u)
           if [[ -z "$root_revision" || "$root_revision" != "$test_revision" ]]; then
             echo "Execution-spec and workspace OpenVM revisions differ" >&2
             exit 1

@@ -1,3 +1,5 @@
+use alloc::{vec, vec::Vec};
+
 use alloy_trie::TrieAccount;
 use bumpalo::Bump;
 use revm::database::BundleState;

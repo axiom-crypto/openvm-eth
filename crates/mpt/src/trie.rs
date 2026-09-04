@@ -1,4 +1,6 @@
-use std::{
+use alloc::vec::Vec;
+use core::{
+    alloc::Layout,
     cell::{Cell, RefCell},
     mem::MaybeUninit,
 };
@@ -6,16 +8,16 @@ use std::{
 use alloy_rlp::Encodable;
 use bumpalo::Bump;
 use bytes::Buf;
-use revm_primitives::{hex, keccak256, B256};
+use revm_primitives::{keccak256, B256};
 use smallvec::SmallVec;
 
 use crate::{
     bump_bufmut::BumpBytesMut,
     hp::{
-        encoded_path_eq_nibs, encoded_path_strip_prefix, lcp, prefix_to_nibs,
-        to_encoded_path_with_bump, to_nibs,
+        encoded_path_eq_key, encoded_path_from_key, encoded_path_strip_prefix_key, lcp_key,
+        prefix_to_nibs, to_encoded_path_with_bump, KeyNibbles,
     },
-    node::{BranchChildren, NodeData, NodeId, NodeRef},
+    node::{BranchChildId, BranchChildren, NodeData, NodeId, NodeRef},
 };
 
 /// OpenVM memory alignment word size.
@@ -23,6 +25,9 @@ const MIN_ALIGN: usize = 4;
 
 /// Initial capacity of [`MptTrie`]'s `rlp_scratch`.
 const RLP_SCRATCH_INIT_CAPACITY: usize = 600;
+
+/// Length of a node reference that is a keccak digest rather than the node's own encoding.
+const DIGEST_LEN: usize = 32;
 
 /// Sentinel index representing the null node when decoding and in internal references.
 /// In a default MPT, `nodes[0]` starts as `Null`, but the root may later be changed to a
@@ -110,12 +115,50 @@ fn is_null_ref(slice: &[u8]) -> bool {
     matches!(slice, [byte] if *byte == alloy_rlp::EMPTY_STRING_CODE)
 }
 
-/// Byte-slice equality as an explicit loop. Slice `==` compiles to a `memcmp` call; the node
-/// references compared during decoding are at most 33 bytes, where the call overhead dominates
-/// an inline loop.
+/// Byte-slice equality as an explicit loop. Slice `==` on slices of unknown length compiles to a
+/// `memcmp` call; the node references compared during decoding are at most 33 bytes, where the
+/// call overhead dominates an inline loop. Prefer [`digest_eq`] whenever one side is a full-length
+/// digest, since a length known at compile time turns the comparison into whole-word loads.
 #[inline(always)]
 fn bytes_eq(a: &[u8], b: &[u8]) -> bool {
-    a.len() == b.len() && std::iter::zip(a, b).all(|(x, y)| x == y)
+    a.len() == b.len() && core::iter::zip(a, b).all(|(x, y)| x == y)
+}
+
+/// Equality against a 32-byte node reference.
+///
+/// Fixing the length lets the comparison stay inline as four word loads per side and an XOR
+/// chain, where a loop over slices of unknown length pays several instructions for every byte.
+/// Slices of different lengths are never equal, so a reference that is not a full digest is
+/// inequality rather than a case to fall back on.
+#[inline(always)]
+fn digest_eq(a: &[u8], b: &[u8]) -> bool {
+    match (<&[u8; DIGEST_LEN]>::try_from(a), <&[u8; DIGEST_LEN]>::try_from(b)) {
+        (Ok(a), Ok(b)) => a == b,
+        _ => false,
+    }
+}
+
+/// Appends a 32-byte node reference to `out`.
+///
+/// Fixing the length keeps the copy inline as whole-word moves. Handing the buffer a slice whose
+/// length the compiler cannot see turns the copy into a `memcpy` call, and at this size the call
+/// costs more than the bytes it moves — encoding node references is the decoder's busiest copy.
+#[inline(always)]
+fn put_digest<B: alloy_rlp::BufMut>(digest: &[u8], out: &mut B) {
+    match <&[u8; DIGEST_LEN]>::try_from(digest) {
+        Ok(digest) => out.put_slice(digest),
+        // A digest reference always holds `DIGEST_LEN` bytes, so this arm exists only to keep the
+        // function total without a conversion that could panic.
+        Err(_) => out.put_slice(digest),
+    }
+}
+
+/// Converts a node id to a branch child slot id.
+/// The only zero id is the null-node sentinel ([`NULL_NODE_ID`]), which is never stored as a
+/// branch child.
+#[inline(always)]
+fn branch_child_id(node_id: NodeId) -> BranchChildId {
+    BranchChildId::new(node_id).expect("the null-node sentinel is never a branch child")
 }
 
 /// Writes an RLP header with the given base code (`EMPTY_LIST_CODE` for lists,
@@ -175,7 +218,7 @@ impl<'a> Mpt<'a> {
         match self.nodes[node_id as usize] {
             NodeData::Branch(children) => {
                 for child_id in children.iter().filter_map(Cell::get) {
-                    self.encode_trie_internal(child_id, out);
+                    self.encode_trie_internal(child_id.get(), out);
                 }
             }
             NodeData::Extension(_, ext_id) => {
@@ -264,13 +307,13 @@ impl<'a> Mpt<'a> {
                 }
                 NodeRef::Bytes(rlp_node)
             } else if payload_length == 32 && !list {
-                if !bytes_eq(payload, expected_node_ref.as_slice()) {
+                if !digest_eq(payload, expected_node_ref.as_slice()) {
                     return Err(Error::NodeRefMismatch);
                 }
                 expected_node_ref
             } else {
                 let digest = keccak256(rlp_node);
-                if !bytes_eq(digest.as_slice(), expected_node_ref.as_slice()) {
+                if !digest_eq(digest.as_slice(), expected_node_ref.as_slice()) {
                     return Err(Error::NodeRefMismatch);
                 }
                 expected_node_ref
@@ -329,7 +372,7 @@ impl<'a> Mpt<'a> {
             if is_null_ref(child0_expected_node_ref.as_slice()) {
                 None
             } else {
-                Some(self.decode_trie_internal(bytes, child0_expected_node_ref)?)
+                Some(branch_child_id(self.decode_trie_internal(bytes, child0_expected_node_ref)?))
             }
         };
 
@@ -338,7 +381,7 @@ impl<'a> Mpt<'a> {
             if is_null_ref(child1_expected_node_ref.as_slice()) {
                 None
             } else {
-                Some(self.decode_trie_internal(bytes, child1_expected_node_ref)?)
+                Some(branch_child_id(self.decode_trie_internal(bytes, child1_expected_node_ref)?))
             }
         };
 
@@ -350,8 +393,8 @@ impl<'a> Mpt<'a> {
         let childs = unsafe {
             &mut *self
                 .bump
-                .alloc_layout(std::alloc::Layout::new::<[Cell<Option<NodeId>>; 16]>())
-                .cast::<[MaybeUninit<Option<NodeId>>; 16]>()
+                .alloc_layout(Layout::new::<[Cell<Option<BranchChildId>>; 16]>())
+                .cast::<[MaybeUninit<Option<BranchChildId>>; 16]>()
                 .as_ptr()
         };
 
@@ -375,7 +418,9 @@ impl<'a> Mpt<'a> {
                 if is_null_ref(child_expected_node_ref.as_slice()) {
                     None
                 } else {
-                    Some(self.decode_trie_internal(bytes, child_expected_node_ref)?)
+                    Some(branch_child_id(
+                        self.decode_trie_internal(bytes, child_expected_node_ref)?,
+                    ))
                 }
             });
         }
@@ -388,8 +433,8 @@ impl<'a> Mpt<'a> {
         // SAFETY: all elements of the array were initialized above, and `Cell<T>` is
         // `repr(transparent)` over `T`.
         let children: BranchChildren<'a> = unsafe {
-            &*(childs as *const [MaybeUninit<Option<NodeId>>; 16]
-                as *const [Cell<Option<NodeId>>; 16])
+            &*(childs as *const [MaybeUninit<Option<BranchChildId>>; 16]
+                as *const [Cell<Option<BranchChildId>>; 16])
         };
         let node_id = self.add_node(NodeData::Branch(children), Some(node_ref));
         Ok(node_id)
@@ -448,7 +493,7 @@ impl<'a> Mpt<'a> {
                 encode_header(alloy_rlp::EMPTY_LIST_CODE, payload_length, out);
                 for child_id in children.iter() {
                     match child_id.get() {
-                        Some(id) => self.reference_encode(id, out),
+                        Some(id) => self.reference_encode(id.get(), out),
                         None => out.put_u8(alloy_rlp::EMPTY_STRING_CODE),
                     }
                 }
@@ -488,7 +533,7 @@ impl<'a> Mpt<'a> {
             // if the reference is a digest, RLP-encode it with its fixed known length
             NodeRef::Digest(digest) => {
                 out.put_u8(alloy_rlp::EMPTY_STRING_CODE + 32);
-                out.put_slice(digest);
+                put_digest(digest, out);
             }
         }
     }
@@ -501,7 +546,7 @@ impl<'a> Mpt<'a> {
             NodeData::Branch(children) => {
                 1 + children
                     .iter()
-                    .map(|child| child.get().map_or(1, |id| self.reference_length(id)))
+                    .map(|child| child.get().map_or(1, |id| self.reference_length(id.get())))
                     .sum::<usize>()
             }
             NodeData::Leaf(encoded_path, value) => encoded_path.length() + value.length(),
@@ -559,7 +604,7 @@ impl<'a> Mpt<'a> {
     /// Retrieves the value associated with a given key in the trie.
     #[inline]
     pub fn get<'s>(&'s self, key: &[u8]) -> Result<Option<&'a [u8]>, Error> {
-        self.get_internal(self.root_id, &to_nibs(key))
+        self.get_internal(self.root_id, KeyNibbles::new(key))
     }
 
     /// Retrieves the RLP-decoded value corresponding to the key.
@@ -577,8 +622,7 @@ impl<'a> Mpt<'a> {
     /// Inserts a key-value pair into the trie.
     #[inline]
     pub fn insert(&mut self, key: &[u8], value: &'a [u8]) -> Result<bool, Error> {
-        let key_nibs = &to_nibs(key);
-        self.insert_internal(self.root_id, key_nibs, value)
+        self.insert_internal(self.root_id, KeyNibbles::new(key), value)
     }
 
     /// Inserts an RLP-encoded value into the trie.
@@ -599,8 +643,7 @@ impl<'a> Mpt<'a> {
     /// present, it returns `true`. Otherwise, it returns `false`.
     #[inline]
     pub fn delete(&mut self, key: &[u8]) -> Result<bool, Error> {
-        let key_nibs = &to_nibs(key);
-        self.delete_internal(self.root_id, key_nibs)
+        self.delete_internal(self.root_id, KeyNibbles::new(key))
     }
 
     #[inline]
@@ -629,7 +672,7 @@ impl<'a> Mpt<'a> {
     /// Allocates a branch children array in the bump arena, to be stored in a
     /// [`NodeData::Branch`].
     #[inline]
-    pub(crate) fn alloc_branch(&self, children: [Option<NodeId>; 16]) -> BranchChildren<'a> {
+    pub(crate) fn alloc_branch(&self, children: [Option<BranchChildId>; 16]) -> BranchChildren<'a> {
         self.bump.alloc(children.map(Cell::new))
     }
 
@@ -668,13 +711,17 @@ impl<'a> Mpt<'a> {
     }
 
     #[inline]
-    fn get_internal(&self, node_id: NodeId, key_nibs: &[u8]) -> Result<Option<&'a [u8]>, Error> {
+    fn get_internal(
+        &self,
+        node_id: NodeId,
+        key: KeyNibbles<'_>,
+    ) -> Result<Option<&'a [u8]>, Error> {
         match &self.nodes[node_id as usize] {
             NodeData::Null => Ok(None),
             NodeData::Branch(children) => {
-                if let Some((i, tail)) = key_nibs.split_first() {
-                    match children[*i as usize].get() {
-                        Some(id) => self.get_internal(id, tail),
+                if let Some((i, tail)) = key.split_first() {
+                    match children[usize::from(i)].get() {
+                        Some(id) => self.get_internal(id.get(), tail),
                         None => Ok(None),
                     }
                 } else {
@@ -683,7 +730,7 @@ impl<'a> Mpt<'a> {
             }
             NodeData::Leaf(path_bytes, value) => {
                 // Compare compact path to key nibbles without allocating
-                if encoded_path_eq_nibs(path_bytes, key_nibs) {
+                if encoded_path_eq_key(path_bytes, key) {
                     Ok(Some(value))
                 } else {
                     Ok(None)
@@ -691,7 +738,7 @@ impl<'a> Mpt<'a> {
             }
             NodeData::Extension(path_bytes, child_id) => {
                 // Strip compact path prefix without allocating
-                if let Some(tail) = encoded_path_strip_prefix(path_bytes, key_nibs) {
+                if let Some(tail) = encoded_path_strip_prefix_key(path_bytes, key) {
                     self.get_internal(*child_id, tail)
                 } else {
                     Ok(None)
@@ -705,23 +752,23 @@ impl<'a> Mpt<'a> {
     fn insert_internal(
         &mut self,
         node_id: NodeId,
-        key_nibs: &[u8],
+        key: KeyNibbles<'_>,
         value: &'a [u8],
     ) -> Result<bool, Error> {
         let updated = match self.nodes[node_id as usize] {
             NodeData::Null => {
-                let path = to_encoded_path_with_bump(self.bump, key_nibs, true);
+                let path = encoded_path_from_key(self.bump, key, true);
                 self.nodes[node_id as usize] = NodeData::Leaf(path, value);
                 true
             }
             NodeData::Branch(children) => {
-                if let Some((i, tail)) = key_nibs.split_first() {
-                    match children[*i as usize].get() {
-                        Some(id) => self.insert_internal(id, tail, value)?,
+                if let Some((i, tail)) = key.split_first() {
+                    match children[usize::from(i)].get() {
+                        Some(id) => self.insert_internal(id.get(), tail, value)?,
                         None => {
-                            let path = to_encoded_path_with_bump(self.bump, tail, true);
+                            let path = encoded_path_from_key(self.bump, tail, true);
                             let new_leaf_id = self.add_node(NodeData::Leaf(path, value), None);
-                            children[*i as usize].set(Some(new_leaf_id));
+                            children[usize::from(i)].set(Some(branch_child_id(new_leaf_id)));
                             true
                         }
                     }
@@ -730,7 +777,7 @@ impl<'a> Mpt<'a> {
                 }
             }
             NodeData::Leaf(prefix, old_value) => {
-                if encoded_path_eq_nibs(prefix, key_nibs) {
+                if encoded_path_eq_key(prefix, key) {
                     // update the value if it is different
                     if old_value == value {
                         return Ok(false);
@@ -739,25 +786,26 @@ impl<'a> Mpt<'a> {
                     true
                 } else {
                     let self_nibs = prefix_to_nibs(prefix);
-                    let common_len = lcp(&self_nibs, key_nibs);
+                    let common_len = lcp_key(&self_nibs, key);
 
-                    if common_len == self_nibs.len() || common_len == key_nibs.len() {
+                    if common_len == self_nibs.len() || common_len == key.remaining() {
                         return Err(Error::ValueInBranch);
                     } else {
                         // otherwise, create a branch with two children
                         let split_point = common_len + 1;
-                        let mut children: [Option<NodeId>; 16] = Default::default();
+                        let mut children: [Option<BranchChildId>; 16] = Default::default();
 
                         let leaf1_path =
                             to_encoded_path_with_bump(self.bump, &self_nibs[split_point..], true);
                         let leaf1_id = self.add_node(NodeData::Leaf(leaf1_path, old_value), None);
 
                         let leaf2_path =
-                            to_encoded_path_with_bump(self.bump, &key_nibs[split_point..], true);
+                            encoded_path_from_key(self.bump, key.advanced(split_point), true);
                         let leaf2_id = self.add_node(NodeData::Leaf(leaf2_path, value), None);
 
-                        children[self_nibs[common_len] as usize] = Some(leaf1_id);
-                        children[key_nibs[common_len] as usize] = Some(leaf2_id);
+                        children[self_nibs[common_len] as usize] = Some(branch_child_id(leaf1_id));
+                        children[usize::from(key.nib(common_len))] =
+                            Some(branch_child_id(leaf2_id));
 
                         let branch_children = self.alloc_branch(children);
                         let new_node_data = if common_len > 0 {
@@ -778,31 +826,31 @@ impl<'a> Mpt<'a> {
                 }
             }
             NodeData::Extension(prefix, child_id) => {
-                if let Some(tail) = encoded_path_strip_prefix(prefix, key_nibs) {
+                if let Some(tail) = encoded_path_strip_prefix_key(prefix, key) {
                     self.insert_internal(child_id, tail, value)?
                 } else {
                     let self_nibs = prefix_to_nibs(prefix);
-                    let common_len = lcp(&self_nibs, key_nibs);
+                    let common_len = lcp_key(&self_nibs, key);
 
-                    if common_len == key_nibs.len() {
+                    if common_len == key.remaining() {
                         return Err(Error::ValueInBranch);
                     }
                     let split_point = common_len + 1;
-                    let mut children: [Option<NodeId>; 16] = Default::default();
+                    let mut children: [Option<BranchChildId>; 16] = Default::default();
 
                     if split_point < self_nibs.len() {
                         let ext_path =
                             to_encoded_path_with_bump(self.bump, &self_nibs[split_point..], false);
                         let ext_id = self.add_node(NodeData::Extension(ext_path, child_id), None);
-                        children[self_nibs[common_len] as usize] = Some(ext_id);
+                        children[self_nibs[common_len] as usize] = Some(branch_child_id(ext_id));
                     } else {
-                        children[self_nibs[common_len] as usize] = Some(child_id);
+                        children[self_nibs[common_len] as usize] = Some(branch_child_id(child_id));
                     }
 
                     let leaf_path =
-                        to_encoded_path_with_bump(self.bump, &key_nibs[split_point..], true);
+                        encoded_path_from_key(self.bump, key.advanced(split_point), true);
                     let leaf_id = self.add_node(NodeData::Leaf(leaf_path, value), None);
-                    children[key_nibs[common_len] as usize] = Some(leaf_id);
+                    children[usize::from(key.nib(common_len))] = Some(branch_child_id(leaf_id));
 
                     let branch_children = self.alloc_branch(children);
                     let new_node_data = if common_len > 0 {
@@ -830,20 +878,21 @@ impl<'a> Mpt<'a> {
     }
 
     #[inline]
-    fn delete_internal(&mut self, node_id: NodeId, key_nibs: &[u8]) -> Result<bool, Error> {
+    fn delete_internal(&mut self, node_id: NodeId, key: KeyNibbles<'_>) -> Result<bool, Error> {
         let updated = match self.nodes[node_id as usize] {
             NodeData::Null => false,
             NodeData::Branch(children) => {
-                if let Some((i, tail)) = key_nibs.split_first() {
-                    match children[*i as usize].get() {
+                if let Some((i, tail)) = key.split_first() {
+                    match children[usize::from(i)].get() {
                         Some(id) => {
+                            let id = id.get();
                             if !self.delete_internal(id, tail)? {
                                 return Ok(false);
                             }
 
                             // if the node is now empty, remove it
                             if matches!(self.nodes[id as usize], NodeData::Null) {
-                                children[*i as usize].set(None);
+                                children[usize::from(i)].set(None);
                             }
                         }
                         None => return Ok(false),
@@ -855,7 +904,7 @@ impl<'a> Mpt<'a> {
                 let mut remaining_iter = children
                     .iter()
                     .enumerate()
-                    .filter_map(|(index, n)| n.get().map(|id| (index, id)));
+                    .filter_map(|(index, n)| n.get().map(|id| (index, id.get())));
 
                 // there will always be at least one remaining node
                 let (index, child_id) = remaining_iter.next().unwrap();
@@ -900,14 +949,14 @@ impl<'a> Mpt<'a> {
                 true
             }
             NodeData::Leaf(prefix, _) => {
-                if !encoded_path_eq_nibs(prefix, key_nibs) {
+                if !encoded_path_eq_key(prefix, key) {
                     return Ok(false);
                 }
                 self.nodes[node_id as usize] = NodeData::Null;
                 true
             }
             NodeData::Extension(prefix, child_id) => {
-                let tail = match encoded_path_strip_prefix(prefix, key_nibs) {
+                let tail = match encoded_path_strip_prefix_key(prefix, key) {
                     Some(tail) => tail,
                     None => return Ok(false),
                 };
@@ -1003,10 +1052,11 @@ impl<'a> Mpt<'a> {
                         return Err(Error::ValueInBranch);
                     }
 
-                    let mut childs: [Option<NodeId>; 16] = Default::default();
+                    let mut childs: [Option<BranchChildId>; 16] = Default::default();
                     for (i, mut item) in items.into_iter().take(16).enumerate() {
                         let child_id = self.decode_from_proof_rlp_internal(&mut item)?;
-                        childs[i] = if child_id == NULL_NODE_ID { None } else { Some(child_id) };
+                        // `BranchChildId::new` maps the `NULL_NODE_ID` sentinel (0) to `None`.
+                        childs[i] = BranchChildId::new(child_id);
                     }
                     let children = self.alloc_branch(childs);
                     self.add_node(NodeData::Branch(children), None)
@@ -1039,7 +1089,7 @@ impl<'a> Mpt<'a> {
         match &self.nodes[node_id as usize] {
             NodeData::Branch(children) => {
                 for child_id in children.iter().filter_map(Cell::get) {
-                    self.payloads_internal(child_id, payloads);
+                    self.payloads_internal(child_id.get(), payloads);
                 }
             }
             NodeData::Extension(_, ext_id) => {
@@ -1050,12 +1100,14 @@ impl<'a> Mpt<'a> {
     }
 }
 
+#[cfg(feature = "std")]
 impl Mpt<'_> {
     pub fn print_trie(&self) {
         self.print_trie_internal(self.root_id, 0);
     }
 
     fn print_trie_internal(&self, node_id: NodeId, depth: usize) {
+        use revm_primitives::hex;
         let indent = "  ".repeat(depth);
         match &self.nodes[node_id as usize] {
             NodeData::Null => {
@@ -1066,7 +1118,7 @@ impl Mpt<'_> {
                 for (i, child) in children.iter().enumerate() {
                     if let Some(child_id) = child.get() {
                         println!("{}  [{}]:", indent, hex::encode([i as u8]));
-                        self.print_trie_internal(child_id, depth + 2);
+                        self.print_trie_internal(child_id.get(), depth + 2);
                     }
                 }
             }
