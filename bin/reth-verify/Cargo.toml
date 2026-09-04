@@ -16,3 +16,9 @@ zstd.workspace = true
 
 openvm-verify-stark-host.workspace = true
 openvm-stark-sdk.workspace = true
+
+# bincode **1.x**, deliberately not the workspace's 2.0.1: axiom-edge writes the
+# vk with bincode 1.3.3 (`edge-worker`'s `write_vm_vk_bincode`) and the 1.x and
+# 2.x wire formats are not interchangeable. Renamed so it cannot be confused
+# with the workspace dep.
+bincode1 = { package = "bincode", version = "1.3.3" }
