@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Preserve Cargo's source identities while fetching the locked commits for removed branches.
+# This affects only the four archived dependency refs used by this benchmark.
+args=("$@")
+revision=""
+if [[ "${1:-}" == fetch ]]; then
+  for arg in "${args[@]}"; do
+    case "$arg" in
+      *github.com/openvm-org/stark-backend.git|*github.com:openvm-org/stark-backend.git)
+        revision=8f23bfc4b209869aab8cd57ac0100f3bd0277c6b ;;
+      *github.com/axiom-crypto/halo2-lib.git|*github.com:axiom-crypto/halo2-lib.git)
+        revision=d59f41ac884d18a985025090a227fa6733398ae8 ;;
+      *github.com/axiom-crypto/halo2-gpu.git|*github.com:axiom-crypto/halo2-gpu.git)
+        revision=85ad4c2a623ae520fc1454fcb5adf15ec1bb4410 ;;
+      *github.com/axiom-crypto/snark-verifier.git|*github.com:axiom-crypto/snark-verifier.git)
+        revision=369f98ff87dbdde689ec576aa9c5fd2609599481 ;;
+    esac
+  done
+  if [[ -n "$revision" ]]; then
+    for i in "${!args[@]}"; do
+      if [[ "${args[i]}" == +refs/heads/develop-v2.1.0:* ]]; then
+        args[i]="+$revision:${args[i]#*:}"
+        echo "Fetching archived develop-v2.1.0 at $revision" >&2
+      fi
+    done
+  fi
+fi
+exec "$BENCHMARK_REAL_GIT" "${args[@]}"

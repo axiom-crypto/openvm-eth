@@ -116,6 +116,8 @@ jobs:
       pr_number: ${{ steps.create-pr.outputs.pr_number }}
       tag: ${{ steps.set-tag.outputs.tag }}
     steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/archived-dependency-refs
       - name: Get default OPENVM_REV (if none provided)
         id: get-openvm-rev
         env:

@@ -1,0 +1,12 @@
+name: Archived dependency refs
+description: Resolve removed dependency branches to the commits in the benchmark's OpenVM lockfile.
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      run: |
+        mkdir -p "$RUNNER_TEMP/benchmark-git"
+        cp "$GITHUB_ACTION_PATH/git" "$RUNNER_TEMP/benchmark-git/git"
+        chmod +x "$RUNNER_TEMP/benchmark-git/git"
+        echo "BENCHMARK_REAL_GIT=$(command -v git)" >> "$GITHUB_ENV"
+        echo "$RUNNER_TEMP/benchmark-git" >> "$GITHUB_PATH"

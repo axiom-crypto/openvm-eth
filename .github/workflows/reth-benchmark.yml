@@ -223,6 +223,7 @@ jobs:
       - uses: actions/checkout@v5
         with:
           ref: ${{ inputs.ref || github.head_ref || github.ref }}
+      - uses: ./.github/actions/archived-dependency-refs
       - uses: dtolnay/rust-toolchain@nightly
         env:
           RUSTUP_PERMIT_COPY_RENAME: "1"
