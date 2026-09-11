@@ -56,3 +56,6 @@ bin/stateless-guest/openvm/
 *.ncu-rep
 *.nsys-rep
 *.sqlite
+
+# ethproofs analyzer local page cache
+scripts/.cache/

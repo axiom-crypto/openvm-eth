@@ -1,6 +1,7 @@
 name: OpenVM KZG Tests
 
 on:
+  workflow_call:
   push:
     branches: ["main"]
     paths:
@@ -25,9 +26,11 @@ env:
   CARGO_TERM_COLOR: always
   CARGO_NET_GIT_FETCH_WITH_CLI: "true"
   OPENVM_FAST_TEST: "1"
+  OPENVM_BRANCH: develop-v2.x.0
 
 jobs:
   test:
+    if: ${{ github.event.action != 'labeled' }}
     runs-on:
       - runs-on=${{ github.run_id }}
       - runner=64cpu-linux-arm64
@@ -41,15 +44,53 @@ jobs:
         with:
           cache-on-failure: true
       - uses: taiki-e/install-action@nextest
+      - name: Restore openvm toolchain from cache
+        uses: runs-on/cache@v4
+        with:
+          path: ~/.openvm/toolchains
+          key: openvm-toolchain-openvm-1.94.0-${{ runner.os }}-${{ runner.arch }}
 
       # The KZG integration tests build a zkVM guest via the OpenVM SDK, which
-      # compiles with `-Z build-std` using OpenVM's pinned nightly + rust-src.
-      # This must match `DEFAULT_RUSTUP_TOOLCHAIN_NAME` in OpenVM's
-      # crates/toolchain/build (overridable via the OPENVM_RUST_TOOLCHAIN env var).
+      # compiles with OpenVM's named rustup toolchain.
       - name: Install OpenVM guest toolchain
         run: |
           rustup install nightly-2026-01-18
           rustup component add rust-src --toolchain nightly-2026-01-18
+          cargo install --git https://github.com/openvm-org/openvm.git --branch "$OPENVM_BRANCH" --locked --force cargo-openvm
+          cargo openvm toolchain install
 
       - name: Run tests
         run: cargo nextest run -p openvm-kzg --release
+
+  # Proves every valid test vector. Runs on pushes to main and on PRs with
+  # the run-kzg-proving label (see label-overrides.yml).
+  prove-all:
+    if: ${{ github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'run-kzg-proving') }}
+    runs-on:
+      - runs-on=${{ github.run_id }}
+      - runner=64cpu-linux-arm64
+      - extras=s3-cache
+
+    steps:
+      - uses: runs-on/action@v2
+      - uses: actions/checkout@v6
+      - uses: dtolnay/rust-toolchain@nightly
+      - uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
+      - uses: taiki-e/install-action@nextest
+      - name: Restore openvm toolchain from cache
+        uses: runs-on/cache@v4
+        with:
+          path: ~/.openvm/toolchains
+          key: openvm-toolchain-openvm-1.94.0-${{ runner.os }}-${{ runner.arch }}
+
+      - name: Install OpenVM guest toolchain
+        run: |
+          rustup install nightly-2026-01-18
+          rustup component add rust-src --toolchain nightly-2026-01-18
+          cargo install --git https://github.com/openvm-org/openvm.git --branch "$OPENVM_BRANCH" --locked --force cargo-openvm
+          cargo openvm toolchain install
+
+      - name: Prove all test vectors
+        run: cargo nextest run -p openvm-kzg --release --run-ignored only test_prove_multiple_valid_verify_kzg

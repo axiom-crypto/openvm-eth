@@ -86,7 +86,7 @@ Before running the benchmark, you must first compile the guest program using `ca
 cd bin/stateless-guest
 cargo openvm build
 mkdir -p ../reth-benchmark/elf
-cp target/riscv32im-risc0-zkvm-elf/release/openvm-stateless-guest ../reth-benchmark/elf/
+cp target/riscv64im-unknown-openvm-elf/release/openvm-stateless-guest ../reth-benchmark/elf/
 cd ../..
 ```
 

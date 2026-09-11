@@ -1,4 +1,5 @@
-use std::iter::once;
+use alloc::{format, string::ToString, vec::Vec};
+use core::{cell::Cell, iter::once};
 
 use crate::error::StatelessExecutorError;
 use alloy_consensus::Header;
@@ -6,7 +7,7 @@ use alloy_rlp::{Decodable, Encodable};
 use alloy_trie::{TrieAccount, EMPTY_ROOT_HASH};
 use bumpalo::Bump;
 use itertools::Itertools;
-use openvm_mpt::{EthereumState, EthereumStateBytes, Mpt};
+use openvm_mpt::{Error as MptError, EthereumState, EthereumStateBytes, Mpt};
 use reth_ethereum_primitives::Block;
 use reth_evm::execute::ProviderError;
 use revm::{
@@ -274,7 +275,7 @@ pub trait WitnessInput<'a> {
             block_hashes.insert(parent_header.number, child_header.parent_hash);
         }
 
-        Ok(WitnessDb { inner: state, block_hashes, bytecode_by_hash })
+        Ok(WitnessDb::new(state, block_hashes, bytecode_by_hash))
     }
 }
 
@@ -283,24 +284,72 @@ pub trait WitnessInput<'a> {
 /// is the lifetime of the borrows of the state and bytecodes.
 #[derive(Debug)]
 pub struct WitnessDb<'a, 'b> {
-    inner: &'b EthereumState<'a>,
+    trie_lookups: CachedTrieLookups<'a, 'b>,
     block_hashes: HashMap<u64, B256>,
     bytecode_by_hash: HashMap<B256, &'b Bytecode>,
 }
 
-impl<'a, 'b> WitnessDb<'a, 'b> {
-    pub fn new(
-        inner: &'b EthereumState<'a>,
-        block_hashes: HashMap<u64, B256>,
-        bytecode_by_hash: HashMap<B256, &'b Bytecode>,
-    ) -> Self {
-        Self { inner, block_hashes, bytecode_by_hash }
+/// Cached access to the account and storage tries in an [`EthereumState`].
+///
+/// Account and storage accesses tend to arrive in runs for the same account, so one entry per
+/// lookup captures that locality without allocating general-purpose caches.
+#[derive(Debug)]
+struct CachedTrieLookups<'a, 'b> {
+    state: &'b EthereumState<'a>,
+    hashed_address_cache: Cell<Option<(Address, B256)>>,
+    storage_trie_cache: Cell<Option<(Address, &'b Mpt<'a>)>>,
+}
+
+impl<'a, 'b> CachedTrieLookups<'a, 'b> {
+    fn new(state: &'b EthereumState<'a>) -> Self {
+        Self { state, hashed_address_cache: Cell::new(None), storage_trie_cache: Cell::new(None) }
+    }
+
+    #[inline]
+    fn hashed_address(&self, address: Address) -> B256 {
+        if let Some((cached_address, hashed_address)) = self.hashed_address_cache.get() {
+            if cached_address == address {
+                return hashed_address;
+            }
+        }
+
+        let hashed_address = keccak256(address);
+        self.hashed_address_cache.set(Some((address, hashed_address)));
+        hashed_address
+    }
+
+    fn account(&self, address: Address) -> Result<Option<TrieAccount>, MptError> {
+        let hashed_address = self.hashed_address(address);
+        self.state.state_trie.get_rlp::<TrieAccount>(hashed_address.as_slice())
+    }
+
+    #[inline]
+    fn storage_trie(&self, address: Address) -> Option<&'b Mpt<'a>> {
+        if let Some((cached_address, storage_trie)) = self.storage_trie_cache.get() {
+            if cached_address == address {
+                return Some(storage_trie);
+            }
+        }
+
+        let storage_trie = self.state.storage_tries.get(&self.hashed_address(address))?;
+        self.storage_trie_cache.set(Some((address, storage_trie)));
+        Some(storage_trie)
     }
 }
 
-fn trie_error_to_provider_error(trie_error: openvm_mpt::Error) -> ProviderError {
+impl<'a, 'b> WitnessDb<'a, 'b> {
+    pub fn new(
+        state: &'b EthereumState<'a>,
+        block_hashes: HashMap<u64, B256>,
+        bytecode_by_hash: HashMap<B256, &'b Bytecode>,
+    ) -> Self {
+        Self { trie_lookups: CachedTrieLookups::new(state), block_hashes, bytecode_by_hash }
+    }
+}
+
+fn trie_error_to_provider_error(trie_error: MptError) -> ProviderError {
     match trie_error {
-        openvm_mpt::Error::RlpError(error) => ProviderError::Rlp(error),
+        MptError::RlpError(error) => ProviderError::Rlp(error),
         _ => ProviderError::TrieWitnessError(trie_error.to_string()),
     }
 }
@@ -311,13 +360,8 @@ impl DatabaseRef for WitnessDb<'_, '_> {
 
     /// Get basic account information.
     fn basic_ref(&self, address: Address) -> Result<Option<AccountInfo>, Self::Error> {
-        let hashed_address = keccak256(address);
-
-        let account_in_trie = self
-            .inner
-            .state_trie
-            .get_rlp::<TrieAccount>(hashed_address.as_slice())
-            .map_err(trie_error_to_provider_error)?;
+        let account_in_trie =
+            self.trie_lookups.account(address).map_err(trie_error_to_provider_error)?;
 
         let account = account_in_trie.map(|account_in_trie| AccountInfo {
             balance: account_in_trie.balance,
@@ -342,9 +386,7 @@ impl DatabaseRef for WitnessDb<'_, '_> {
     ///
     /// Returns `U256::ZERO` if the slot is not found in the trie.
     fn storage_ref(&self, address: Address, index: U256) -> Result<U256, Self::Error> {
-        let hashed_address = keccak256(address);
-
-        let storage_trie = self.inner.storage_tries.get(&hashed_address).ok_or_else(|| {
+        let storage_trie = self.trie_lookups.storage_trie(address).ok_or_else(|| {
             ProviderError::TrieWitnessError(format!("storage trie for {address} not found"))
         })?;
 

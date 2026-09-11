@@ -1,5 +1,6 @@
 #![cfg_attr(feature = "tco", allow(incomplete_features))]
 #![cfg_attr(feature = "tco", feature(explicit_tail_calls))]
+
 use clap_builder::Parser;
 use openvm_reth_benchmark::{run_reth_benchmark, HostArgs};
 

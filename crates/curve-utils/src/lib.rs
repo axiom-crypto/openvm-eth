@@ -1,4 +1,4 @@
-#![cfg_attr(target_os = "zkvm", no_std)]
+#![cfg_attr(any(openvm_intrinsics, target_os = "openvm"), no_std)]
 //! Subgroup membership checks for elliptic curve points.
 //!
 //! For pairing-based cryptography to be secure, points must lie in the correct

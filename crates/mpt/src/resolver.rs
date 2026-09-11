@@ -1,5 +1,5 @@
 use crate::{
-    node::{NodeData, NodeId},
+    node::{BranchChildId, NodeData, NodeId},
     trie::{NULL_NODE_ID, NULL_NODE_REF_SLICE},
     Error, Mpt,
 };
@@ -77,10 +77,11 @@ impl MptResolver {
                         return Err(Error::ValueInBranch);
                     }
 
-                    let mut childs: [Option<NodeId>; 16] = Default::default();
+                    let mut childs: [Option<BranchChildId>; 16] = Default::default();
                     for (i, mut item) in items.into_iter().take(16).enumerate() {
                         let child_id = self.resolve_internal(&mut item, mpt)?;
-                        childs[i] = if child_id == NULL_NODE_ID { None } else { Some(child_id) };
+                        // `BranchChildId::new` maps the `NULL_NODE_ID` sentinel (0) to `None`.
+                        childs[i] = BranchChildId::new(child_id);
                     }
                     // The children array is allocated in `mpt`'s own bump, so no copy is needed.
                     let children = mpt.alloc_branch(childs);
