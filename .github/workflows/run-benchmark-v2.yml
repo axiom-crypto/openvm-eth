@@ -46,7 +46,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.openvm/toolchains
-          key: openvm-toolchain-openvm-1.94.0-${{ runner.os }}-${{ runner.arch }}
+          key: openvm-toolchain-openvm-1.97.1-${{ runner.os }}-${{ runner.arch }}
       - name: Prepare input data
         run: |
           block_number="${{ inputs.block_number }}"
@@ -61,7 +61,7 @@ jobs:
 
             # Install OpenVM CLI
             echo "Installing OpenVM CLI..."
-            cargo +1.91.1 install --git https://github.com/openvm-org/openvm.git --branch develop-v2.x.0 --locked --force cargo-openvm
+            cargo +1.91.1 install --git https://github.com/openvm-org/openvm.git --rev 594b044e705891bcc2abd01578410da7dfcd1efe --locked --force cargo-openvm
 
             # Install the openvm rust toolchain
             cargo openvm toolchain install
