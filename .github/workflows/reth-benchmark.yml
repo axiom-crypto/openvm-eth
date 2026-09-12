@@ -188,7 +188,7 @@ on:
         value: ${{ jobs.run-reth.outputs.num_segments }}
 
 env:
-  OPENVM_BRANCH: develop-v2.x.0
+  OPENVM_REV: 594b044e705891bcc2abd01578410da7dfcd1efe
   S3_FIXTURE_READ_ENABLED: ${{ vars.S3_PUBLIC_DATA_BUCKET != '' }}
   S3_PUBLIC_UPLOAD_ENABLED: ${{ vars.S3_PUBLIC_DATA_BUCKET != '' && vars.S3_REGION != '' }}
   S3_WORKFLOW_UPLOAD_ENABLED: ${{ vars.S3_WORKFLOW_DATA_BUCKET != '' }}
@@ -283,7 +283,10 @@ jobs:
           ssh-keyscan github.com >> ~/.ssh/known_hosts
 
       - name: Checkout openvm (for scripts)
-        run: git clone --depth=1 --branch="$OPENVM_BRANCH" https://github.com/openvm-org/openvm.git
+        run: |
+          git clone --filter=blob:none --no-checkout https://github.com/openvm-org/openvm.git
+          git -C openvm fetch --depth=1 origin "$OPENVM_REV"
+          git -C openvm checkout --detach FETCH_HEAD
       - name: Build openvm-prof
         working-directory: openvm
         run: |
@@ -444,7 +447,7 @@ jobs:
         uses: runs-on/cache@v4
         with:
           path: ~/.openvm/toolchains
-          key: openvm-toolchain-openvm-1.94.0-${{ runner.os }}-${{ runner.arch }}
+          key: openvm-toolchain-openvm-1.97.1-${{ runner.os }}-${{ runner.arch }}
       - name: Install openvm rust toolchain
         if: steps.cache-guest-elf-restore.outputs.cache-hit != 'true'
         # skips download if restored from cache, just re-links into rustup

@@ -54,11 +54,11 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.openvm/toolchains
-          key: openvm-toolchain-openvm-1.94.0-${{ runner.os }}-${{ runner.arch }}
+          key: openvm-toolchain-openvm-1.97.1-${{ runner.os }}-${{ runner.arch }}
 
       - name: Install OpenVM CLI
         run: |
-          cargo install --git https://github.com/openvm-org/openvm.git --branch develop-v2.x.0 --locked --force cargo-openvm
+          cargo install --git https://github.com/openvm-org/openvm.git --rev 594b044e705891bcc2abd01578410da7dfcd1efe --locked --force cargo-openvm
           cargo openvm toolchain install
 
       - name: Build for the guest target

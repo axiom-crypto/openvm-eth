@@ -26,7 +26,7 @@ env:
   CARGO_TERM_COLOR: always
   CARGO_NET_GIT_FETCH_WITH_CLI: "true"
   OPENVM_FAST_TEST: "1"
-  OPENVM_BRANCH: develop-v2.x.0
+  OPENVM_REV: 594b044e705891bcc2abd01578410da7dfcd1efe
 
 jobs:
   test:
@@ -48,15 +48,15 @@ jobs:
         uses: runs-on/cache@v4
         with:
           path: ~/.openvm/toolchains
-          key: openvm-toolchain-openvm-1.94.0-${{ runner.os }}-${{ runner.arch }}
+          key: openvm-toolchain-openvm-1.97.1-${{ runner.os }}-${{ runner.arch }}
 
       # The KZG integration tests build a zkVM guest via the OpenVM SDK, which
       # compiles with OpenVM's named rustup toolchain.
       - name: Install OpenVM guest toolchain
         run: |
-          rustup install nightly-2026-01-18
-          rustup component add rust-src --toolchain nightly-2026-01-18
-          cargo install --git https://github.com/openvm-org/openvm.git --branch "$OPENVM_BRANCH" --locked --force cargo-openvm
+          rustup install nightly-2026-09-10
+          rustup component add rust-src --toolchain nightly-2026-09-10
+          cargo install --git https://github.com/openvm-org/openvm.git --rev "$OPENVM_REV" --locked --force cargo-openvm
           cargo openvm toolchain install
 
       - name: Run tests
@@ -83,13 +83,13 @@ jobs:
         uses: runs-on/cache@v4
         with:
           path: ~/.openvm/toolchains
-          key: openvm-toolchain-openvm-1.94.0-${{ runner.os }}-${{ runner.arch }}
+          key: openvm-toolchain-openvm-1.97.1-${{ runner.os }}-${{ runner.arch }}
 
       - name: Install OpenVM guest toolchain
         run: |
-          rustup install nightly-2026-01-18
-          rustup component add rust-src --toolchain nightly-2026-01-18
-          cargo install --git https://github.com/openvm-org/openvm.git --branch "$OPENVM_BRANCH" --locked --force cargo-openvm
+          rustup install nightly-2026-09-10
+          rustup component add rust-src --toolchain nightly-2026-09-10
+          cargo install --git https://github.com/openvm-org/openvm.git --rev "$OPENVM_REV" --locked --force cargo-openvm
           cargo openvm toolchain install
 
       - name: Prove all test vectors
