@@ -1,7 +1,15 @@
+#![cfg_attr(
+    all(not(feature = "std"), any(openvm_intrinsics, target_os = "openvm")),
+    no_main
+)]
+#![cfg_attr(not(feature = "std"), no_std)]
+
 use openvm::io::{read, reveal_bytes32};
 use openvm_stateless_executor::{io::StatelessExecutorInput, ChainVariant, StatelessExecutor};
 
-#[cfg(all(target_os = "zkvm", feature = "extensions"))]
+openvm::entry!(main);
+
+#[cfg(all(any(openvm_intrinsics, target_os = "openvm"), feature = "extensions"))]
 openvm::init!();
 
 pub fn main() {

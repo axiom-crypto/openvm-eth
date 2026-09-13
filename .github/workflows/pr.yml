@@ -50,14 +50,6 @@ jobs:
       - name: "Checkout sources"
         uses: "actions/checkout@v4"
 
-      - name: "Setup nightly toolchain"
-        uses: "actions-rs/toolchain@v1"
-        with:
-          toolchain: "nightly"
-          profile: "minimal"
-          components: "rustfmt"
-          override: true
-
       - name: "Check Rust format"
         run: |
           cargo fmt --all -- --check

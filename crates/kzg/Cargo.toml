@@ -6,6 +6,9 @@ homepage.workspace = true
 exclude.workspace = true
 version.workspace = true
 
+[lints]
+workspace = true
+
 [dependencies]
 openvm-algebra-guest.workspace = true
 openvm-curve-utils = { workspace = true, features = ["bls12_381"] }
@@ -22,7 +25,7 @@ serde-big-array.workspace = true
 [dev-dependencies]
 serde_yaml.workspace = true
 
-[target.'cfg(not(target_os = "zkvm"))'.dev-dependencies]
+[target.'cfg(not(any(target_os = "none", target_os = "openvm")))'.dev-dependencies]
 openvm-stark-sdk.workspace = true
 
 openvm.workspace = true
@@ -43,3 +46,6 @@ hex = { workspace = true, features = ["alloc"] }
 default = ["use-intrinsics"]
 test-utils = []
 use-intrinsics = []          # When enabled, uses OpenVM intrinsic functions
+
+[package.metadata.cargo-shear]
+ignored = ["openvm-circuit"]

@@ -1,3 +1,7 @@
+#![cfg_attr(not(feature = "std"), no_std)]
+
+extern crate alloc;
+
 use alloy_eips::{eip7840::BlobParams, eip7892::BlobScheduleBlobParams};
 use alloy_hardforks::mainnet::{MAINNET_BPO1_TIMESTAMP, MAINNET_BPO2_TIMESTAMP};
 use reth_chainspec::{

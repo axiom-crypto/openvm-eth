@@ -3,18 +3,18 @@ const TRUSTED_SETUP_FILE: &str = include_str!("src/trusted_setup.txt");
 include!("src/enums.rs");
 include!("src/consts.rs");
 
-#[cfg(any(target_os = "zkvm", doc))]
+#[cfg(doc)]
 fn main() {
-    // Binaries cannot be built in a RISC-V environment or when building docs
+    // Binaries cannot be built when building docs
 }
 
-#[cfg(not(any(target_os = "zkvm", doc)))]
+#[cfg(not(doc))]
 fn main() {
     use bls12_381::{G1Affine, G2Affine, Scalar};
     use std::{fs, io::Write, path::Path};
 
     #[derive(Debug, Clone, PartialEq, Eq)]
-    pub struct KzgSettingsOwned {
+    struct KzgSettingsOwned {
         pub roots_of_unity: [Scalar; NUM_ROOTS_OF_UNITY],
         pub g1_points: [G1Affine; NUM_G1_POINTS],
         pub g2_points: [G2Affine; NUM_G2_POINTS],
@@ -26,7 +26,7 @@ fn main() {
             .map_err(|e| KzgError::InvalidHexFormat(format!("Failed to decode hex: {}", e)))
     }
 
-    pub fn load_trusted_setup_file_brute() -> Result<KzgSettingsOwned, KzgError> {
+    fn load_trusted_setup_file_brute() -> Result<KzgSettingsOwned, KzgError> {
         let trusted_setup_file: Vec<String> =
             TRUSTED_SETUP_FILE.split('\n').map(|x| x.to_string()).collect();
 

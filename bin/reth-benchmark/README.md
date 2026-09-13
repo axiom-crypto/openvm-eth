@@ -12,7 +12,7 @@ To run these benchmarks locally, you must first have [Rust](https://www.rust-lan
 Install the OpenVM command line interface by building from source via:
 
 ```bash
-cargo install --git 'https://github.com/openvm-org/openvm.git' cargo-openvm
+cargo install --git 'https://github.com/openvm-org/openvm.git' --branch develop-v2.x.0 cargo-openvm
 ```
 
 ### RPC Node Requirement
@@ -86,7 +86,7 @@ Before running the benchmark, you must first compile the guest program using `ca
 cd bin/stateless-guest
 cargo openvm build
 mkdir -p ../reth-benchmark/elf
-cp target/riscv32im-risc0-zkvm-elf/release/openvm-stateless-guest ../reth-benchmark/elf/
+cp target/riscv64im-unknown-openvm-elf/release/openvm-stateless-guest ../reth-benchmark/elf/
 cd ../..
 ```
 
@@ -95,7 +95,7 @@ cd ../..
 If this is your first time using `cargo-openvm`, cargo may prompt you to install the `rust-src` component for a nightly toolchain. This will look like:
 
 ```bash
-rustup component add rust-src --toolchain nightly-2026-01-18-$arch-unknown-linux-gnu
+rustup component add rust-src --toolchain nightly-2026-09-10-$arch-unknown-linux-gnu
 ```
 
 where `$arch` is the architecture of your machine (e.g. `x86_64` or `aarch64`).

@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - "crates/revm-crypto/**"
+      - "crates/accelerators/**"
       - "crates/kzg/**"
       - "crates/curve-utils/**"
       - "Cargo.toml"

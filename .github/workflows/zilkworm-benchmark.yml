@@ -172,7 +172,7 @@ on:
         value: ${{ jobs.run-zilkworm.outputs.num_segments }}
 
 env:
-  OPENVM_BRANCH: develop-v2.1.0
+  OPENVM_BRANCH: develop-v2.x.0
   ZILKWORM_REPO: axiom-crypto/zilkworm-stateless
   RISCV_XPACK_VERSION: "15.2.0-1.1"
   S3_FIXTURE_READ_ENABLED: ${{ vars.S3_PUBLIC_DATA_BUCKET != '' }}
