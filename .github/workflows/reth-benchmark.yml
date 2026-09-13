@@ -188,7 +188,7 @@ on:
         value: ${{ jobs.run-reth.outputs.num_segments }}
 
 env:
-  OPENVM_REV: 594b044e705891bcc2abd01578410da7dfcd1efe
+  OPENVM_BRANCH: develop-v2.x.0
   S3_FIXTURE_READ_ENABLED: ${{ vars.S3_PUBLIC_DATA_BUCKET != '' }}
   S3_PUBLIC_UPLOAD_ENABLED: ${{ vars.S3_PUBLIC_DATA_BUCKET != '' && vars.S3_REGION != '' }}
   S3_WORKFLOW_UPLOAD_ENABLED: ${{ vars.S3_WORKFLOW_DATA_BUCKET != '' }}
@@ -285,7 +285,7 @@ jobs:
       - name: Checkout openvm (for scripts)
         run: |
           git clone --filter=blob:none --no-checkout https://github.com/openvm-org/openvm.git
-          git -C openvm fetch --depth=1 origin "$OPENVM_REV"
+          git -C openvm fetch --depth=1 origin "$OPENVM_BRANCH"
           git -C openvm checkout --detach FETCH_HEAD
       - name: Build openvm-prof
         working-directory: openvm
