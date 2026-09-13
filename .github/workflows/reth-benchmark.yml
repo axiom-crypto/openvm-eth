@@ -283,10 +283,7 @@ jobs:
           ssh-keyscan github.com >> ~/.ssh/known_hosts
 
       - name: Checkout openvm (for scripts)
-        run: |
-          git clone --filter=blob:none --no-checkout https://github.com/openvm-org/openvm.git
-          git -C openvm fetch --depth=1 origin "$OPENVM_BRANCH"
-          git -C openvm checkout --detach FETCH_HEAD
+        run: git clone --depth=1 --branch="$OPENVM_BRANCH" https://github.com/openvm-org/openvm.git
       - name: Build openvm-prof
         working-directory: openvm
         run: |
