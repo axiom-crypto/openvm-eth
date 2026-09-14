@@ -220,6 +220,9 @@ jobs:
         with:
           cache-on-failure: true
 
+      - name: Install certified verifier toolchain
+        run: bash ci/setup_lean.sh
+
       - name: Add workflow inputs to summary
         run: |
           echo "" >> $GITHUB_STEP_SUMMARY
@@ -330,7 +333,7 @@ jobs:
       - name: Set build args
         id: set-build-args
         run: |
-          FEATURES="parallel,metrics,unprotected"
+          FEATURES="parallel,metrics,unprotected,certified-verifier"
           FEATURES="${FEATURES},${{ inputs.memory_allocator || github.event.inputs.memory_allocator || 'jemalloc' }}"
           if [[ "${{ inputs.instance_family || github.event.inputs.instance_family }}" =~ ^g ]]; then
             FEATURES="${FEATURES},cuda,halo2-gpu"
