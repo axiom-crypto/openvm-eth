@@ -42,6 +42,8 @@ jobs:
         uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
           cache: false
+      - name: Install certified verifier toolchain
+        run: bash ci/setup_lean.sh
       - name: Prepare input data
         run: |
           block_number="${{ inputs.block_number }}"
@@ -78,7 +80,7 @@ jobs:
 
             # Build the benchmark binary
             export JEMALLOC_SYS_WITH_MALLOC_CONF="retain:true,background_thread:true,metadata_thp:always,thp:always,dirty_decay_ms:10000,muzzy_decay_ms:10000,abort_conf:true"
-            cargo build --bin openvm-reth-benchmark --profile=release --no-default-features --features="bench-metrics,jemalloc,evm-verify"
+            cargo build --bin openvm-reth-benchmark --profile=release --no-default-features --features="bench-metrics,jemalloc,evm-verify,certified-verifier"
 
             # Generate input data
             echo "Generating input for block $block_number..."

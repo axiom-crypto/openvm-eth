@@ -48,6 +48,16 @@ The main CLI tool for single machine bare metal benchmarks. Supports multiple be
 
 Handles RPC interaction, witness caching, guest program loading, and metrics collection. Supports Nvidia GPU acceleration.
 
+The opt-in `certified-verifier` feature adds SDK certified verification to `ProveStark`,
+requiring the standard VM configuration and default app/aggregation parameters. It is
+enabled by default in benchmark CI and `run.sh`. To set it up locally:
+
+```bash
+bash ci/setup_lean.sh
+export PATH="${ELAN_HOME:-$HOME/.elan}/bin:$PATH"
+cargo build -p openvm-reth-benchmark --features certified-verifier
+```
+
 ### `bin/reth-verify`
 
 Standalone host-side verifier for stark proofs using only:

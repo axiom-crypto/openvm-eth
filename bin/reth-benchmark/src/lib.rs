@@ -551,6 +551,8 @@ pub async fn run_reth_benchmark(args: HostArgs, openvm_client_eth_elf: &[u8]) ->
                         compressed.len()
                     );
                     verify_vm_stark_proof_decoded(&vk, &proof)?;
+                    #[cfg(feature = "certified-verifier")]
+                    Sdk::verify_proof_with_certified_verifier(&vk.baseline, &proof)?;
                 }
                 #[cfg(feature = "evm-verify")]
                 BenchMode::ProveRoot => {

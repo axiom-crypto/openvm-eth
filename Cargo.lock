@@ -6928,6 +6928,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "openvm-certified-verifier"
+version = "2.1.0"
+source = "git+https://github.com/openvm-org/openvm.git?branch=main#46df938dfd52e88e3ca8eeada6f8a2cecd761cac"
+dependencies = [
+ "openvm-circuit",
+ "openvm-stark-backend",
+ "openvm-stark-sdk",
+ "openvm-verify-stark-host",
+ "thiserror 1.0.69",
+]
+
+[[package]]
 name = "openvm-chainspec"
 version = "0.4.0"
 dependencies = [
@@ -7831,6 +7843,7 @@ dependencies = [
  "metrics 0.23.1",
  "openvm",
  "openvm-build",
+ "openvm-certified-verifier",
  "openvm-circuit",
  "openvm-continuations",
  "openvm-cuda-backend",

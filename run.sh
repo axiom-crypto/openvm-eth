@@ -251,7 +251,7 @@ case "${PROFILE_OVERRIDE:-release}" in
         TARGET_DIR="$PROFILE"
         ;;
 esac
-FEATURES="parallel,metrics,jemalloc,unprotected"
+FEATURES="parallel,metrics,jemalloc,unprotected,certified-verifier"
 BLOCK_NUMBER="${BLOCK_NUMBER_OVERRIDE:-24001988}"
 TOOLCHAIN="+$RUST_TOOLCHAIN"
 BIN_NAME="openvm-reth-benchmark"

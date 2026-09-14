@@ -63,6 +63,7 @@ ignored = ["halo2-axiom"]
 
 [features]
 default = ["parallel", "jemalloc", "metrics"]
+certified-verifier = ["openvm-sdk/certified-verifier"]
 parallel = ["openvm-sdk/parallel"]
 metrics = ["openvm-sdk/metrics"]
 tco = ["openvm-sdk/tco"]
