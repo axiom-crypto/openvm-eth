@@ -1,0 +1,871 @@
+name: "Zilkworm Benchmark"
+run-name: "Zilkworm Benchmark (${{ inputs.mode || github.event.inputs.mode }}, ${{ inputs.input_source || github.event.inputs.input_source }})"
+
+on:
+  workflow_dispatch:
+    inputs:
+      instance_family:
+        type: string
+        required: false
+        description: The family of the instance, can be multiple ones concat with "+" e.g. g6+g5
+        default: g7e.2xlarge
+      memory_allocator:
+        type: choice
+        required: false
+        description: Memory allocator to use
+        options:
+          - jemalloc
+          - mimalloc
+        default: jemalloc
+      zilkworm_ref:
+        type: string
+        required: false
+        description: Git ref of axiom-crypto/zilkworm-stateless to build the guest from
+        default: feat/openvm-rv64
+      input_source:
+        type: string
+        required: false
+        description: Guest input; "mock", "block:<number>" (mainnet block via RPC witness pipeline), or an s3:// / https:// URL to an eth-act SSZ StatelessInput .bin
+        default: mock
+      mode:
+        type: choice
+        required: false
+        description: Running mode
+        options:
+          - execute
+          - execute-metered
+          - prove-app
+          - prove-stark
+        default: prove-stark
+      profiling:
+        type: choice
+        required: false
+        description: Profiling mode
+        options:
+          - none
+          - host # host profiling (samply, flamegraphs, etc)
+          - guest # guest profiling (circuit flamegraphs)
+          - nsys # nsys profiling (cuda)
+        default: none
+      app_log_blowup:
+        type: number
+        required: false
+        description: Application level log blowup
+      leaf_log_blowup:
+        type: number
+        required: false
+        description: Aggregation (leaf) level log blowup
+      internal_log_blowup:
+        type: number
+        required: false
+        description: Internal level log blowup
+      segment_max_memory:
+        type: string
+        required: false
+        description: GPU memory soft limit override for segmentation
+      app_l_skip:
+        type: number
+        required: false
+        description: Log of univariate skip domain size override
+      exec_mode:
+        type: choice
+        required: false
+        description: OpenVM execution backend
+        options:
+          - interpreter
+          - rvr
+          - tco
+        default: rvr
+      num_children_leaf:
+        type: number
+        required: false
+        description: Number of app proofs that leaf verifier aggregates
+      num_children_internal:
+        type: number
+        required: false
+        description: Number of proofs that internal verifier aggregates
+  workflow_call:
+    inputs:
+      ref:
+        type: string
+        required: false
+        description: Git ref to checkout
+      instance_family:
+        type: string
+        required: false
+        description: The family of the instance, can be multiple ones concat with "+" e.g. g6+g5
+        default: g7e.2xlarge
+      memory_allocator:
+        type: string
+        required: false
+        description: Memory allocator to use (mimalloc or jemalloc)
+        default: jemalloc
+      zilkworm_ref:
+        type: string
+        required: false
+        description: Git ref of axiom-crypto/zilkworm-stateless to build the guest from
+        default: feat/openvm-rv64
+      input_source:
+        type: string
+        required: false
+        description: Guest input; "mock", "block:<number>", or an s3:// / https:// URL to an eth-act SSZ StatelessInput .bin
+        default: mock
+      mode:
+        type: string
+        required: false
+        description: Running mode, one of {execute, execute-metered, prove-app, prove-stark}
+        default: prove-stark
+      profiling:
+        type: string
+        required: false
+        description: Profiling mode (none, host, guest, nsys)
+        default: none
+      app_log_blowup:
+        type: number
+        required: false
+        description: Application level log blowup
+      leaf_log_blowup:
+        type: number
+        required: false
+        description: Aggregation (leaf) level log blowup
+      internal_log_blowup:
+        type: number
+        required: false
+        description: Internal level log blowup
+      segment_max_memory:
+        type: string
+        required: false
+        description: GPU memory soft limit override for segmentation
+      app_l_skip:
+        type: number
+        required: false
+        description: Log of univariate skip domain size override
+      exec_mode:
+        type: string
+        required: false
+        description: OpenVM execution backend (interpreter, rvr, tco)
+        default: rvr
+      num_children_leaf:
+        type: number
+        required: false
+        description: Number of app proofs that leaf verifier aggregates
+      num_children_internal:
+        type: number
+        required: false
+        description: Number of proofs that internal verifier aggregates
+      tag:
+        type: string
+        required: false
+        description: Tag for cache keys (default is commit hash)
+    secrets:
+      GH_ACTIONS_DEPLOY_PRIVATE_KEY:
+        required: true
+      RPC_URL_1:
+        required: false
+    outputs:
+      metric_name:
+        description: "Name of the metric"
+        value: ${{ jobs.run-zilkworm.outputs.metric_name }}
+      gpu_peak_memory_mib:
+        description: "Peak GPU memory usage in MiB"
+        value: ${{ jobs.run-zilkworm.outputs.gpu_peak_memory_mib }}
+      num_segments:
+        description: "Number of segments"
+        value: ${{ jobs.run-zilkworm.outputs.num_segments }}
+
+env:
+  OPENVM_BRANCH: develop-v2.1.0
+  ZILKWORM_REPO: axiom-crypto/zilkworm-stateless
+  RISCV_XPACK_VERSION: "15.2.0-1.1"
+  S3_FIXTURE_READ_ENABLED: ${{ vars.S3_PUBLIC_DATA_BUCKET != '' }}
+  S3_PUBLIC_UPLOAD_ENABLED: ${{ vars.S3_PUBLIC_DATA_BUCKET != '' && vars.S3_REGION != '' }}
+  S3_WORKFLOW_UPLOAD_ENABLED: ${{ vars.S3_WORKFLOW_DATA_BUCKET != '' }}
+  S3_MD_PATH: s3://${{ vars.S3_WORKFLOW_DATA_BUCKET }}/benchmark/github/results
+  S3_FIXTURE_PATH: s3://${{ vars.S3_PUBLIC_DATA_BUCKET }}/benchmark/github/fixtures
+  S3_METRICS_PATH: s3://${{ vars.S3_WORKFLOW_DATA_BUCKET }}/benchmark/github/metrics
+  S3_PUBLIC_PATH_BASE: s3://${{ vars.S3_PUBLIC_DATA_BUCKET }}/benchmark/github
+  S3_PUBLIC_URL_BASE: https://${{ vars.S3_PUBLIC_DATA_BUCKET }}.s3.${{ vars.S3_REGION }}.amazonaws.com/benchmark/github
+  S3_SAMPLY_PROFILE_PATH: s3://${{ vars.S3_PUBLIC_DATA_BUCKET }}/benchmark/github/samply
+  CARGO_NET_GIT_FETCH_WITH_CLI: "true"
+  BIN_NAME: openvm-zilkworm-benchmark
+
+jobs:
+  run-zilkworm:
+    name: Run Zilkworm benchmark
+    permissions:
+      contents: write
+    runs-on:
+      - runs-on=${{ github.run_id }}/family=${{ inputs.instance_family || github.event.inputs.instance_family }}/volume=80gb/tag=bench-zilkworm-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}/extras=s3-cache/spot=false/image=${{ startsWith(github.event.inputs.instance_family || inputs.instance_family, 'g') && 'ubuntu24-gpu-x64' || contains(github.event.inputs.instance_family || inputs.instance_family, 'g.') && 'ubuntu24-full-arm64' || 'ubuntu24-full-x64' }}
+    outputs:
+      metric_name: ${{ steps.set-metric-name.outputs.name }}
+      gpu_peak_memory_mib: ${{ steps.report-gpu-memory.outputs.peak_memory_mib }}
+      num_segments: ${{ steps.report-segments.outputs.num_segments }}
+    steps:
+      - uses: runs-on/action@v2
+        with:
+          sccache: s3
+      - uses: mozilla-actions/sccache-action@v0.0.9
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.ref || github.head_ref || github.ref }}
+      - uses: dtolnay/rust-toolchain@nightly
+        env:
+          RUSTUP_PERMIT_COPY_RENAME: "1"
+      - uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
+
+      - name: Add workflow inputs to summary
+        run: |
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Workflow Inputs" >> $GITHUB_STEP_SUMMARY
+          echo '```json' >> $GITHUB_STEP_SUMMARY
+          echo '${{ toJSON(inputs || github.event.inputs) }}' >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+      - name: Report S3-disabled mode
+        if: ${{ env.S3_PUBLIC_UPLOAD_ENABLED != 'true' && env.S3_WORKFLOW_UPLOAD_ENABLED != 'true' }}
+        run: |
+          echo "S3 uploads disabled; using GitHub artifacts and gh-pages."
+          echo "S3 uploads disabled; using GitHub artifacts and gh-pages." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Get current commit hash
+        run: |
+          echo "current_sha=$(git rev-parse HEAD)" >> $GITHUB_ENV
+          # for add_metadata function
+          echo "CURRENT_SHA=$(git rev-parse HEAD)" >> $GITHUB_ENV
+
+      - name: Set metric name
+        id: set-metric-name
+        run: |
+          input_json_str="${{ toJSON(inputs || github.event.inputs) }}"
+          input_hash=$(echo $input_json_str | sha256sum | cut -d' ' -f1)
+          METRIC_NAME=zilkworm-$current_sha-${input_hash}-${{ github.run_id }}
+          echo "METRIC_NAME=${METRIC_NAME}" >> $GITHUB_ENV
+          METRIC_PATH=".bench_metrics/${METRIC_NAME}.json"
+          echo "METRIC_PATH=${METRIC_PATH}" >> $GITHUB_ENV
+          echo "name=${METRIC_NAME}" >> $GITHUB_OUTPUT
+
+      - name: Load SSH key
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: |
+            ${{ secrets.GH_ACTIONS_DEPLOY_PRIVATE_KEY }}
+      - name: Ensure GitHub.com is a known host
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan github.com >> ~/.ssh/known_hosts
+
+      - name: Checkout zilkworm-stateless
+        run: |
+          ZILKWORM_REF="${{ inputs.zilkworm_ref || github.event.inputs.zilkworm_ref || 'feat/openvm-rv64' }}"
+          # Clone OUTSIDE the workspace so its cargo crates are not adopted
+          # by the openvm-eth workspace manifest.
+          ZILKWORM_DIR="${RUNNER_TEMP}/zilkworm-stateless"
+          git clone --branch "$ZILKWORM_REF" "https://github.com/${ZILKWORM_REPO}.git" "$ZILKWORM_DIR"
+          ZILKWORM_SHA=$(git -C "$ZILKWORM_DIR" rev-parse HEAD)
+          echo "ZILKWORM_DIR=${ZILKWORM_DIR}" >> $GITHUB_ENV
+          echo "ZILKWORM_SHA=${ZILKWORM_SHA}" >> $GITHUB_ENV
+          echo "Zilkworm commit: ${ZILKWORM_SHA}"
+
+      - name: Checkout openvm (for scripts)
+        run: git clone --depth=1 --branch="$OPENVM_BRANCH" https://github.com/openvm-org/openvm.git
+      - name: Build openvm-prof
+        working-directory: openvm
+        run: |
+          cargo build -p openvm-prof
+          echo "${{ github.workspace }}/openvm/target/debug" >> $GITHUB_PATH
+      - name: Install architecture specific tools
+        run: |
+          source openvm/ci/scripts/utils.sh
+          if [[ "${S3_FIXTURE_READ_ENABLED}" == "true" || "${S3_PUBLIC_UPLOAD_ENABLED}" == "true" || "${S3_WORKFLOW_UPLOAD_ENABLED}" == "true" ]]; then
+            install_s5cmd
+          fi
+          sudo apt update && sudo apt install -y gnuplot cmake
+          sudo apt install -y linux-tools-common linux-tools-generic linux-tools-$(uname -r) || \
+            sudo apt install -y linux-tools-aws linux-cloud-tools-aws || true
+
+          # Workaround for https://bugs.launchpad.net/ubuntu/+source/linux-hwe-6.14/+bug/2117159
+          if ! command -v perf &> /dev/null || ! perf --version &> /dev/null; then
+            echo "Applying workaround for missing perf in HWE 6.14 packages..."
+            PERF_PATH=$(find /usr/lib/linux-tools* -name perf -executable 2>/dev/null | head -n1)
+            if [ -n "$PERF_PATH" ]; then
+              KERNEL_VERSION=$(uname -r)
+              TARGET_DIR="/usr/lib/linux-tools/${KERNEL_VERSION}"
+              sudo mkdir -p "$TARGET_DIR"
+              sudo ln -sf "$PERF_PATH" "$TARGET_DIR/perf"
+              echo "Symlinked $PERF_PATH to $TARGET_DIR/perf"
+            else
+              echo "Warning: Could not find any perf binary to symlink"
+            fi
+          fi
+
+      # TODO: remove once https://github.com/runs-on/runner-images-for-aws/issues/55 is fixed
+      - name: Setup GPU driver
+        if: ${{ startsWith(inputs.instance_family || github.event.inputs.instance_family, 'g') }}
+        run: bash ./scripts/gpu_driver_setup.sh
+
+      - name: Install clang-22 and lld
+        if: ${{ (inputs.exec_mode || github.event.inputs.exec_mode || 'rvr') == 'rvr' }}
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y lsb-release wget software-properties-common gnupg
+          wget https://apt.llvm.org/llvm.sh
+          chmod +x llvm.sh
+          sudo ./llvm.sh 22
+          sudo apt-get install -y lld
+
+      - name: Read Rust toolchain channel
+        run: |
+          RUST_TOOLCHAIN=$(sed -n 's/^channel = "\(.*\)"/\1/p' rust-toolchain.toml)
+          [[ -n "$RUST_TOOLCHAIN" ]] || { echo "No channel in rust-toolchain.toml" >&2; exit 1; }
+          echo "RUST_TOOLCHAIN=${RUST_TOOLCHAIN}" >> $GITHUB_ENV
+
+      - name: Set build profiles
+        id: set-build-profiles
+        run: |
+          HOST_PROFILE="maxperf"
+          if [[ "${{ inputs.profiling || github.event.inputs.profiling }}" == "host" || "${{ inputs.profiling || github.event.inputs.profiling }}" == "nsys" ]]; then
+            HOST_PROFILE="profiling"
+          fi
+          echo "host_profile=${HOST_PROFILE}" >> $GITHUB_OUTPUT
+
+      - name: Set build args
+        id: set-build-args
+        run: |
+          FEATURES="parallel,metrics,unprotected"
+          FEATURES="${FEATURES},${{ inputs.memory_allocator || github.event.inputs.memory_allocator || 'jemalloc' }}"
+          if [[ "${{ inputs.instance_family || github.event.inputs.instance_family }}" =~ ^g ]]; then
+            FEATURES="${FEATURES},cuda"
+          fi
+          if [[ "${{ inputs.profiling || github.event.inputs.profiling }}" == "nsys" ]]; then
+            FEATURES="${FEATURES},nvtx"
+          fi
+          if [[ "${{ inputs.profiling || github.event.inputs.profiling }}" == "guest" ]]; then
+            # Emits per-opcode metrics labeled with the guest function stack during preflight
+            # execution; openvm's flamegraph.py renders them as circuit flamegraphs. Requires a
+            # prove mode (preflight only runs during trace generation).
+            FEATURES="${FEATURES},perf-metrics"
+          fi
+
+          EXEC_MODE="${{ inputs.exec_mode || github.event.inputs.exec_mode || 'rvr' }}"
+
+          # Resolve "native" to the host CPU name (e.g. znver3) so sccache keys and
+          # cargo fingerprints differ across instance families (else SIGILL from reuse)
+          TARGET_CPU=$(rustc "+${RUST_TOOLCHAIN}" --print target-cpus | sed -n 's/^ *native.*(currently \([^)]*\)).*/\1/p')
+          TARGET_CPU="${TARGET_CPU:-native}"
+          echo "Resolved target CPU: ${TARGET_CPU}"
+          RUSTFLAGS="-Ctarget-cpu=${TARGET_CPU}"
+
+          case "$EXEC_MODE" in
+            interpreter) ;; # default interpreted execution; no extra backend feature
+            tco) FEATURES="${FEATURES},tco" ;;
+            rvr) FEATURES="${FEATURES},rvr" ;;
+            *) echo "Unsupported exec_mode: $EXEC_MODE"; exit 1 ;;
+          esac
+
+          if [[ "${{ inputs.profiling || github.event.inputs.profiling }}" == "host" || "${{ inputs.profiling || github.event.inputs.profiling }}" == "nsys" ]]; then
+            RUSTFLAGS="${RUSTFLAGS} -C force-frame-pointers=yes"
+          fi
+
+          if [[ "${{ inputs.profiling || github.event.inputs.profiling }}" != "nsys" ]]; then
+            # Jemalloc sometimes causes nsys to hang forever (unknown reason)
+            JEMALLOC_SYS_WITH_MALLOC_CONF="retain:true,background_thread:true,metadata_thp:always,thp:always,dirty_decay_ms:10000,muzzy_decay_ms:10000,abort_conf:true"
+            echo "JEMALLOC_SYS_WITH_MALLOC_CONF=${JEMALLOC_SYS_WITH_MALLOC_CONF}" >> $GITHUB_ENV
+          fi
+          echo "RUSTFLAGS=${RUSTFLAGS}" >> $GITHUB_ENV
+          echo "FEATURES=${FEATURES}" >> $GITHUB_ENV
+
+      - name: Set cache keys
+        id: set-cache-keys
+        run: |
+          arch=$(uname -m)
+          # Use inputs.tag if defined, otherwise use current commit SHA
+          TAG="${{ inputs.tag || env.current_sha }}"
+          echo "elf_cache_key=zilkworm-elf-${ZILKWORM_SHA}-xpack${RISCV_XPACK_VERSION}" >> $GITHUB_OUTPUT
+          RUSTFLAGS_HASH=$(echo "${RUSTFLAGS}" | sha256sum | cut -d' ' -f1 | head -c8)
+          JEMALLOC_CONF_HASH=$(echo "${JEMALLOC_SYS_WITH_MALLOC_CONF}" | sha256sum | cut -d' ' -f1 | head -c8)
+          FEATURES_HASH=$(echo "${FEATURES}" | sha256sum | cut -d' ' -f1 | head -c8)
+          HOST_PROFILE=${{ steps.set-build-profiles.outputs.host_profile }}
+          echo "host_cache_key=zilkworm-host-${TAG}-${arch}-${HOST_PROFILE}-${RUSTFLAGS_HASH}-${JEMALLOC_CONF_HASH}-${FEATURES_HASH}" >> $GITHUB_OUTPUT
+
+      - name: Restore Guest ELF from cache
+        id: cache-guest-elf-restore
+        uses: runs-on/cache/restore@v4
+        with:
+          path: guest-elf/z6m_guest.elf
+          key: ${{ steps.set-cache-keys.outputs.elf_cache_key }}
+
+      - name: Install xPack riscv-none-elf-gcc (pinned)
+        if: steps.cache-guest-elf-restore.outputs.cache-hit != 'true'
+        run: |
+          if ! command -v npm &> /dev/null; then
+            sudo apt-get update && sudo apt-get install -y npm
+          fi
+          sudo npm install --location=global xpm@latest
+          xpm install "@xpack-dev-tools/riscv-none-elf-gcc@${RISCV_XPACK_VERSION}" --global
+          "$HOME/.local/xPacks/@xpack-dev-tools/riscv-none-elf-gcc/${RISCV_XPACK_VERSION}/.content/bin/riscv-none-elf-gcc" --version
+
+      - name: Build Guest ELF
+        if: steps.cache-guest-elf-restore.outputs.cache-hit != 'true'
+        run: |
+          make -C "$ZILKWORM_DIR" guest_openvm
+          mkdir -p guest-elf
+          cp "$ZILKWORM_DIR/build/openvm/z6m_guest.elf" guest-elf/
+
+      - name: Save Guest ELF to cache
+        if: steps.cache-guest-elf-restore.outputs.cache-hit != 'true'
+        uses: runs-on/cache/save@v4
+        with:
+          path: guest-elf/z6m_guest.elf
+          key: ${{ steps.cache-guest-elf-restore.outputs.cache-primary-key }}
+
+      - name: Prepare guest input
+        id: prepare-input
+        run: |
+          INPUT_SOURCE="${{ inputs.input_source || github.event.inputs.input_source || 'mock' }}"
+          EXPECTED_ARGS=""
+          mkdir -p guest-input
+          if [[ "$INPUT_SOURCE" == "mock" ]]; then
+            (cd "$ZILKWORM_DIR/conformance" && cargo run --release -- mock --out-dir "$GITHUB_WORKSPACE/guest-input" --name mock)
+            INPUT_PATH="guest-input/mock_input.bin"
+            # The synthetic mock block cannot pass stateless validation (empty
+            # witness), so conformance harnesses assert the failure result.
+            EXPECTED_ARGS="--expected-output guest-input/mock_expected_failure.bin"
+          elif [[ "$INPUT_SOURCE" == block:* ]]; then
+            BLOCK_NUMBER="${INPUT_SOURCE#block:}"
+            NAME="block${BLOCK_NUMBER}"
+            S3_INPUT_BASE="${S3_FIXTURE_PATH}/zilkworm-input/v1/mainnet/${BLOCK_NUMBER}"
+            RESTORED=false
+            if [[ "${S3_FIXTURE_READ_ENABLED}" == "true" ]]; then
+              if s5cmd cp "${S3_INPUT_BASE}.input.bin" "guest-input/${NAME}_input.bin" &&                  s5cmd cp "${S3_INPUT_BASE}.expected_success.bin" "guest-input/${NAME}_expected_success.bin"; then
+                echo "Restored zilkworm input for block ${BLOCK_NUMBER} from S3"
+                RESTORED=true
+              else
+                rm -f "guest-input/${NAME}_input.bin" "guest-input/${NAME}_expected_success.bin"
+              fi
+            fi
+            if [[ "$RESTORED" != "true" ]]; then
+              # Generate: Reth witness pipeline -> payload/witness JSONs ->
+              # eth-act SSZ StatelessInput assembly in the zilkworm repo.
+              cargo build -p openvm-rpc-proxy --bin zilkworm-input
+              ./target/debug/zilkworm-input --rpc-url "${{ secrets.RPC_URL_1 }}"                 --block-number "${BLOCK_NUMBER}" --out-dir guest-input
+              (cd "$ZILKWORM_DIR/conformance" && cargo run --release -- reth                 --payload-json "$GITHUB_WORKSPACE/guest-input/payload.json"                 --witness-json "$GITHUB_WORKSPACE/guest-input/witness.json"                 --out-dir "$GITHUB_WORKSPACE/guest-input" --name "${NAME}")
+              if [[ "${S3_PUBLIC_UPLOAD_ENABLED}" == "true" ]]; then
+                s5cmd cp "guest-input/${NAME}_input.bin" "${S3_INPUT_BASE}.input.bin"
+                s5cmd cp "guest-input/${NAME}_expected_success.bin" "${S3_INPUT_BASE}.expected_success.bin"
+              fi
+            fi
+            INPUT_PATH="guest-input/${NAME}_input.bin"
+            EXPECTED_ARGS="--expected-output guest-input/${NAME}_expected_success.bin"
+          elif [[ "$INPUT_SOURCE" == s3://* ]]; then
+            s5cmd cp "$INPUT_SOURCE" guest-input/input.bin
+            INPUT_PATH="guest-input/input.bin"
+          elif [[ "$INPUT_SOURCE" == http://* || "$INPUT_SOURCE" == https://* ]]; then
+            curl -fL "$INPUT_SOURCE" -o guest-input/input.bin
+            INPUT_PATH="guest-input/input.bin"
+          else
+            echo "Unsupported input_source: $INPUT_SOURCE" >&2
+            exit 1
+          fi
+          MODE="${{ inputs.mode || github.event.inputs.mode }}"
+          if [[ "$MODE" != "execute" && "$MODE" != "execute-metered" ]]; then
+            # Public values are only surfaced by the execute modes.
+            EXPECTED_ARGS=""
+          fi
+          ls -la guest-input/
+          echo "input_path=${INPUT_PATH}" >> "$GITHUB_OUTPUT"
+          echo "expected_args=${EXPECTED_ARGS}" >> "$GITHUB_OUTPUT"
+
+      - name: Restore Host Binary from cache
+        id: cache-host-binary-restore
+        uses: runs-on/cache/restore@v4
+        with:
+          path: target/${{ steps.set-build-profiles.outputs.host_profile }}/${{ env.BIN_NAME }}
+          key: ${{ steps.set-cache-keys.outputs.host_cache_key }}
+
+      - name: Build Host Binary
+        if: steps.cache-host-binary-restore.outputs.cache-hit != 'true'
+        working-directory: bin/zilkworm-benchmark
+        run: |
+          export JEMALLOC_SYS_WITH_MALLOC_CONF=${JEMALLOC_SYS_WITH_MALLOC_CONF}
+          HOST_PROFILE=${{ steps.set-build-profiles.outputs.host_profile }}
+          TOOLCHAIN="+${RUST_TOOLCHAIN}"
+          RUSTFLAGS=$RUSTFLAGS cargo $TOOLCHAIN build --bin ${{ env.BIN_NAME }} --profile=$HOST_PROFILE --no-default-features --features=$FEATURES
+
+      - name: Save Host Binary to cache
+        if: steps.cache-host-binary-restore.outputs.cache-hit != 'true'
+        uses: runs-on/cache/save@v4
+        with:
+          path: target/${{ steps.set-build-profiles.outputs.host_profile }}/${{ env.BIN_NAME }}
+          key: ${{ steps.cache-host-binary-restore.outputs.cache-primary-key }}
+
+      - name: Set up run benchmark script
+        run: |
+          mkdir -p .bench_metrics
+          MODE=${{ inputs.mode || github.event.inputs.mode }}
+          HOST_PROFILE=${{ steps.set-build-profiles.outputs.host_profile }}
+          INPUT_PATH="${{ steps.prepare-input.outputs.input_path }}"
+          EXPECTED_ARGS="${{ steps.prepare-input.outputs.expected_args }}"
+          OPTIONAL_ARGS=""
+          APP_LOG_BLOWUP="${{ inputs.app_log_blowup || github.event.inputs.app_log_blowup }}"
+          LEAF_LOG_BLOWUP="${{ inputs.leaf_log_blowup || github.event.inputs.leaf_log_blowup }}"
+          INTERNAL_LOG_BLOWUP="${{ inputs.internal_log_blowup || github.event.inputs.internal_log_blowup }}"
+          SEGMENT_MAX_MEMORY="${{ inputs.segment_max_memory || github.event.inputs.segment_max_memory }}"
+          APP_L_SKIP="${{ inputs.app_l_skip || github.event.inputs.app_l_skip }}"
+          NUM_CHILDREN_LEAF="${{ inputs.num_children_leaf || github.event.inputs.num_children_leaf }}"
+          NUM_CHILDREN_INTERNAL="${{ inputs.num_children_internal || github.event.inputs.num_children_internal }}"
+          HELP_OUTPUT="$(COLUMNS=240 ./target/$HOST_PROFILE/${{ env.BIN_NAME }} --help)"
+          read_default() {
+            awk -v arg="$1" '$0 ~ arg { in_arg = 1; next } in_arg && /\[default:/ { gsub(/.*\[default: |].*/, ""); print; exit }' <<< "$HELP_OUTPUT"
+          }
+          DEFAULT_SEGMENT_MAX_MEMORY="$(read_default "--segment-max-memory ")"
+          if [[ -z "$DEFAULT_SEGMENT_MAX_MEMORY" ]]; then
+            echo "Failed to read segmentation defaults from ${{ env.BIN_NAME }} --help" >&2
+            exit 1
+          fi
+          RESOLVED_SEGMENT_MAX_MEMORY="${SEGMENT_MAX_MEMORY:-$DEFAULT_SEGMENT_MAX_MEMORY}"
+          echo "RESOLVED_SEGMENT_MAX_MEMORY=$RESOLVED_SEGMENT_MAX_MEMORY" >> "$GITHUB_ENV"
+          if [[ -n $APP_LOG_BLOWUP ]]; then
+            OPTIONAL_ARGS="$OPTIONAL_ARGS --app-log-blowup $APP_LOG_BLOWUP"
+          fi
+          if [[ -n $LEAF_LOG_BLOWUP ]]; then
+            OPTIONAL_ARGS="$OPTIONAL_ARGS --leaf-log-blowup $LEAF_LOG_BLOWUP"
+          fi
+          if [[ -n $INTERNAL_LOG_BLOWUP ]]; then
+            OPTIONAL_ARGS="$OPTIONAL_ARGS --internal-log-blowup $INTERNAL_LOG_BLOWUP"
+          fi
+          if [[ -n $SEGMENT_MAX_MEMORY ]]; then
+            OPTIONAL_ARGS="$OPTIONAL_ARGS --segment-max-memory $SEGMENT_MAX_MEMORY"
+          fi
+          if [[ -n $APP_L_SKIP ]]; then
+            OPTIONAL_ARGS="$OPTIONAL_ARGS --app-l-skip $APP_L_SKIP"
+          fi
+          if [[ -n $NUM_CHILDREN_LEAF ]]; then
+            OPTIONAL_ARGS="$OPTIONAL_ARGS --num-children-leaf $NUM_CHILDREN_LEAF"
+          fi
+          if [[ -n $NUM_CHILDREN_INTERNAL ]]; then
+            OPTIONAL_ARGS="$OPTIONAL_ARGS --num-children-internal $NUM_CHILDREN_INTERNAL"
+          fi
+          cat > run_benchmark.sh <<EOF
+          #!/bin/bash
+          /usr/bin/time -v ./target/$HOST_PROFILE/${{ env.BIN_NAME }} \
+            --mode $MODE --guest-elf guest-elf/z6m_guest.elf --input-path $INPUT_PATH \
+            $EXPECTED_ARGS $OPTIONAL_ARGS
+          EOF
+          chmod +x run_benchmark.sh
+
+      - name: Run benchmark
+        id: run-benchmark
+        run: |
+          export VPMM_PAGE_SIZE=$((4<<20))
+          export VPMM_PAGES=$((RESOLVED_SEGMENT_MAX_MEMORY / VPMM_PAGE_SIZE))
+          export JEMALLOC_SYS_WITH_MALLOC_CONF=${JEMALLOC_SYS_WITH_MALLOC_CONF}
+          export RUST_LOG="info,p3_=warn"
+          export OUTPUT_PATH=${METRIC_PATH}
+          if [[ "${{ inputs.profiling || github.event.inputs.profiling }}" == "guest" ]]; then
+            # The transpiler (with function-span) writes the guest symbol string table here;
+            # flamegraph.py reads it back to resolve the span offsets to function names.
+            export GUEST_SYMBOLS_PATH="${METRIC_PATH%.json}.syms"
+          fi
+
+          # Source GPU monitoring utilities
+          source "$GITHUB_WORKSPACE/scripts/gpu_monitor.sh"
+          GPU_LOG_FILE="gpu_memory_usage.csv"
+
+          if [[ "${{ inputs.profiling || github.event.inputs.profiling }}" == "host" ]]; then
+            echo -1 | sudo tee /proc/sys/kernel/perf_event_paranoid
+            echo 0 | sudo tee /proc/sys/kernel/kptr_restrict
+
+            # Set sampling frequency based on mode
+            MODE="${{ inputs.mode || github.event.inputs.mode }}"
+            if [[ "$MODE" == "execute" || "$MODE" == "execute-metered" ]]; then
+              PERF_FREQ=4000
+            else
+              PERF_FREQ=100
+            fi
+
+            perf --version
+            perf record -F $PERF_FREQ --call-graph=fp -g -o perf.data -- ./run_benchmark.sh
+            # perf doesn't track GPU memory, set peak to 0
+            echo "GPU_PEAK_MEMORY_MIB=0" >> $GITHUB_ENV
+          elif [[ "${{ inputs.profiling || github.event.inputs.profiling }}" == "nsys" ]]; then
+            nsys profile --trace=cuda,osrt,nvtx \
+             --sample=cpu \
+             --cpuctxsw=process-tree \
+             --cuda-memory-usage=true \
+             --force-overwrite=true \
+             -o zilkworm.nsys-rep \
+             ./run_benchmark.sh
+            echo "=== CUDA GPU Kernel Summary ==="
+            nsys stats --report cuda_gpu_kern_sum zilkworm.nsys-rep
+            # nsys has its own memory tracking, set peak to 0
+            echo "GPU_PEAK_MEMORY_MIB=0" >> $GITHUB_ENV
+          else
+            # Start GPU memory monitoring
+            start_gpu_monitor "$GPU_LOG_FILE" 5
+
+            set -o pipefail
+            ./ci/monitor_memory.sh ./run_benchmark.sh 2>&1 | tee benchmark_output.log
+
+            # Finalize GPU monitoring and capture peak
+            finalize_gpu_monitor
+            echo "GPU_PEAK_MEMORY_MIB=${GPU_PEAK_MEMORY}" >> $GITHUB_ENV
+            echo "GPU_LOG_FILE=${GPU_LOG_FILE}" >> $GITHUB_ENV
+
+            echo "MEM_USAGE_PATH=memory_usage.png" >> $GITHUB_ENV
+          fi
+
+      - name: Report GPU peak memory
+        id: report-gpu-memory
+        run: |
+          echo "peak_memory_mib=${GPU_PEAK_MEMORY_MIB}" >> $GITHUB_OUTPUT
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### GPU Memory" >> $GITHUB_STEP_SUMMARY
+          echo "Peak GPU memory usage: **$(awk "BEGIN{printf \"%.2f\",${GPU_PEAK_MEMORY_MIB}/1024}") GB**" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+      - name: Report segments
+        id: report-segments
+        run: |
+          NUM_SEGMENTS=$(jq '[.gauge[] | .labels[] | select(.[0] == "segment") | .[1]] | unique | length' "${METRIC_PATH}" 2>/dev/null || echo "")
+          echo "num_segments=${NUM_SEGMENTS}" >> $GITHUB_OUTPUT
+          if [[ -n "${NUM_SEGMENTS}" && "${NUM_SEGMENTS}" -gt 0 ]]; then
+            echo "### Segments" >> $GITHUB_STEP_SUMMARY
+            echo "Number of segments: **${NUM_SEGMENTS}**" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: Upload memory usage graph
+        if: ${{ (inputs.profiling || github.event.inputs.profiling) == 'none' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.set-metric-name.outputs.name }}-memory-usage
+          path: |
+            ${{ env.MEM_USAGE_PATH }}
+            ${{ env.GPU_LOG_FILE }}
+          retention-days: 1
+
+      - name: Upload nsys report
+        if: ${{ (inputs.profiling || github.event.inputs.profiling) == 'nsys' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.set-metric-name.outputs.name }}-nsys-report
+          path: ./zilkworm.nsys-rep
+          retention-days: 1
+
+      - name: Upload Benchmark Metrics
+        if: ${{ env.S3_WORKFLOW_UPLOAD_ENABLED == 'true' }}
+        run: s5cmd cp ${METRIC_PATH} ${{ env.S3_METRICS_PATH }}/${METRIC_NAME}.json
+
+      - name: Generate markdown
+        run: |
+          openvm-prof --json-paths $METRIC_PATH --num-devices 16 --proofs-per-device 1
+          MD_PATH=${METRIC_PATH%.json}.md
+          DETAILED_MD_PATH=${MD_PATH%.md}.detailed.md
+          GPU_MEMORY_SVG_PATH=${MD_PATH%.md}.memory.svg
+          echo "MD_PATH=${MD_PATH}" >> $GITHUB_ENV
+          echo "DETAILED_MD_PATH=${DETAILED_MD_PATH}" >> $GITHUB_ENV
+          echo "GPU_MEMORY_SVG_PATH=${GPU_MEMORY_SVG_PATH}" >> $GITHUB_ENV
+
+      - name: Add benchmark metadata to markdown
+        run: |
+          COMMIT_URL=https://github.com/${{ github.repository }}/commit/${current_sha}
+          BENCHMARK_WORKFLOW_URL=https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+          source openvm/ci/scripts/utils.sh
+
+          if [[ "${S3_PUBLIC_UPLOAD_ENABLED}" == "true" ]]; then
+            add_metadata $MD_PATH \
+              ${{ inputs.instance_family || github.event.inputs.instance_family }} \
+              ${{ inputs.memory_allocator || github.event.inputs.memory_allocator || 'jemalloc' }} \
+              $COMMIT_URL \
+              $BENCHMARK_WORKFLOW_URL
+          else
+            {
+              echo ""
+              echo "Commit: ${COMMIT_URL}"
+              echo ""
+              echo "Zilkworm commit: https://github.com/${ZILKWORM_REPO}/commit/${ZILKWORM_SHA}"
+              echo ""
+              echo "Instance Type: ${{ inputs.instance_family || github.event.inputs.instance_family }}"
+              echo ""
+              echo "Memory Allocator: ${{ inputs.memory_allocator || github.event.inputs.memory_allocator || 'jemalloc' }}"
+              echo ""
+              echo "[Benchmark Workflow](${BENCHMARK_WORKFLOW_URL})"
+            } >> "$MD_PATH"
+          fi
+
+          # Add GPU peak memory to the markdown if available
+          if [[ -n "${GPU_PEAK_MEMORY_MIB}" && "${GPU_PEAK_MEMORY_MIB}" != "0" ]]; then
+            echo "" >> $MD_PATH
+            echo "**Peak GPU Memory (nvidia-smi):** $(awk "BEGIN{printf \"%.2f\",${GPU_PEAK_MEMORY_MIB}/1024}") GB" >> $MD_PATH
+          fi
+
+      - name: Generate circuit flamegraphs
+        if: ${{ (inputs.profiling || github.event.inputs.profiling) == 'guest' }}
+        run: |
+          cargo install inferno
+          GUEST_SYMBOLS_PATH="${METRIC_PATH%.json}.syms"
+          if [[ -f $GUEST_SYMBOLS_PATH ]]; then
+            python3 openvm/ci/scripts/metric_unify/flamegraph.py $METRIC_PATH --guest-symbols $GUEST_SYMBOLS_PATH
+          else
+            python3 openvm/ci/scripts/metric_unify/flamegraph.py $METRIC_PATH
+          fi
+
+      - name: Upload circuit flamegraphs
+        if: ${{ (inputs.profiling || github.event.inputs.profiling) == 'guest' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.set-metric-name.outputs.name }}-circuit-flamegraphs
+          path: .bench_metrics/flamegraphs/*.svg
+          retention-days: 3
+
+      - name: Generate samply profile artifacts
+        if: ${{ inputs.profiling == 'host' || github.event.inputs.profiling == 'host' }}
+        run: |
+          cargo install --git https://github.com/mstange/samply.git samply --force
+
+          mkdir -p samply_profile
+          SAMPLY_PROFILE_PATH=samply_profile
+
+          samply import perf.data --presymbolicate --save-only --output $SAMPLY_PROFILE_PATH/profile.json.gz
+          echo "Saved profile: $SAMPLY_PROFILE_PATH/profile.json.gz"
+          echo "SAMPLY_PROFILE_PATH=${SAMPLY_PROFILE_PATH}" >> $GITHUB_ENV
+
+      - name: Publish samply profile
+        if: ${{ (inputs.profiling == 'host' || github.event.inputs.profiling == 'host') && env.S3_PUBLIC_UPLOAD_ENABLED == 'true' }}
+        run: |
+          s5cmd cp $SAMPLY_PROFILE_PATH/profile.json.gz ${{ env.S3_SAMPLY_PROFILE_PATH }}/${METRIC_NAME}/profile.json.gz
+
+          FIREFOX_PROFILER_URL=$(python3 "$GITHUB_WORKSPACE/scripts/upload_firefox_profile.py" "$SAMPLY_PROFILE_PATH/profile.json.gz") || true
+
+          if [ -n "$FIREFOX_PROFILER_URL" ]; then
+            echo "Firefox Profiler URL: $FIREFOX_PROFILER_URL"
+            echo "FIREFOX_PROFILER_URL=$FIREFOX_PROFILER_URL" >> $GITHUB_ENV
+            echo "" >> $MD_PATH
+            echo "**[Firefox Profiler]($FIREFOX_PROFILER_URL)**" >> $MD_PATH
+          else
+            echo "Warning: failed to upload profile to Firefox Profiler"
+          fi
+
+      - name: Upload samply profile artifacts
+        if: ${{ inputs.profiling == 'host' || github.event.inputs.profiling == 'host' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.set-metric-name.outputs.name }}-samply-profile
+          path: ${{ env.SAMPLY_PROFILE_PATH }}
+          retention-days: 1
+
+      - name: Upload markdown
+        if: ${{ env.S3_WORKFLOW_UPLOAD_ENABLED == 'true' }}
+        run: |
+          S3_MD_PATH="${{ env.S3_MD_PATH }}/${METRIC_NAME}.md"
+          s5cmd cp $MD_PATH $S3_MD_PATH
+
+          s5cmd cp $DETAILED_MD_PATH "${{ env.S3_MD_PATH }}/${METRIC_NAME}.detailed.md"
+
+          echo "S3_MD_PATH=${S3_MD_PATH}" >> $GITHUB_ENV
+
+      - name: Upload metric artifacts
+        id: upload-metric-artifact
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.set-metric-name.outputs.name }}
+          path: |
+            ${{ env.METRIC_PATH }}
+            ${{ env.MD_PATH }}
+            ${{ env.DETAILED_MD_PATH }}
+            ${{ env.GPU_MEMORY_SVG_PATH }}
+          if-no-files-found: warn
+          retention-days: 1
+
+      - name: sccache stats
+        if: always()
+        run: sccache --show-stats || true
+
+      ### Update gh-pages
+      - name: Check for gh-pages branch
+        id: check-gh-pages
+        run: |
+          if git ls-remote --exit-code --heads origin gh-pages > /dev/null; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "ref=gh-pages" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            echo "ref=${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Checkout gh-pages
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.check-gh-pages.outputs.ref }}
+          path: gh-pages
+
+      - name: Initialize gh-pages branch
+        if: ${{ steps.check-gh-pages.outputs.exists != 'true' }}
+        working-directory: gh-pages
+        run: |
+          git checkout --orphan gh-pages
+          git rm -rf .
+
+      - name: Set up git
+        working-directory: gh-pages
+        run: |
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git config user.name "github-actions[bot]"
+
+      - name: Commit to gh-pages branch
+        id: publish-gh-pages
+        continue-on-error: true
+        working-directory: gh-pages
+        env:
+          REF_NAME: ${{ github.head_ref || github.ref }}
+        run: |
+          GH_PAGES_PATH="benchmarks-dispatch/${REF_NAME}"
+          echo "GH_PAGES_PATH=${GH_PAGES_PATH}" >> $GITHUB_ENV
+          mkdir -p ${GH_PAGES_PATH}
+          cp "$GITHUB_WORKSPACE/$MD_PATH" "${GH_PAGES_PATH}/${METRIC_NAME}.md"
+
+          git add ${GH_PAGES_PATH}/${METRIC_NAME}.md
+          git commit --allow-empty -m "Update benchmark result at ${GH_PAGES_PATH}/${METRIC_NAME}.md"
+          MAX_RETRIES=10
+          RETRY_DELAY=5
+          ATTEMPT=0
+          SUCCESS=false
+          while [ $ATTEMPT -lt $MAX_RETRIES ]; do
+              echo "Attempt $((ATTEMPT + 1)) to push of $MAX_RETRIES..."
+              if git fetch origin gh-pages; then
+                  git merge origin/gh-pages --no-edit
+              fi
+              if git push origin HEAD:gh-pages; then
+                  SUCCESS=true
+                  break
+              else
+                  echo "Push failed. Retrying in $RETRY_DELAY seconds..."
+                  sleep $RETRY_DELAY
+                  ATTEMPT=$((ATTEMPT + 1))
+              fi
+          done
+          if [ "$SUCCESS" = false ]; then
+              echo "PUSH_FAILED"
+              exit 1
+          fi
+
+      - name: Update summary with results
+        if: ${{ steps.publish-gh-pages.outcome == 'success' }}
+        working-directory: gh-pages
+        run: |
+          RESULT_URL="https://github.com/${{ github.repository }}/blob/gh-pages/${GH_PAGES_PATH}/${METRIC_NAME}.md"
+          echo "### Results" >> $GITHUB_STEP_SUMMARY
+          echo "[${METRIC_NAME}](${RESULT_URL})" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          cat "${GH_PAGES_PATH}/${METRIC_NAME}.md" >> $GITHUB_STEP_SUMMARY
+
+      - name: Path to result
+        if: ${{ steps.publish-gh-pages.outcome == 'success' }}
+        working-directory: gh-pages
+        run: |
+          echo "https://github.com/${{ github.repository }}/blob/gh-pages/${GH_PAGES_PATH}/${METRIC_NAME}.md"

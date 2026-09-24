@@ -1,0 +1,45 @@
+[package]
+name = "openvm-zilkworm-benchmark"
+edition.workspace = true
+repository.workspace = true
+homepage.workspace = true
+exclude.workspace = true
+version.workspace = true
+
+[lib]
+path = "src/lib.rs"
+
+[lints]
+workspace = true
+
+[dependencies]
+tracing-subscriber.workspace = true
+tracing.workspace = true
+dotenv = "0.15.0"
+clap = { version = "4.5.7", features = ["derive", "env"] }
+hex = "0.4.3"
+eyre.workspace = true
+zstd.workspace = true
+
+# Note: the openvm-sdk commit does not need to be exactly the same as the `openvm` commit used in the guest program: as long as
+# the openvm-sdk commit doesn't change any guest libraries, they are compatible
+openvm-stark-sdk = { git = "https://github.com/openvm-org/stark-backend.git", branch = "develop-v2.1.0", default-features = false }
+openvm-cuda-backend = { git = "https://github.com/openvm-org/stark-backend.git", branch = "develop-v2.1.0", default-features = false, optional = true }
+openvm-transpiler = { git = "https://github.com/openvm-org/openvm.git", branch = "develop-v2.1.0", default-features = false }
+openvm-circuit = { git = "https://github.com/openvm-org/openvm.git", branch = "develop-v2.1.0", default-features = false }
+openvm-verify-stark-host = { git = "https://github.com/openvm-org/openvm.git", branch = "develop-v2.1.0", default-features = false }
+openvm-sdk = { git = "https://github.com/openvm-org/openvm.git", branch = "develop-v2.1.0", default-features = false }
+openvm-sdk-config = { git = "https://github.com/openvm-org/openvm.git", branch = "develop-v2.1.0", default-features = false }
+
+[features]
+default = ["parallel", "jemalloc", "metrics"]
+parallel = ["openvm-sdk/parallel"]
+metrics = ["openvm-sdk/metrics", "openvm-circuit/metrics", "openvm-stark-sdk/metrics"]
+tco = ["openvm-sdk/tco"]
+rvr = ["openvm-sdk/rvr"]
+perf-metrics = ["openvm-sdk/perf-metrics"]
+mimalloc = ["openvm-sdk/mimalloc"]
+jemalloc = ["openvm-sdk/jemalloc"]
+cuda = ["dep:openvm-cuda-backend", "openvm-sdk/cuda"]
+unprotected = ["openvm-sdk/unprotected"]
+nvtx = ["openvm-stark-sdk/nvtx"]
