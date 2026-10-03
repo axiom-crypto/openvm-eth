@@ -53,3 +53,11 @@ jobs:
       - name: "Check Rust format"
         run: |
           cargo fmt --all -- --check
+
+  server:
+    name: "Server tests"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - run: uv run --no-project --python 3.12 --with-requirements server/requirements.txt --with pytest --with httpx python -m pytest server
