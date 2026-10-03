@@ -1,0 +1,32 @@
+name: "Server"
+
+on:
+  push:
+    branches:
+      - "main"
+    paths:
+      - "server/**"
+      - ".github/workflows/server.yml"
+  pull_request:
+    paths:
+      - "server/**"
+      - ".github/workflows/server.yml"
+
+concurrency:
+  group: "${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}"
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: "Server tests"
+    runs-on: ubuntu-latest
+    steps:
+      - name: "Checkout sources"
+        uses: actions/checkout@v4
+
+      - name: "Install uv"
+        uses: astral-sh/setup-uv@v6
+
+      - name: "Run tests"
+        # Python 3.12 matches the Ubuntu 24.04 runtime image.
+        run: uv run --no-project --python 3.12 --with-requirements server/requirements-dev.txt python -m pytest server
