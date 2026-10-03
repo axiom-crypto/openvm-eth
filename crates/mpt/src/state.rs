@@ -52,8 +52,12 @@ impl<'a> EthereumState<'a> {
                 continue;
             };
 
-            let storage_trie =
-                self.storage_tries.entry(hashed_address).or_insert(Mpt::new(self.bump));
+            // A missing storage trie is missing witness data, not empty storage: treating it as
+            // empty would let the witness erase the storage of any account the block touches.
+            let storage_trie = self
+                .storage_tries
+                .get_mut(&hashed_address)
+                .ok_or(Error::MissingStorageTrie(hashed_address))?;
 
             if account.status.was_destroyed() {
                 *storage_trie = Mpt::new(self.bump);
