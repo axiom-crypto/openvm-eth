@@ -20,6 +20,12 @@ fi
 
 PROOF_UUID="$1"
 
+# The id becomes a directory under JOBS_DIR and part of the S3 key, so it must be a UUID.
+if [[ ! "$PROOF_UUID" =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]]; then
+  echo "[prove_block.sh] Error: proof_uuid must be a UUID" >&2
+  exit 2
+fi
+
 if [[ ! -f "$BIN_PATH" ]]; then
   echo "[prove_block.sh] Error: Binary not found at $BIN_PATH" >&2
   exit 127

@@ -1,11 +1,11 @@
 import os
 import subprocess
 from pathlib import Path
-from typing import Dict
+from typing import Annotated, Dict
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, StringConstraints
 
 app = FastAPI()
 
@@ -75,8 +75,18 @@ def run_proof(
     return subprocess.Popen(args, stdout=stdout_f, stderr=stderr_f, text=True)
 
 
+# Proof ids are UUIDs minted by the control plane. Each one becomes a directory under JOBS_DIR and
+# part of an S3 key, so anything else (absolute paths, `..`, newlines) must be rejected.
+ProofUuid = Annotated[
+    str,
+    StringConstraints(
+        pattern=r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+    ),
+]
+
+
 class StartProofRequest(BaseModel):
-    proof_uuid: str
+    proof_uuid: ProofUuid
 
 
 @app.get("/healthz")
@@ -129,7 +139,7 @@ async def start_proof(req: StartProofRequest):
 
 
 @app.get("/proof_state/{proof_uuid}")
-async def get_proof_state(proof_uuid: str):
+async def get_proof_state(proof_uuid: ProofUuid):
     j = JOBS.get(proof_uuid)
     if not j:
         return JSONResponse(status_code=404, content={"error": "job not found"})
@@ -173,7 +183,7 @@ async def get_proof_state(proof_uuid: str):
 
 
 @app.get("/logs")
-async def logs(proof_uuid: str, n: int = 200):
+async def logs(proof_uuid: ProofUuid, n: int = 200):
     j = JOBS.get(proof_uuid)
     if not j:
         return JSONResponse(status_code=404, content={"error": "job not found"})
