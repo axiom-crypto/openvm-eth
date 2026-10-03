@@ -20,9 +20,10 @@ fi
 
 PROOF_UUID="$1"
 
-# The id becomes a directory under JOBS_DIR and part of the S3 key, so it must be a UUID.
-if [[ ! "$PROOF_UUID" =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]]; then
-  echo "[prove_block.sh] Error: proof_uuid must be a UUID" >&2
+# The id becomes a directory under JOBS_DIR and a segment of the S3 key, so it must be a single safe
+# path component. Keep in sync with `ProofId` in main.py.
+if [[ ! "$PROOF_UUID" =~ ^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$ ]]; then
+  echo "[prove_block.sh] Error: invalid proof_uuid" >&2
   exit 2
 fi
 
