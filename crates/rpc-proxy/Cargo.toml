@@ -35,7 +35,6 @@ itertools = { workspace = true }
 rayon.workspace = true
 eyre.workspace = true
 actix-web.workspace = true
-reqwest = { workspace = true, features = ["json"] }
 serde_json.workspace = true
 thiserror.workspace = true
 tokio.workspace = true

@@ -37,6 +37,7 @@ reth-revm.workspace = true
 
 # alloy
 alloy-provider.workspace = true
+alloy-rpc-client.workspace = true
 
 [features]
 default = []

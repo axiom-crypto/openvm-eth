@@ -3,15 +3,15 @@ use alloy::{
     eips::BlockNumberOrTag,
     providers::{DynProvider, Provider, ProviderBuilder},
     rpc::client::RpcClient,
-    transports::layers::RetryBackoffLayer,
+    transports::{http::reqwest::Client, layers::RetryBackoffLayer},
 };
 use alloy_chains::NamedChain;
 use clap::Parser;
 use eyre::{bail, Context};
 use openvm_rpc_proxy::{
-    execution_witness, LogOnErrorLayer, PreimageLookup, DEFAULT_PREIMAGE_CACHE_NIBBLES,
+    execution_witness, upstream_http_client, LogOnErrorLayer, PreimageLookup,
+    DEFAULT_PREIMAGE_CACHE_NIBBLES,
 };
-use reqwest::Client;
 use reth_chainspec::{HOLESKY, HOODI, MAINNET, SEPOLIA};
 use reth_evm_ethereum::EthEvmConfig;
 use serde_json::{json, Value};
@@ -197,8 +197,12 @@ async fn main() -> eyre::Result<()> {
 
     let retry = RetryBackoffLayer::new(10, args.rpc_retry_backoff, args.rpc_retry_cu);
     let log_on_error = LogOnErrorLayer;
-    let client =
-        RpcClient::builder().layer(retry).layer(log_on_error).connect(&args.rpc_url).await?;
+    let http_client = upstream_http_client()?;
+    let rpc_url = args.rpc_url.parse().context("invalid --rpc-url")?;
+    let client = RpcClient::builder()
+        .layer(retry)
+        .layer(log_on_error)
+        .http_with_client(http_client.clone(), rpc_url);
 
     let provider = ProviderBuilder::new().connect_client(client);
     let chain_id = provider.get_chain_id().await.context("eth_chainId failed")?;
@@ -218,7 +222,7 @@ async fn main() -> eyre::Result<()> {
     // Create the shared application state.
     // web::Data handles the atomic reference counting for safe sharing across threads.
     let app_state = web::Data::new(AppState {
-        client: Client::new(),
+        client: http_client,
         upstream_url: args.rpc_url,
         provider: provider.erased(),
         evm_config,
