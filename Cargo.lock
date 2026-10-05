@@ -8045,6 +8045,7 @@ name = "openvm-stateless-executor"
 version = "0.4.0"
 dependencies = [
  "alloy-consensus",
+ "alloy-eips 2.0.5",
  "alloy-primitives",
  "alloy-rlp",
  "alloy-trie 0.9.4",
