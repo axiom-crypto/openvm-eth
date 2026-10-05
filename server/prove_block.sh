@@ -20,6 +20,13 @@ fi
 
 PROOF_UUID="$1"
 
+# The id becomes a directory under JOBS_DIR and a segment of the S3 key, so it must be a single safe
+# path component. Keep in sync with `ProofId` in main.py.
+if [[ ! "$PROOF_UUID" =~ ^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$ ]]; then
+  echo "[prove_block.sh] Error: invalid proof_uuid" >&2
+  exit 2
+fi
+
 if [[ ! -f "$BIN_PATH" ]]; then
   echo "[prove_block.sh] Error: Binary not found at $BIN_PATH" >&2
   exit 127
