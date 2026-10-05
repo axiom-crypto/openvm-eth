@@ -1,8 +1,9 @@
 use std::path::PathBuf;
 
 use alloy_provider::{network::Ethereum, Provider as _, RootProvider};
+use alloy_rpc_client::RpcClient;
 use clap::Args;
-use openvm_rpc_proxy::DEFAULT_PREIMAGE_CACHE_NIBBLES;
+use openvm_rpc_proxy::{upstream_http_client, DEFAULT_PREIMAGE_CACHE_NIBBLES};
 use url::Url;
 
 #[derive(Debug, Clone, Args)]
@@ -76,7 +77,10 @@ impl RethInputSource {
             }
             (Some(rpc_url), None) => {
                 // We can find out about chain ID from RPC.
-                let provider = RootProvider::<Ethereum>::new_http(rpc_url.clone());
+                let provider = RootProvider::<Ethereum>::new(RpcClient::new_http_with_client(
+                    upstream_http_client()?,
+                    rpc_url.clone(),
+                ));
                 let chain_id = provider.get_chain_id().await?;
 
                 (Some(rpc_url.clone()), chain_id)

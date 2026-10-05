@@ -1,6 +1,9 @@
-//! Custom transport layer that logs the full JSON-RPC request payload on failure.
+//! Transport pieces for talking to the upstream RPC provider.
 
-use alloy::transports::{TransportError, TransportErrorKind, TransportFut};
+use alloy::transports::{
+    http::reqwest::{self, redirect},
+    TransportError, TransportErrorKind, TransportFut,
+};
 use alloy_json_rpc::{RequestPacket, ResponsePacket};
 use std::{
     fmt,
@@ -8,6 +11,14 @@ use std::{
 };
 use tower::{Layer, Service};
 use tracing::error;
+
+/// Builds the HTTP client for talking to the upstream RPC provider.
+///
+/// Redirects are never followed: the upstream URL is configuration, and following a redirect would
+/// let the upstream point this client at any host reachable from this machine.
+pub fn upstream_http_client() -> reqwest::Result<reqwest::Client> {
+    reqwest::Client::builder().redirect(redirect::Policy::none()).build()
+}
 
 /// A layer that wraps a transport and logs the full request payload when an RPC call fails.
 #[derive(Clone, Debug)]
@@ -97,5 +108,37 @@ where
 
             result
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::{
+        io::{Read, Write},
+        net::TcpListener,
+        thread,
+    };
+
+    #[test]
+    fn upstream_redirects_are_not_followed() {
+        let upstream = TcpListener::bind("127.0.0.1:0").unwrap();
+        let url = format!("http://{}/", upstream.local_addr().unwrap());
+        thread::spawn(move || {
+            let (mut stream, _) = upstream.accept().unwrap();
+            let _ = stream.read(&mut [0; 4096]).unwrap();
+            // Nothing listens on port 1, so following this redirect would fail the request.
+            stream
+                .write_all(
+                    b"HTTP/1.1 307 Temporary Redirect\r\nLocation: http://127.0.0.1:1/\r\n\
+                      Content-Length: 0\r\n\r\n",
+                )
+                .unwrap();
+        });
+
+        let status = tokio::runtime::Runtime::new().unwrap().block_on(async {
+            upstream_http_client().unwrap().post(&url).body("{}").send().await.unwrap().status()
+        });
+        assert_eq!(status, reqwest::StatusCode::TEMPORARY_REDIRECT);
     }
 }

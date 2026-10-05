@@ -34,5 +34,5 @@ mod witness;
 
 pub use execution::RpcExecutor;
 pub use lookup::{PreimageLookup, DEFAULT_PREIMAGE_CACHE_NIBBLES};
-pub use transport::LogOnErrorLayer;
+pub use transport::{upstream_http_client, LogOnErrorLayer};
 pub use witness::execution_witness;

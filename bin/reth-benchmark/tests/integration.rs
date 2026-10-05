@@ -1,6 +1,7 @@
 use alloy_provider::RootProvider;
+use alloy_rpc_client::RpcClient;
 use bincode::config::standard;
-use openvm_rpc_proxy::{RpcExecutor, DEFAULT_PREIMAGE_CACHE_NIBBLES};
+use openvm_rpc_proxy::{upstream_http_client, RpcExecutor, DEFAULT_PREIMAGE_CACHE_NIBBLES};
 use openvm_stateless_executor::{io::StatelessExecutorInput, ChainVariant, StatelessExecutor};
 use tracing_subscriber::{
     filter::EnvFilter, fmt, prelude::__tracing_subscriber_SubscriberExt, util::SubscriberInitExt,
@@ -24,7 +25,10 @@ async fn test_e2e_ethereum() {
     // Setup the provider.
     let rpc_url =
         Url::parse(std::env::var(env_var_key).unwrap().as_str()).expect("invalid rpc url");
-    let provider = RootProvider::new_http(rpc_url);
+    let provider = RootProvider::new(RpcClient::new_http_with_client(
+        upstream_http_client().unwrap(),
+        rpc_url,
+    ));
 
     // Setup the host executor.
     let rpc_executor = RpcExecutor::new(provider, DEFAULT_PREIMAGE_CACHE_NIBBLES);

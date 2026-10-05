@@ -16,7 +16,7 @@ use openvm_circuit::arch::{
     execution_mode::metered::segment_ctx::DEFAULT_MAX_MEMORY, instructions::exe::VmExe,
     verify_segments, VmCircuitConfig,
 };
-use openvm_rpc_proxy::RpcExecutor;
+use openvm_rpc_proxy::{upstream_http_client, RpcExecutor};
 use openvm_sdk::{
     config::{
         AggregationSystemParams, AggregationTreeConfig, AppConfig, DEFAULT_APP_LOG_BLOWUP,
@@ -309,7 +309,9 @@ pub async fn load_reth_input(source: &RethInputSource) -> Result<StatelessExecut
         eyre::bail!("cache not found and RPC URL not provided");
     };
 
-    let client = RpcClient::builder().layer(RetryBackoffLayer::new(5, 1000, 100)).http(rpc_url);
+    let client = RpcClient::builder()
+        .layer(RetryBackoffLayer::new(5, 1000, 100))
+        .http_with_client(upstream_http_client()?, rpc_url);
     let provider = RootProvider::new(client);
     let rpc_executor = RpcExecutor::new(provider, source.preimage_cache_nibbles);
     let stateless_input = rpc_executor.execute(block_number).await?;
