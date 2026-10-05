@@ -17,7 +17,7 @@ use reth_ethereum_consensus::{validate_block_post_execution, EthBeaconConsensus}
 use reth_evm::execute::{BasicBlockExecutor, Executor};
 use reth_evm_ethereum::EthEvmConfig;
 use reth_execution_types::ExecutionOutcome;
-use reth_primitives_traits::block::Block as _;
+use reth_primitives_traits::{block::Block as _, SealedHeader};
 use reth_revm::db::CacheDB;
 
 use bumpalo::Bump;
@@ -85,6 +85,14 @@ impl StatelessExecutor {
                 .validate_header(current_block.sealed_header())
                 .map_err(StatelessExecutorError::InvalidHeader)?;
 
+            // The timestamp selects the fork rules, so it must be checked against the parent
+            // before execution. `witness_db` has verified that the parent hashes to `parent_hash`.
+            let parent =
+                SealedHeader::new(input.parent_header().clone(), current_block.parent_hash);
+            consensus
+                .validate_header_against_parent(current_block.sealed_header(), &parent)
+                .map_err(StatelessExecutorError::InvalidHeaderAgainstParent)?;
+
             consensus
                 .validate_block_pre_execution(&current_block)
                 .map_err(StatelessExecutorError::InvalidBlockPreExecution)?;
@@ -147,5 +155,64 @@ impl StatelessExecutor {
         header.requests_hash = input.input.current_block.requests_hash;
 
         Ok(header)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::io::StatelessExecutorInput;
+    use alloy_consensus::BlockBody;
+    use alloy_eips::{eip1559::BaseFeeParams, eip7685::EMPTY_REQUESTS_HASH};
+    use alloy_primitives::B256;
+    use alloy_rlp::EMPTY_STRING_CODE;
+    use alloy_trie::EMPTY_ROOT_HASH;
+    use openvm_mpt::EthereumStateBytes;
+    use reth_ethereum_primitives::Block;
+
+    #[test]
+    fn rejects_header_invalid_against_parent() {
+        // An empty post-Osaka mainnet block on an empty state.
+        let parent = Header {
+            number: 24_000_000,
+            timestamp: 1_770_000_000,
+            gas_limit: 60_000_000,
+            base_fee_per_gas: Some(1_000_000_000),
+            withdrawals_root: Some(EMPTY_ROOT_HASH),
+            blob_gas_used: Some(0),
+            excess_blob_gas: Some(0),
+            parent_beacon_block_root: Some(B256::ZERO),
+            requests_hash: Some(EMPTY_REQUESTS_HASH),
+            ..Default::default()
+        };
+        // Executes an empty child of `parent` that differs from it only in base fee.
+        let execute_child = |base_fee| {
+            let child = Header {
+                number: parent.number + 1,
+                parent_hash: parent.hash_slow(),
+                timestamp: parent.timestamp + 12,
+                base_fee_per_gas: Some(base_fee),
+                ..parent.clone()
+            };
+            let body = BlockBody { withdrawals: Some(Default::default()), ..Default::default() };
+            let input = StatelessExecutorInput {
+                current_block: Block::new(child, body),
+                ancestor_headers: vec![parent.clone()],
+                parent_state_bytes: EthereumStateBytes {
+                    state_trie: (1, vec![EMPTY_STRING_CODE, 0, 0, 0].into()), // empty trie
+                    storage_tries: vec![],
+                },
+                bytecodes: vec![],
+            };
+            StatelessExecutor.execute(ChainVariant::Mainnet, input)
+        };
+
+        let base_fee = parent.next_block_base_fee(BaseFeeParams::ethereum()).unwrap();
+        execute_child(base_fee).expect("child with the correct base fee is valid");
+        let forged = execute_child(0);
+        assert!(
+            matches!(forged, Err(StatelessExecutorError::InvalidHeaderAgainstParent(_))),
+            "{forged:?}"
+        );
     }
 }
