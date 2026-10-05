@@ -19,7 +19,7 @@ revm-primitives.workspace = true
 
 # alloy
 alloy-rlp.workspace = true
-alloy-trie.workspace = true
+alloy-trie = { workspace = true, features = ["ethereum"] }
 
 [lints]
 workspace = true

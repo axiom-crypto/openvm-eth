@@ -50,6 +50,10 @@ pub enum Error {
     /// Occurs when a value is unexpectedly found in a branch node.
     #[error("branch node with value")]
     ValueInBranch,
+    /// An account is written back to the state trie but its storage trie was not supplied. The
+    /// associated `B256` is the hashed address.
+    #[error("storage trie for hashed address {0:#} not supplied")]
+    MissingStorageTrie(B256),
 }
 
 /// Arena-based implementation that stores all nodes in a flat vector and uses indices for better

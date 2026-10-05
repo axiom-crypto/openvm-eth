@@ -1,8 +1,13 @@
-use revm_primitives::{b256, keccak256, B256};
+use alloy_trie::TrieAccount;
+use revm::{
+    database::{AccountStatus, BundleAccount, BundleState},
+    state::AccountInfo,
+};
+use revm_primitives::{b256, keccak256, Address, B256, KECCAK_EMPTY, U256};
 
 use crate::{
     node::{BranchChildId, NodeData},
-    Error, Mpt,
+    Error, EthereumState, Mpt,
 };
 
 trait RlpBytes {
@@ -328,4 +333,37 @@ fn test_delete_with_unresolved_sibling_errors() {
         Ok(_) => panic!("Expected NodeNotResolved error, but delete succeeded"),
         Err(e) => panic!("Expected NodeNotResolved error, got: {e:?}"),
     }
+}
+
+#[test]
+fn test_write_back_requires_storage_trie() -> Result<(), Error> {
+    let bump = bumpalo::Bump::new();
+    let address = Address::repeat_byte(0x11);
+    let hashed_address = keccak256(address);
+
+    let mut storage_trie = Mpt::new(&bump);
+    storage_trie.insert_rlp(keccak256([1u8; 32]).as_slice(), U256::from(42))?;
+    let account = TrieAccount {
+        nonce: 1,
+        balance: U256::from(100),
+        storage_root: storage_trie.hash(),
+        code_hash: KECCAK_EMPTY,
+    };
+    let mut state_trie = Mpt::new(&bump);
+    state_trie.insert_rlp(hashed_address.as_slice(), account)?;
+
+    // A balance credit, e.g. to the fee recipient, writes the account back without reading storage.
+    let credited = AccountInfo { balance: U256::from(200), nonce: 1, ..Default::default() };
+    let mut bundle = BundleState::default();
+    bundle.state.insert(
+        address,
+        BundleAccount::new(None, Some(credited), Default::default(), AccountStatus::Changed),
+    );
+
+    let mut state = EthereumState::from_tries(state_trie, [], &bump);
+    match state.update_from_bundle_state(&bundle) {
+        Err(Error::MissingStorageTrie(missing)) => assert_eq!(missing, hashed_address),
+        other => panic!("expected MissingStorageTrie, got {other:?}"),
+    }
+    Ok(())
 }
