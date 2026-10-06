@@ -15,7 +15,7 @@ use reth_ethereum_primitives::Block;
 use reth_evm::{execute::Executor, ConfigureEvm};
 use reth_node_api::{FullNodeComponents, NodeTypes};
 use reth_primitives_traits::{NodePrimitives, RecoveredBlock};
-use reth_provider::{HeaderProvider, StateProviderFactory};
+use reth_provider::{HeaderProvider, StateProvider, StateProviderFactory};
 use reth_revm::{
     database::StateProviderDatabase,
     primitives::{keccak256, Bytes, HashMap, B256},
@@ -125,7 +125,7 @@ where
         }
         sp
     };
-    let db = StateProviderDatabase::new(&state_provider);
+    let db = StateProviderDatabase::new((&state_provider).into_evm_state_provider());
     let executor = evm_config.executor(db);
     let execution_witness = time!("reth_input_gen", {
         let span = info_span!("reth_input_gen");
