@@ -59,25 +59,25 @@ on:
 jobs:
   resolve-block:
     name: "Resolve Benchmark Block"
+    uses: ./.github/workflows/benchmark-block.yml
+    with:
+      block_preset: ${{ inputs.block_preset }}
+      block_number: ${{ inputs.block_number }}
+
+  # Nothing waits on this job, so a slow or failing trace never delays or fails the benchmarks.
+  precompile-mix:
+    name: "Measure Precompile Mix"
+    needs: resolve-block
     runs-on: ubuntu-latest
-    outputs:
-      block: ${{ steps.resolve.outputs.block }}
+    timeout-minutes: 10
+    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
-      - name: Resolve block number
-        id: resolve
-        run: |
-          BLOCK="${{ inputs.block_number }}"
-          if [[ -z "$BLOCK" ]]; then
-            BLOCK=$(jq -er --arg preset "${{ inputs.block_preset }}" '.[$preset].block' .github/benchmark-blocks.json)
-          fi
-          [[ "$BLOCK" =~ ^[0-9]+$ ]] || { echo "invalid block number: $BLOCK"; exit 1; }
-          echo "block=$BLOCK" >> "$GITHUB_OUTPUT"
-      - name: Measure precompile mix
-        continue-on-error: true
+      - name: Trace the benchmark block
         env:
+          BLOCK: ${{ needs.resolve-block.outputs.block }}
           RPC_URL: ${{ secrets.RPC_URL_1 }}
-        run: python3 .github/scripts/precompile_mix.py "${{ steps.resolve.outputs.block }}" >> "$GITHUB_STEP_SUMMARY"
+        run: python3 .github/scripts/precompile_mix.py "$BLOCK" >> "$GITHUB_STEP_SUMMARY"
 
   run-base-benchmark:
     name: "Run Base Benchmark"
@@ -186,4 +186,4 @@ jobs:
           echo "Target OpenVM Revision: ${{ github.event.inputs.target_rev }}" >> $GITHUB_STEP_SUMMARY
           echo "Instance Family: ${{ github.event.inputs.instance_family }}" >> $GITHUB_STEP_SUMMARY
           echo "Benchmark Mode: ${{ github.event.inputs.benchmark_mode }}" >> $GITHUB_STEP_SUMMARY
-          echo "Block Number: ${{ needs.resolve-block.outputs.block }}" >> $GITHUB_STEP_SUMMARY
+          echo "Block: ${{ needs.resolve-block.outputs.block }} (${{ needs.resolve-block.outputs.label }})" >> $GITHUB_STEP_SUMMARY
