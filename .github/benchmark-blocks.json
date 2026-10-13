@@ -1,5 +1,5 @@
 {
-  "_meta": "Curated benchmark blocks. Percentile roles come from the 16-GPU release benchmark over blocks 24000000..24007199 (July 2026) — re-derive them after major guest program changes. Precompile counts were measured with .github/scripts/precompile_mix.py; every compare run also measures the mix of the block it actually benchmarks, so these notes are documentation, not the source of truth.",
+  "_meta": "Curated benchmark blocks. Percentile roles come from the 16-GPU release benchmark over blocks 24000000..24007199 (July 2026) — re-derive them after major guest program changes. Precompile counts were measured with scripts/precompile_analyzer.py; every compare run also measures the mix of the block it actually benchmarks, so these notes are documentation, not the source of truth.",
   "blocks": {
     "p100": {
       "block": 24001988,
