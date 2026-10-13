@@ -78,7 +78,10 @@ jobs:
         env:
           BLOCK: ${{ needs.resolve-block.outputs.block }}
           RPC_URL: ${{ secrets.RPC_URL_1 }}
-        run: python3 scripts/precompile_analyzer.py "$BLOCK" --rpc "$RPC_URL" --rpc https://eth.drpc.org >> "$GITHUB_STEP_SUMMARY"
+        # `timeout` bounds the analyzer's retries well inside the job timeout, so a failure always reaches the summary.
+        run: |
+          timeout 8m python3 scripts/precompile_analyzer.py "$BLOCK" --rpc "$RPC_URL" --rpc https://eth.drpc.org >> "$GITHUB_STEP_SUMMARY" \
+            || { echo "**Could not measure the precompile mix of block $BLOCK; see the Measure Precompile Mix job log.**" >> "$GITHUB_STEP_SUMMARY"; exit 1; }
 
   run-base-benchmark:
     name: "Run Base Benchmark (${{ inputs.base_ref }})"
