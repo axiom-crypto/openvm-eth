@@ -1,6 +1,7 @@
 use alloy_provider::RootProvider;
+use alloy_rpc_client::RpcClient;
 use bincode::config::standard;
-use openvm_rpc_proxy::{RpcExecutor, DEFAULT_PREIMAGE_CACHE_NIBBLES};
+use openvm_rpc_proxy::{upstream_http_client, RpcExecutor, DEFAULT_PREIMAGE_CACHE_NIBBLES};
 use std::env;
 use tracing_subscriber::{
     filter::EnvFilter, fmt, prelude::__tracing_subscriber_SubscriberExt, util::SubscriberInitExt,
@@ -55,7 +56,8 @@ async fn main() -> eyre::Result<()> {
     let rpc_url = Url::parse(
         std::env::var(env_var_key).expect("RPC_1 environment variable not set").as_str(),
     )?;
-    let provider = RootProvider::new_http(rpc_url);
+    let provider =
+        RootProvider::new(RpcClient::new_http_with_client(upstream_http_client()?, rpc_url));
 
     // Setup the host executor.
     let rpc_executor = RpcExecutor::new(provider, DEFAULT_PREIMAGE_CACHE_NIBBLES);
