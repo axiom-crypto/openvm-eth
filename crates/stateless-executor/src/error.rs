@@ -24,6 +24,9 @@ pub enum StatelessExecutorError {
     #[error("block header validation failed: {0}")]
     InvalidHeader(ConsensusError),
 
+    #[error("block header validation against parent failed: {0}")]
+    InvalidHeaderAgainstParent(ConsensusError),
+
     #[error("block pre-execution validation failed: {0}")]
     InvalidBlockPreExecution(ConsensusError),
 
