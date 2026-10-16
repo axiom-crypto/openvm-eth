@@ -17,8 +17,8 @@ RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
 ENV CARGO_HOME="/root/.cargo" \
     RUSTUP_HOME="/root/.rustup" \
     PATH="/root/.cargo/bin:${PATH}"
-RUN rustup toolchain install nightly-2026-01-18 \
-    && rustup component add rust-src --toolchain nightly-2026-01-18
+RUN rustup toolchain install nightly-2026-02-28 \
+    && rustup component add rust-src --toolchain nightly-2026-02-28
 
 # Install cargo-openvm (builds the guest ELF)
 RUN cargo +1.91.1 install --git https://github.com/openvm-org/openvm.git --locked --force cargo-openvm
@@ -32,7 +32,7 @@ COPY rustfmt.toml ./
 
 # Build guest ELF and place where host expects it
 WORKDIR /app/bin/stateless-guest
-RUN RUSTFLAGS="" OPENVM_RUST_TOOLCHAIN=nightly-2026-01-18 cargo openvm build --no-transpile --profile=release \
+RUN RUSTFLAGS="" OPENVM_RUST_TOOLCHAIN=nightly-2026-02-28 cargo openvm build --no-transpile --profile=release \
     && mkdir -p ../reth-benchmark/elf \
     && cp target/riscv32im-risc0-zkvm-elf/release/openvm-stateless-guest ../reth-benchmark/elf/
 
@@ -44,7 +44,7 @@ ARG PROFILE="release"
 # CUDA SASS targets: 89 = Ada, 120 = Blackwell
 ARG CUDA_ARCH="89,120"
 ENV CUDA_ARCH=${CUDA_ARCH}
-RUN cargo +nightly-2026-01-18 build --bin openvm-reth-benchmark --profile=${PROFILE} --no-default-features --features=${FEATURES}
+RUN cargo +nightly-2026-02-28 build --bin openvm-reth-benchmark --profile=${PROFILE} --no-default-features --features=${FEATURES}
 
 # Runtime image
 FROM nvidia/cuda:12.8.1-runtime-ubuntu24.04 AS runtime
