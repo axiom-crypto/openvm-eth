@@ -77,6 +77,12 @@ impl CryptoProvider for OpenVmK256Provider {
             VerifyingKey::recover_from_prehash_noverify(msg, &signature.to_bytes(), recovery_id)
                 .map_err(|_| RecoveryError::new())?;
 
+        #[cfg(target_os = "zkvm")]
+        {
+            WeierstrassPoint::x(recovered_key.as_affine()).assert_reduced();
+            WeierstrassPoint::y(recovered_key.as_affine()).assert_reduced();
+        }
+
         // Hash the uncompressed SEC1 key without the 0x04 prefix.
         let public_key = recovered_key.to_encoded_point(false);
         let encoded_pubkey = &public_key.as_bytes()[1..65];
@@ -285,6 +291,12 @@ impl Crypto for OpenVmCrypto {
             VerifyingKey::recover_from_prehash_noverify(msg_hash, &sig.to_bytes(), recovery_id)
                 .map_err(|_| PrecompileHalt::other("Key recovery failed"))?;
 
+        #[cfg(target_os = "zkvm")]
+        {
+            WeierstrassPoint::x(recovered_key.as_affine()).assert_reduced();
+            WeierstrassPoint::y(recovered_key.as_affine()).assert_reduced();
+        }
+
         let public_key = recovered_key.to_encoded_point(false);
         let encoded_pubkey = &public_key.as_bytes()[1..65];
 
@@ -381,7 +393,9 @@ fn accelerated_modexp_bn254_fr(base: &[u8], exp: &[u8]) -> Vec<u8> {
     padded[padded_len - base.len()..].copy_from_slice(base);
     let base_fr = bn::Scalar::reduce_be_bytes(&padded);
 
-    base_fr.exp_bytes(true, exp).to_be_bytes().as_ref().to_vec()
+    let result = base_fr.exp_bytes(true, exp);
+    result.assert_reduced();
+    result.to_be_bytes().as_ref().to_vec()
 }
 
 /// Install OpenVM crypto implementations globally
@@ -453,6 +467,8 @@ fn read_bn_g2_point(input: &[u8]) -> Result<bn::G2Affine, PrecompileHalt> {
 fn encode_bn_g1_point(point: bn::G1Affine) -> [u8; BN_G1_LEN] {
     let mut output = [0u8; BN_G1_LEN];
 
+    point.x().assert_reduced();
+    point.y().assert_reduced();
     let x_bytes: &[u8] = point.x().as_le_bytes();
     let y_bytes: &[u8] = point.y().as_le_bytes();
     for i in 0..BN_FQ_LEN {
@@ -558,6 +574,8 @@ fn encode_bls_g1_point(point: &bls::G1Affine) -> [u8; BLS_G1_LEN] {
     }
 
     let mut output = [0u8; BLS_G1_LEN];
+    point.x().assert_reduced();
+    point.y().assert_reduced();
     let x_bytes: &[u8] = point.x().as_le_bytes();
     let y_bytes: &[u8] = point.y().as_le_bytes();
     for i in 0..BLS_FP_LEN {
@@ -576,6 +594,10 @@ fn encode_bls_g2_point(point: &bls::G2Affine) -> [u8; BLS_G2_LEN] {
     let mut output = [0u8; BLS_G2_LEN];
     let x = point.x();
     let y = point.y();
+    x.c0.assert_reduced();
+    x.c1.assert_reduced();
+    y.c0.assert_reduced();
+    y.c1.assert_reduced();
     let x_c0 = x.c0.as_le_bytes();
     let x_c1 = x.c1.as_le_bytes();
     let y_c0 = y.c0.as_le_bytes();

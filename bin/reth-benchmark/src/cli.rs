@@ -1,5 +1,7 @@
 use alloy_provider::{Provider as _, RootProvider};
+use alloy_rpc_client::RpcClient;
 use clap::Parser;
+use openvm_rpc_proxy::upstream_http_client;
 use url::Url;
 
 /// The arguments for configuring the chain data provider.
@@ -41,7 +43,10 @@ impl ProviderArgs {
             }
             (Some(rpc_url), None) => {
                 // We can find out about chain ID from RPC.
-                let provider: RootProvider = RootProvider::new_http(rpc_url.clone());
+                let provider: RootProvider = RootProvider::new(RpcClient::new_http_with_client(
+                    upstream_http_client()?,
+                    rpc_url.clone(),
+                ));
                 let chain_id = provider.get_chain_id().await?;
 
                 (Some(rpc_url), chain_id)

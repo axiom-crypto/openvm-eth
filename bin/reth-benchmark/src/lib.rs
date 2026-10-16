@@ -11,7 +11,7 @@ use openvm_circuit::arch::{
     execution_mode::metered::segment_ctx::DEFAULT_MAX_MEMORY, instructions::exe::VmExe,
     verify_segments, VmCircuitConfig,
 };
-use openvm_rpc_proxy::{RpcExecutor, DEFAULT_PREIMAGE_CACHE_NIBBLES};
+use openvm_rpc_proxy::{upstream_http_client, RpcExecutor, DEFAULT_PREIMAGE_CACHE_NIBBLES};
 use openvm_sdk::{
     config::{
         AggregationSystemParams, AggregationTreeConfig, AppConfig, DEFAULT_APP_LOG_BLOWUP,
@@ -436,8 +436,9 @@ pub async fn run_reth_benchmark(args: HostArgs, openvm_client_eth_elf: &[u8]) ->
             (None, Some(rpc_url)) => {
                 // Cache not found but we have RPC
                 // Setup the provider.
-                let client =
-                    RpcClient::builder().layer(RetryBackoffLayer::new(5, 1000, 100)).http(rpc_url);
+                let client = RpcClient::builder()
+                    .layer(RetryBackoffLayer::new(5, 1000, 100))
+                    .http_with_client(upstream_http_client()?, rpc_url);
                 let provider = RootProvider::new(client);
 
                 // Setup the host executor.
