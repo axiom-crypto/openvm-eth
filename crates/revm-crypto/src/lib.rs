@@ -77,6 +77,12 @@ impl CryptoProvider for OpenVmK256Provider {
             VerifyingKey::recover_from_prehash_noverify(msg, &signature.to_bytes(), recovery_id)
                 .map_err(|_| RecoveryError::new())?;
 
+        #[cfg(target_os = "zkvm")]
+        {
+            WeierstrassPoint::x(recovered_key.as_affine()).assert_reduced();
+            WeierstrassPoint::y(recovered_key.as_affine()).assert_reduced();
+        }
+
         // Hash the uncompressed SEC1 key without the 0x04 prefix.
         let public_key = recovered_key.to_encoded_point(false);
         let encoded_pubkey = &public_key.as_bytes()[1..65];
@@ -284,6 +290,12 @@ impl Crypto for OpenVmCrypto {
         let recovered_key =
             VerifyingKey::recover_from_prehash_noverify(msg_hash, &sig.to_bytes(), recovery_id)
                 .map_err(|_| PrecompileHalt::other("Key recovery failed"))?;
+
+        #[cfg(target_os = "zkvm")]
+        {
+            WeierstrassPoint::x(recovered_key.as_affine()).assert_reduced();
+            WeierstrassPoint::y(recovered_key.as_affine()).assert_reduced();
+        }
 
         let public_key = recovered_key.to_encoded_point(false);
         let encoded_pubkey = &public_key.as_bytes()[1..65];
