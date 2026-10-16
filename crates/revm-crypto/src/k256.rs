@@ -55,6 +55,14 @@ mod backend {
         )
         .ok()?;
 
+        #[cfg(target_os = "zkvm")]
+        {
+            use openvm_ecc_guest::{algebra::IntMod, weierstrass::WeierstrassPoint};
+
+            WeierstrassPoint::x(recovered_key.as_affine()).assert_reduced();
+            WeierstrassPoint::y(recovered_key.as_affine()).assert_reduced();
+        }
+
         // The address is derived from the uncompressed SEC1 encoding without its 0x04 prefix.
         let public_key = recovered_key.to_encoded_point(false);
         Some(keccak256(&public_key.as_bytes()[1..65]))
