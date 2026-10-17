@@ -5,6 +5,8 @@ edition = "2024"
 publish = false
 
 [dependencies]
+# Host implementation of the critical section that the stateless validator's `once_cell` links.
+critical-section = { version = "1.2", features = ["std"] }
 hex = "0.4"
 openvm-pairing = { git = "https://github.com/openvm-org/openvm.git", branch = "main", default-features = false, features = ["halo2curves"] }
 openvm-pairing-guest = { git = "https://github.com/openvm-org/openvm.git", branch = "main", default-features = false, features = ["halo2curves"] }
@@ -12,7 +14,7 @@ openvm-revm-crypto = { path = "../../crates/revm-crypto", features = ["native-k2
 rayon = "1.10"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-stateless-validator-reth = { git = "https://github.com/eth-act/ere-guests", tag = "v0.13.0" }
+stateless-validator-reth = { git = "https://github.com/paradigmxyz/stateless", tag = "reth-guest-v0.1.0-rc.4" }
 thiserror = "2"
 
 [workspace]
