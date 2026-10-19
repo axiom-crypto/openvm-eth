@@ -6,6 +6,7 @@ on:
       - "crates/accelerators/**"
       - "Cargo.toml"
       - "Cargo.lock"
+      - "ci/openvm_toolchain.sh"
       - ".github/workflows/tests-accelerators.yml"
 
 concurrency:
@@ -50,16 +51,19 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           cache-on-failure: true
+      # The OpenVM commit that Cargo.lock locks, and that commit's guest toolchain.
+      - name: Find the locked OpenVM commit and its toolchain
+        run: ci/openvm_toolchain.sh >> "$GITHUB_ENV"
       - name: Cache openvm toolchain
         uses: actions/cache@v4
         with:
           path: ~/.openvm/toolchains
-          key: openvm-toolchain-openvm-1.97.1-${{ runner.os }}-${{ runner.arch }}
+          key: openvm-toolchain-${{ env.OPENVM_RUST_TOOLCHAIN }}-${{ runner.os }}-${{ runner.arch }}
 
       - name: Install OpenVM CLI
         run: |
-          cargo install --git https://github.com/openvm-org/openvm.git --branch develop-v2.x.0 --locked --force cargo-openvm
-          cargo openvm toolchain install
+          cargo install --git https://github.com/openvm-org/openvm.git --rev "$OPENVM_REV" --locked --force cargo-openvm
+          cargo openvm toolchain install --version "$OPENVM_RUST_TOOLCHAIN"
 
       - name: Build for the guest target
         run: |
