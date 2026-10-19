@@ -1,6 +1,6 @@
 //! SHA-256 accelerator.
 
-use crate::types::{zkvm_status, ZkvmBytes, ZKVM_EFAIL, ZKVM_EOK};
+use crate::types::{null_pointer, zkvm_status, ZkvmBytes, ZKVM_EOK};
 #[cfg(not(openvm_intrinsics))]
 use openvm_sha2::Digest;
 
@@ -21,7 +21,7 @@ pub unsafe extern "C" fn zkvm_sha256(
     output: *mut zkvm_sha256_hash,
 ) -> zkvm_status {
     if output.is_null() || (data.is_null() && len != 0) {
-        return ZKVM_EFAIL;
+        null_pointer("zkvm_sha256");
     }
     // SAFETY: non-NULL checked above; validity is guaranteed by the caller.
     let data = if len == 0 { &[] } else { unsafe { core::slice::from_raw_parts(data, len) } };

@@ -27,7 +27,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-use crate::types::{zkvm_status, ZkvmBytes, ZKVM_EFAIL, ZKVM_EOK};
+use crate::types::{null_pointer, zkvm_status, ZkvmBytes, ZKVM_EFAIL, ZKVM_EOK};
 
 pub type zkvm_blake2f_state = ZkvmBytes<64>;
 pub type zkvm_blake2f_message = ZkvmBytes<128>;
@@ -48,7 +48,10 @@ pub unsafe extern "C" fn zkvm_blake2f(
     t: *const zkvm_blake2f_offset,
     f: u8,
 ) -> zkvm_status {
-    if h.is_null() || m.is_null() || t.is_null() || f > 1 {
+    if h.is_null() || m.is_null() || t.is_null() {
+        null_pointer("zkvm_blake2f");
+    }
+    if f > 1 {
         return ZKVM_EFAIL;
     }
 

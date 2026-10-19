@@ -2,7 +2,7 @@
 
 use alloc::{vec, vec::Vec};
 
-use crate::types::{zkvm_status, ZKVM_EFAIL, ZKVM_EOK};
+use crate::types::{null_pointer, zkvm_status, ZKVM_EOK};
 use openvm_ecc_guest::algebra::{ExpBytes, IntMod, Reduce};
 use openvm_pairing::bn254 as bn;
 
@@ -29,7 +29,7 @@ pub unsafe extern "C" fn zkvm_modexp(
         (modulus.is_null() && mod_len != 0) ||
         (output.is_null() && mod_len != 0)
     {
-        return ZKVM_EFAIL;
+        null_pointer("zkvm_modexp");
     }
 
     // SAFETY: non-NULL pointers and lengths were checked above; the caller guarantees validity.

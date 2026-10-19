@@ -1,5 +1,8 @@
 //! BLS12-381 add/MSM/pairing/map conformance vectors.
 
+mod common;
+
+use common::assert_null_pointer_panic;
 use hex_literal::hex;
 use openvm_accelerators::{
     zkvm_bls12_381_fp, zkvm_bls12_381_fp2, zkvm_bls12_381_g1_msm_pair, zkvm_bls12_381_g1_point,
@@ -133,35 +136,52 @@ fn bls12_rejects_invalid_points() {
 
 #[test]
 fn zkvm_bls12_null_pointers() {
+    const TEST: &str = "zkvm_bls12_null_pointers";
     let mut g1_output = zkvm_bls12_381_g1_point { data: [0; 96] };
-    let status = unsafe { zkvm_bls12_g1_add(core::ptr::null(), &BLS_G1_GEN, &mut g1_output) };
-    assert_eq!(status, ZKVM_EFAIL);
-
-    let status = unsafe { zkvm_bls12_g1_add(&BLS_G1_GEN, &BLS_G1_GEN, core::ptr::null_mut()) };
-    assert_eq!(status, ZKVM_EFAIL);
+    assert_null_pointer_panic(TEST, "g1_add p1", || unsafe {
+        zkvm_bls12_g1_add(core::ptr::null(), &BLS_G1_GEN, &mut g1_output);
+    });
+    assert_null_pointer_panic(TEST, "g1_add p2", || unsafe {
+        zkvm_bls12_g1_add(&BLS_G1_GEN, core::ptr::null(), &mut g1_output);
+    });
+    assert_null_pointer_panic(TEST, "g1_add result", || unsafe {
+        zkvm_bls12_g1_add(&BLS_G1_GEN, &BLS_G1_GEN, core::ptr::null_mut());
+    });
 
     g1_output.data.fill(0xff);
     let status = unsafe { zkvm_bls12_g1_msm(core::ptr::null(), 0, &mut g1_output) };
     assert_eq!(status, ZKVM_EOK);
     assert_eq!(g1_output.data, [0u8; 96]);
 
-    let status = unsafe { zkvm_bls12_g1_msm(core::ptr::null(), 1, &mut g1_output) };
-    assert_eq!(status, ZKVM_EFAIL);
+    assert_null_pointer_panic(TEST, "g1_msm pairs", || unsafe {
+        zkvm_bls12_g1_msm(core::ptr::null(), 1, &mut g1_output);
+    });
+    assert_null_pointer_panic(TEST, "g1_msm result", || unsafe {
+        zkvm_bls12_g1_msm(core::ptr::null(), 0, core::ptr::null_mut());
+    });
 
     let mut g2_output = zkvm_bls12_381_g2_point { data: [0; 192] };
-    let status = unsafe { zkvm_bls12_g2_add(core::ptr::null(), &BLS_G2_GEN, &mut g2_output) };
-    assert_eq!(status, ZKVM_EFAIL);
-
-    let status = unsafe { zkvm_bls12_g2_add(&BLS_G2_GEN, &BLS_G2_GEN, core::ptr::null_mut()) };
-    assert_eq!(status, ZKVM_EFAIL);
+    assert_null_pointer_panic(TEST, "g2_add p1", || unsafe {
+        zkvm_bls12_g2_add(core::ptr::null(), &BLS_G2_GEN, &mut g2_output);
+    });
+    assert_null_pointer_panic(TEST, "g2_add p2", || unsafe {
+        zkvm_bls12_g2_add(&BLS_G2_GEN, core::ptr::null(), &mut g2_output);
+    });
+    assert_null_pointer_panic(TEST, "g2_add result", || unsafe {
+        zkvm_bls12_g2_add(&BLS_G2_GEN, &BLS_G2_GEN, core::ptr::null_mut());
+    });
 
     g2_output.data.fill(0xff);
     let status = unsafe { zkvm_bls12_g2_msm(core::ptr::null(), 0, &mut g2_output) };
     assert_eq!(status, ZKVM_EOK);
     assert_eq!(g2_output.data, [0u8; 192]);
 
-    let status = unsafe { zkvm_bls12_g2_msm(core::ptr::null(), 1, &mut g2_output) };
-    assert_eq!(status, ZKVM_EFAIL);
+    assert_null_pointer_panic(TEST, "g2_msm pairs", || unsafe {
+        zkvm_bls12_g2_msm(core::ptr::null(), 1, &mut g2_output);
+    });
+    assert_null_pointer_panic(TEST, "g2_msm result", || unsafe {
+        zkvm_bls12_g2_msm(core::ptr::null(), 0, core::ptr::null_mut());
+    });
 
     let pairs = [zkvm_bls12_381_pairing_pair { g1: BLS_G1_GEN, g2: BLS_G2_GEN }];
     let mut verified = false;
@@ -170,11 +190,12 @@ fn zkvm_bls12_null_pointers() {
     assert_eq!(status, ZKVM_EOK);
     assert!(verified);
 
-    let status = unsafe { zkvm_bls12_pairing(core::ptr::null(), 1, &mut verified) };
-    assert_eq!(status, ZKVM_EFAIL);
-
-    let status = unsafe { zkvm_bls12_pairing(pairs.as_ptr(), pairs.len(), core::ptr::null_mut()) };
-    assert_eq!(status, ZKVM_EFAIL);
+    assert_null_pointer_panic(TEST, "pairing pairs", || unsafe {
+        zkvm_bls12_pairing(core::ptr::null(), 1, &mut verified);
+    });
+    assert_null_pointer_panic(TEST, "pairing verified", || unsafe {
+        zkvm_bls12_pairing(pairs.as_ptr(), pairs.len(), core::ptr::null_mut());
+    });
 }
 
 /* ============================================================================
@@ -319,16 +340,21 @@ fn bls12_map_field_element_range() {
 #[test]
 fn zkvm_bls12_map_null_pointers() {
     let field_element = zkvm_bls12_381_fp { data: MAP_FP_TO_G1_VECTORS[0].0 };
+    const TEST: &str = "zkvm_bls12_map_null_pointers";
     let mut g1 = zkvm_bls12_381_g1_point { data: [0; 96] };
-    let status = unsafe { zkvm_bls12_map_fp_to_g1(core::ptr::null(), &mut g1) };
-    assert_eq!(status, ZKVM_EFAIL);
-    let status = unsafe { zkvm_bls12_map_fp_to_g1(&field_element, core::ptr::null_mut()) };
-    assert_eq!(status, ZKVM_EFAIL);
+    assert_null_pointer_panic(TEST, "fp_to_g1 field_element", || unsafe {
+        zkvm_bls12_map_fp_to_g1(core::ptr::null(), &mut g1);
+    });
+    assert_null_pointer_panic(TEST, "fp_to_g1 result", || unsafe {
+        zkvm_bls12_map_fp_to_g1(&field_element, core::ptr::null_mut());
+    });
 
     let field_element = zkvm_bls12_381_fp2 { data: MAP_FP2_TO_G2_VECTORS[0].0 };
     let mut g2 = zkvm_bls12_381_g2_point { data: [0; 192] };
-    let status = unsafe { zkvm_bls12_map_fp2_to_g2(core::ptr::null(), &mut g2) };
-    assert_eq!(status, ZKVM_EFAIL);
-    let status = unsafe { zkvm_bls12_map_fp2_to_g2(&field_element, core::ptr::null_mut()) };
-    assert_eq!(status, ZKVM_EFAIL);
+    assert_null_pointer_panic(TEST, "fp2_to_g2 field_element", || unsafe {
+        zkvm_bls12_map_fp2_to_g2(core::ptr::null(), &mut g2);
+    });
+    assert_null_pointer_panic(TEST, "fp2_to_g2 result", || unsafe {
+        zkvm_bls12_map_fp2_to_g2(&field_element, core::ptr::null_mut());
+    });
 }

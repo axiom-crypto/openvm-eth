@@ -4,7 +4,7 @@ mod codec;
 
 use alloc::vec::Vec;
 
-use crate::types::{zkvm_status, ZkvmBytes, ZKVM_EFAIL, ZKVM_EOK};
+use crate::types::{null_pointer, zkvm_status, ZkvmBytes, ZKVM_EFAIL, ZKVM_EOK};
 use codec::{encode_g1, read_g1, read_g2, read_scalar};
 use openvm_ecc_guest::{
     weierstrass::{IntrinsicCurve, WeierstrassPoint},
@@ -29,7 +29,7 @@ pub struct zkvm_bn254_pairing_pair {
 ///
 /// # Safety
 ///
-/// Each pointer must be non-NULL and valid for one value of its pointee type.
+/// Each non-NULL pointer must be valid for one value of its pointee type.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn zkvm_bn254_g1_add(
     p1: *const zkvm_bn254_g1_point,
@@ -37,7 +37,7 @@ pub unsafe extern "C" fn zkvm_bn254_g1_add(
     result: *mut zkvm_bn254_g1_point,
 ) -> zkvm_status {
     if p1.is_null() || p2.is_null() || result.is_null() {
-        return ZKVM_EFAIL;
+        null_pointer("zkvm_bn254_g1_add");
     }
     // SAFETY: the caller guarantees valid reads. The output is written only after these
     // shared borrows are no longer used, so overlapping storage is supported.
@@ -56,7 +56,7 @@ pub unsafe extern "C" fn zkvm_bn254_g1_add(
 ///
 /// # Safety
 ///
-/// Each pointer must be non-NULL and valid for one value of its pointee type.
+/// Each non-NULL pointer must be valid for one value of its pointee type.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn zkvm_bn254_g1_mul(
     point: *const zkvm_bn254_g1_point,
@@ -64,7 +64,7 @@ pub unsafe extern "C" fn zkvm_bn254_g1_mul(
     result: *mut zkvm_bn254_g1_point,
 ) -> zkvm_status {
     if point.is_null() || scalar.is_null() || result.is_null() {
-        return ZKVM_EFAIL;
+        null_pointer("zkvm_bn254_g1_mul");
     }
     // SAFETY: the caller guarantees valid reads. The output is written only after these
     // shared borrows are no longer used, so overlapping storage is supported.
@@ -83,8 +83,8 @@ pub unsafe extern "C" fn zkvm_bn254_g1_mul(
 ///
 /// # Safety
 ///
-/// `pairs` must be valid for `num_pairs` reads when non-empty, and `verified`
-/// must be non-NULL and valid for one write.
+/// `pairs` must be valid for `num_pairs` reads when non-empty, and `verified`, if non-NULL,
+/// must be valid for one write.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn zkvm_bn254_pairing(
     pairs: *const zkvm_bn254_pairing_pair,
@@ -92,7 +92,7 @@ pub unsafe extern "C" fn zkvm_bn254_pairing(
     verified: *mut bool,
 ) -> zkvm_status {
     if verified.is_null() || (pairs.is_null() && num_pairs != 0) {
-        return ZKVM_EFAIL;
+        null_pointer("zkvm_bn254_pairing");
     }
     // SAFETY: the caller guarantees that non-empty input is valid for `num_pairs` reads.
     let pairs =

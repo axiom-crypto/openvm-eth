@@ -1,9 +1,11 @@
 //! KZG point-evaluation conformance.
 
+mod common;
+
+use common::assert_null_pointer_panic;
 use hex_literal::hex;
 use openvm_accelerators::{
-    zkvm_kzg_commitment, zkvm_kzg_field_element, zkvm_kzg_point_eval, zkvm_kzg_proof, ZKVM_EFAIL,
-    ZKVM_EOK,
+    zkvm_kzg_commitment, zkvm_kzg_field_element, zkvm_kzg_point_eval, zkvm_kzg_proof, ZKVM_EOK,
 };
 
 // ethereum/consensus-spec-tests:
@@ -56,21 +58,20 @@ fn zkvm_kzg_point_eval_null_pointers() {
     let y = scalar(0);
     let mut verified = false;
 
-    let status = unsafe { zkvm_kzg_point_eval(core::ptr::null(), &z, &y, &proof, &mut verified) };
-    assert_eq!(status, ZKVM_EFAIL);
-
-    let status =
-        unsafe { zkvm_kzg_point_eval(&commitment, core::ptr::null(), &y, &proof, &mut verified) };
-    assert_eq!(status, ZKVM_EFAIL);
-
-    let status =
-        unsafe { zkvm_kzg_point_eval(&commitment, &z, core::ptr::null(), &proof, &mut verified) };
-    assert_eq!(status, ZKVM_EFAIL);
-
-    let status =
-        unsafe { zkvm_kzg_point_eval(&commitment, &z, &y, core::ptr::null(), &mut verified) };
-    assert_eq!(status, ZKVM_EFAIL);
-
-    let status = unsafe { zkvm_kzg_point_eval(&commitment, &z, &y, &proof, core::ptr::null_mut()) };
-    assert_eq!(status, ZKVM_EFAIL);
+    const TEST: &str = "zkvm_kzg_point_eval_null_pointers";
+    assert_null_pointer_panic(TEST, "commitment", || unsafe {
+        zkvm_kzg_point_eval(core::ptr::null(), &z, &y, &proof, &mut verified);
+    });
+    assert_null_pointer_panic(TEST, "z", || unsafe {
+        zkvm_kzg_point_eval(&commitment, core::ptr::null(), &y, &proof, &mut verified);
+    });
+    assert_null_pointer_panic(TEST, "y", || unsafe {
+        zkvm_kzg_point_eval(&commitment, &z, core::ptr::null(), &proof, &mut verified);
+    });
+    assert_null_pointer_panic(TEST, "proof", || unsafe {
+        zkvm_kzg_point_eval(&commitment, &z, &y, core::ptr::null(), &mut verified);
+    });
+    assert_null_pointer_panic(TEST, "verified", || unsafe {
+        zkvm_kzg_point_eval(&commitment, &z, &y, &proof, core::ptr::null_mut());
+    });
 }

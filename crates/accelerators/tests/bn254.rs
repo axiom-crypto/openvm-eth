@@ -1,5 +1,8 @@
 //! BN254 add/mul/pairing conformance vectors.
 
+mod common;
+
+use common::assert_null_pointer_panic;
 use hex_literal::hex;
 use openvm_accelerators::{
     zkvm_bn254_g1_add, zkvm_bn254_g1_mul, zkvm_bn254_g1_point, zkvm_bn254_g2_point,
@@ -100,23 +103,25 @@ fn zkvm_bn254_null_pointers() {
     let scalar = scalar(2);
     let mut output = zkvm_bn254_g1_point { data: [0; 64] };
 
-    let status = unsafe { zkvm_bn254_g1_add(core::ptr::null(), &point, &mut output) };
-    assert_eq!(status, ZKVM_EFAIL);
-
-    let status = unsafe { zkvm_bn254_g1_add(&point, core::ptr::null(), &mut output) };
-    assert_eq!(status, ZKVM_EFAIL);
-
-    let status = unsafe { zkvm_bn254_g1_add(&point, &point, core::ptr::null_mut()) };
-    assert_eq!(status, ZKVM_EFAIL);
-
-    let status = unsafe { zkvm_bn254_g1_mul(core::ptr::null(), &scalar, &mut output) };
-    assert_eq!(status, ZKVM_EFAIL);
-
-    let status = unsafe { zkvm_bn254_g1_mul(&point, core::ptr::null(), &mut output) };
-    assert_eq!(status, ZKVM_EFAIL);
-
-    let status = unsafe { zkvm_bn254_g1_mul(&point, &scalar, core::ptr::null_mut()) };
-    assert_eq!(status, ZKVM_EFAIL);
+    const TEST: &str = "zkvm_bn254_null_pointers";
+    assert_null_pointer_panic(TEST, "g1_add p1", || unsafe {
+        zkvm_bn254_g1_add(core::ptr::null(), &point, &mut output);
+    });
+    assert_null_pointer_panic(TEST, "g1_add p2", || unsafe {
+        zkvm_bn254_g1_add(&point, core::ptr::null(), &mut output);
+    });
+    assert_null_pointer_panic(TEST, "g1_add result", || unsafe {
+        zkvm_bn254_g1_add(&point, &point, core::ptr::null_mut());
+    });
+    assert_null_pointer_panic(TEST, "g1_mul point", || unsafe {
+        zkvm_bn254_g1_mul(core::ptr::null(), &scalar, &mut output);
+    });
+    assert_null_pointer_panic(TEST, "g1_mul scalar", || unsafe {
+        zkvm_bn254_g1_mul(&point, core::ptr::null(), &mut output);
+    });
+    assert_null_pointer_panic(TEST, "g1_mul result", || unsafe {
+        zkvm_bn254_g1_mul(&point, &scalar, core::ptr::null_mut());
+    });
 
     let pairs = [zkvm_bn254_pairing_pair { g1: point, g2: BN254_G2_GEN }];
     let mut verified = false;
@@ -125,9 +130,10 @@ fn zkvm_bn254_null_pointers() {
     assert_eq!(status, ZKVM_EOK);
     assert!(verified);
 
-    let status = unsafe { zkvm_bn254_pairing(core::ptr::null(), 1, &mut verified) };
-    assert_eq!(status, ZKVM_EFAIL);
-
-    let status = unsafe { zkvm_bn254_pairing(pairs.as_ptr(), pairs.len(), core::ptr::null_mut()) };
-    assert_eq!(status, ZKVM_EFAIL);
+    assert_null_pointer_panic(TEST, "pairing pairs", || unsafe {
+        zkvm_bn254_pairing(core::ptr::null(), 1, &mut verified);
+    });
+    assert_null_pointer_panic(TEST, "pairing verified", || unsafe {
+        zkvm_bn254_pairing(pairs.as_ptr(), pairs.len(), core::ptr::null_mut());
+    });
 }

@@ -1,5 +1,8 @@
 //! BLAKE2f conformance using the official EIP-152 test vectors 4-7.
 
+mod common;
+
+use common::assert_null_pointer_panic;
 use hex_literal::hex;
 use openvm_accelerators::{
     zkvm_blake2f, zkvm_blake2f_message, zkvm_blake2f_offset, zkvm_blake2f_state, ZKVM_EFAIL,
@@ -94,14 +97,14 @@ fn zkvm_blake2f_null_pointers() {
     let m = m();
     let t = zkvm_blake2f_offset { data: T };
 
-    let status = unsafe { zkvm_blake2f(12, core::ptr::null_mut(), &m, &t, 1) };
-    assert_eq!(status, ZKVM_EFAIL);
-
-    let status = unsafe { zkvm_blake2f(12, &mut h, core::ptr::null(), &t, 1) };
-    assert_eq!(status, ZKVM_EFAIL);
-
-    let status = unsafe { zkvm_blake2f(12, &mut h, &m, core::ptr::null(), 1) };
-    assert_eq!(status, ZKVM_EFAIL);
-    // The state must be untouched when a pointer is NULL.
-    assert_eq!(h.data, H);
+    const TEST: &str = "zkvm_blake2f_null_pointers";
+    assert_null_pointer_panic(TEST, "h", || unsafe {
+        zkvm_blake2f(12, core::ptr::null_mut(), &m, &t, 1);
+    });
+    assert_null_pointer_panic(TEST, "m", || unsafe {
+        zkvm_blake2f(12, &mut h, core::ptr::null(), &t, 1);
+    });
+    assert_null_pointer_panic(TEST, "t", || unsafe {
+        zkvm_blake2f(12, &mut h, &m, core::ptr::null(), 1);
+    });
 }
