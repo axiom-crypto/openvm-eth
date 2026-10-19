@@ -14,8 +14,8 @@ concurrency:
 env:
   CARGO_TERM_COLOR: always
   CARGO_NET_GIT_FETCH_WITH_CLI: "true"
-  EEST_FIXTURES_VERSION: v0.4.1
-  EEST_FIXTURES_SHA256: 0e3ce037abe98c3190a18d7bb2403fdc2a5c09c904439c6a4e392995ac676f17
+  EEST_FIXTURES_VERSION: v21.0.1
+  EEST_FIXTURES_SHA256: 42fa627e2e262b109ce29d255fb9c11baa297246f759c6edaf0e58f58d4aa205
 
 jobs:
   execution-spec-tests:
@@ -42,6 +42,15 @@ jobs:
           test_revision=$(sed -n 's|^source = "git+https://github.com/openvm-org/openvm.git?branch=main#\([0-9a-f]\{40\}\)"$|\1|p' tests/execution-spec-tests/Cargo.lock | sort -u)
           if [[ -z "$root_revision" || "$root_revision" != "$test_revision" ]]; then
             echo "Execution-spec and workspace OpenVM revisions differ" >&2
+            exit 1
+          fi
+
+      - name: Verify a single REVM precompile version
+        shell: bash
+        run: |
+          precompile_versions=$(grep -c '^name = "revm-precompile"$' tests/execution-spec-tests/Cargo.lock || true)
+          if [[ "$precompile_versions" != 1 ]]; then
+            echo "Execution-spec tests resolve $precompile_versions revm-precompile versions; OpenVM crypto is installed into only one" >&2
             exit 1
           fi
 

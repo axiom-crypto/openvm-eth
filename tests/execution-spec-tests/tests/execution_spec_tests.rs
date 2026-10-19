@@ -7,28 +7,42 @@ use std::{
 use openvm_revm_crypto::install_openvm_crypto;
 use rayon::prelude::*;
 use serde::Deserialize;
-use stateless_validator_reth::guest::{run_stateless_guest, Platform};
+use stateless_validator_reth::guest::run_stateless_guest;
 use thiserror::Error;
 
-const EXPECTED_FIXTURE_COUNT: usize = 23_264;
+const EXPECTED_FIXTURE_COUNT: usize = 33_614;
 
+/// Fixtures whose upstream results differ from the execution specs, independent of OpenVM's crypto.
+///
+/// - EIP-7928: alloy-evm runs the post-execution system calls before it credits withdrawals, and
+///   revm's block access list builder records a change when a value returns to its start-of-index
+///   value. The stateless validator lists the same fixtures as known failures.
+/// - EIP-8037: revm 43.0.2 moved the system call state-gas margin into the state gas reservoir,
+///   which these fixtures do not expect.
 const KNOWN_DIVERGENCES: &[&str] = &[
-    "tests/amsterdam/eip8025_optional_proofs/test_witness_bytecodes_contract_creation.py::test_witness_codes_create_same_hash_then_read[fork_Amsterdam-blockchain_test]#block0",
-    "tests/amsterdam/eip8037_state_creation_gas_cost_increase/test_state_gas_reservoir.py::test_creation_tx_regular_check_subtracts_intrinsic_state[fork_Amsterdam-blockchain_test]#block0",
-    "tests/paris/eip7610_create_collision/test_initcollision.py::test_init_collision_create_opcode[fork_Amsterdam-blockchain_test_from_state_test-opcode_CREATE-non-empty-balance-correct-initcode]#block0",
-    "tests/paris/eip7610_create_collision/test_initcollision.py::test_init_collision_create_opcode[fork_Amsterdam-blockchain_test_from_state_test-opcode_CREATE-non-empty-balance-revert-initcode]#block0",
-    "tests/paris/eip7610_create_collision/test_initcollision.py::test_init_collision_create_opcode[fork_Amsterdam-blockchain_test_from_state_test-opcode_CREATE2-non-empty-balance-correct-initcode]#block0",
-    "tests/paris/eip7610_create_collision/test_initcollision.py::test_init_collision_create_opcode[fork_Amsterdam-blockchain_test_from_state_test-opcode_CREATE2-non-empty-balance-revert-initcode]#block0",
-    "tests/paris/eip7610_create_collision/test_initcollision.py::test_init_collision_create_tx[fork_Amsterdam-tx_type_0-blockchain_test_from_state_test-non-empty-balance-correct-initcode]#block0",
-    "tests/paris/eip7610_create_collision/test_initcollision.py::test_init_collision_create_tx[fork_Amsterdam-tx_type_0-blockchain_test_from_state_test-non-empty-balance-revert-initcode]#block0",
-    "tests/paris/eip7610_create_collision/test_initcollision.py::test_init_collision_create_tx[fork_Amsterdam-tx_type_1-blockchain_test_from_state_test-non-empty-balance-correct-initcode]#block0",
-    "tests/paris/eip7610_create_collision/test_initcollision.py::test_init_collision_create_tx[fork_Amsterdam-tx_type_1-blockchain_test_from_state_test-non-empty-balance-revert-initcode]#block0",
-    "tests/paris/eip7610_create_collision/test_initcollision.py::test_init_collision_create_tx[fork_Amsterdam-tx_type_2-blockchain_test_from_state_test-non-empty-balance-correct-initcode]#block0",
-    "tests/paris/eip7610_create_collision/test_initcollision.py::test_init_collision_create_tx[fork_Amsterdam-tx_type_2-blockchain_test_from_state_test-non-empty-balance-revert-initcode]#block0",
-    "tests/paris/eip7610_create_collision/test_revert_in_create.py::test_collision_with_create2_revert_in_initcode[fork_Amsterdam-blockchain_test_from_state_test]#block0",
-    "tests/paris/eip7610_create_collision/test_revert_in_create.py::test_create2_collision_storage[fork_Amsterdam-blockchain_test_from_state_test-empty-initcode]#block0",
-    "tests/paris/eip7610_create_collision/test_revert_in_create.py::test_create2_collision_storage[fork_Amsterdam-blockchain_test_from_state_test-initcode-with-deploy]#block0",
-    "tests/paris/eip7610_create_collision/test_revert_in_create.py::test_create2_collision_storage[fork_Amsterdam-blockchain_test_from_state_test-sstore-initcode]#block0",
+    "tests/amsterdam/eip7928_block_level_access_lists/test_block_access_lists_cross_index.py::test_bal_post_execution_calls_net_storage_at_last_index[fork_Amsterdam-blockchain_test]#block0",
+    "tests/amsterdam/eip7928_block_level_access_lists/test_block_access_lists_cross_index.py::test_bal_withdrawals_and_dequeues_net_balance_at_last_index[fork_Amsterdam-blockchain_test-forward_all]#block0",
+    "tests/amsterdam/eip7928_block_level_access_lists/test_block_access_lists_cross_index.py::test_bal_withdrawals_and_dequeues_net_balance_at_last_index[fork_Amsterdam-blockchain_test-forward_half]#block0",
+    "tests/amsterdam/eip8037_state_creation_gas_cost_increase/test_state_gas_system_calls.py::test_system_call_execution_boundary[fork_Amsterdam-blockchain_test-beacon-one_over]#block0",
+    "tests/amsterdam/eip8037_state_creation_gas_cost_increase/test_state_gas_system_calls.py::test_system_call_execution_boundary[fork_Amsterdam-blockchain_test-history-one_over]#block0",
+    "tests/amsterdam/eip8037_state_creation_gas_cost_increase/test_state_gas_system_calls.py::test_system_call_execution_grant[fork_Amsterdam-blockchain_test-beacon]#block0",
+    "tests/amsterdam/eip8037_state_creation_gas_cost_increase/test_state_gas_system_calls.py::test_system_call_execution_grant[fork_Amsterdam-blockchain_test-builder_deposit]#block0",
+    "tests/amsterdam/eip8037_state_creation_gas_cost_increase/test_state_gas_system_calls.py::test_system_call_execution_grant[fork_Amsterdam-blockchain_test-builder_exit]#block0",
+    "tests/amsterdam/eip8037_state_creation_gas_cost_increase/test_state_gas_system_calls.py::test_system_call_execution_grant[fork_Amsterdam-blockchain_test-consolidations]#block0",
+    "tests/amsterdam/eip8037_state_creation_gas_cost_increase/test_state_gas_system_calls.py::test_system_call_execution_grant[fork_Amsterdam-blockchain_test-history]#block0",
+    "tests/amsterdam/eip8037_state_creation_gas_cost_increase/test_state_gas_system_calls.py::test_system_call_execution_grant[fork_Amsterdam-blockchain_test-withdrawals]#block0",
+    "tests/amsterdam/eip8037_state_creation_gas_cost_increase/test_state_gas_system_calls.py::test_system_call_reservoir_boundary[fork_Amsterdam-blockchain_test-allow_spill_False-beacon]#block0",
+    "tests/amsterdam/eip8037_state_creation_gas_cost_increase/test_state_gas_system_calls.py::test_system_call_reservoir_boundary[fork_Amsterdam-blockchain_test-allow_spill_False-builder_deposit]#block0",
+    "tests/amsterdam/eip8037_state_creation_gas_cost_increase/test_state_gas_system_calls.py::test_system_call_reservoir_boundary[fork_Amsterdam-blockchain_test-allow_spill_False-builder_exit]#block0",
+    "tests/amsterdam/eip8037_state_creation_gas_cost_increase/test_state_gas_system_calls.py::test_system_call_reservoir_boundary[fork_Amsterdam-blockchain_test-allow_spill_False-consolidations]#block0",
+    "tests/amsterdam/eip8037_state_creation_gas_cost_increase/test_state_gas_system_calls.py::test_system_call_reservoir_boundary[fork_Amsterdam-blockchain_test-allow_spill_False-history]#block0",
+    "tests/amsterdam/eip8037_state_creation_gas_cost_increase/test_state_gas_system_calls.py::test_system_call_reservoir_boundary[fork_Amsterdam-blockchain_test-allow_spill_False-withdrawals]#block0",
+    "tests/amsterdam/eip8037_state_creation_gas_cost_increase/test_state_gas_system_calls.py::test_system_call_reservoir_boundary[fork_Amsterdam-blockchain_test-allow_spill_True-beacon]#block0",
+    "tests/amsterdam/eip8037_state_creation_gas_cost_increase/test_state_gas_system_calls.py::test_system_call_reservoir_boundary[fork_Amsterdam-blockchain_test-allow_spill_True-builder_deposit]#block0",
+    "tests/amsterdam/eip8037_state_creation_gas_cost_increase/test_state_gas_system_calls.py::test_system_call_reservoir_boundary[fork_Amsterdam-blockchain_test-allow_spill_True-builder_exit]#block0",
+    "tests/amsterdam/eip8037_state_creation_gas_cost_increase/test_state_gas_system_calls.py::test_system_call_reservoir_boundary[fork_Amsterdam-blockchain_test-allow_spill_True-consolidations]#block0",
+    "tests/amsterdam/eip8037_state_creation_gas_cost_increase/test_state_gas_system_calls.py::test_system_call_reservoir_boundary[fork_Amsterdam-blockchain_test-allow_spill_True-history]#block0",
+    "tests/amsterdam/eip8037_state_creation_gas_cost_increase/test_state_gas_system_calls.py::test_system_call_reservoir_boundary[fork_Amsterdam-blockchain_test-allow_spill_True-withdrawals]#block0",
 ];
 
 #[derive(Debug)]
@@ -76,21 +90,8 @@ enum FixtureError {
     },
 }
 
-#[derive(Debug)]
-struct HostPlatform;
-
-impl Platform for HostPlatform {
-    fn read_input() -> impl std::ops::Deref<Target = [u8]> {
-        Vec::<u8>::new()
-    }
-
-    fn write_output(_: &[u8]) {}
-
-    fn print(_: &str) {}
-}
-
 #[test]
-#[ignore = "requires tests-zkevm@v0.4.1 fixtures"]
+#[ignore = "requires tests-zkevm@v21.0.1 fixtures"]
 fn execution_spec_tests() -> Result<(), FixtureError> {
     let fixture_root = env::var_os("EEST_FIXTURES_DIR")
         .map(PathBuf::from)
@@ -109,7 +110,7 @@ fn execution_spec_tests() -> Result<(), FixtureError> {
     let failures = fixtures
         .par_iter()
         .filter_map(|fixture| {
-            let output = run_stateless_guest::<HostPlatform>(&fixture.input);
+            let output = run_stateless_guest(&fixture.input);
             (output != fixture.expected_output).then(|| fixture.name.as_str())
         })
         .collect::<BTreeSet<_>>();
