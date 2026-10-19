@@ -104,8 +104,9 @@ Uses OpenVM's ECC guest libraries when running in the zkVM, falling back to stan
 
 Static library that runs C programs as OpenVM guests with the
 [zkevm-standards](https://github.com/eth-act/zkevm-standards) interfaces: the entry point and
-termination, I/O (`zkvm_io.h`), accelerators (`zkvm_accelerators.h`, from `crates/accelerators`)
-and accelerated memory operations. See [`crates/c-guest/README.md`](crates/c-guest/README.md).
+termination, a linker script (`openvm.ld`), I/O (`zkvm_io.h`), accelerators
+(`zkvm_accelerators.h`, from `crates/accelerators`) and accelerated memory operations. See
+[`crates/c-guest/README.md`](crates/c-guest/README.md).
 
 ### `crates/chainspec`
 
