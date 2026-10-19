@@ -24,6 +24,9 @@ unexpected_cfgs = { level = "warn", check-cfg = [
     'cfg(target_os, values("openvm"))',
 ] }
 
+# Fat LTO and one codegen unit put the crate and its Rust dependencies in one object. openvm-mem
+# (`#![no_builtins]`) and compiler_builtins stay out of LTO, in objects of their own; build.sh
+# merges openvm-mem's into that object.
 [profile.release]
 panic = "abort"
 lto = "fat"
