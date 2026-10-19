@@ -10,6 +10,8 @@
 //!   configuration in `openvm.toml`, which is OpenVM's standard configuration;
 //! - the accelerated memory operations `memcpy`, `memmove`, `memset` and `memcmp` (`openvm-mem`).
 //!
+//! See `README.md` for how to build the library and link a program against it.
+//!
 //! [zkevm-standards]: https://github.com/eth-act/zkevm-standards
 
 #![no_std]

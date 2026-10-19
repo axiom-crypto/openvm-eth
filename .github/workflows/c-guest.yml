@@ -1,0 +1,69 @@
+name: OpenVM C Guest Library
+
+on:
+  pull_request:
+    # Everything the library's build reads: its dependencies' sources (path dependencies in
+    # crates/c-guest/Cargo.lock), the root manifest, whose workspace dependencies they use, the root
+    # lock and Cargo config, and the toolchain.
+    paths:
+      - "crates/c-guest/**"
+      - "crates/accelerators/**"
+      - "crates/kzg/**"
+      - "crates/curve-utils/**"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - ".cargo/**"
+      - "rust-toolchain.toml"
+      - "ci/openvm_toolchain.sh"
+      - ".github/workflows/c-guest.yml"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_NET_GIT_FETCH_WITH_CLI: "true"
+
+jobs:
+  build:
+    runs-on:
+      - runs-on=${{ github.run_id }}
+      - runner=64cpu-linux-arm64
+      - extras=s3-cache
+
+    steps:
+      - uses: runs-on/action@v2
+      - uses: actions/checkout@v6
+      # rustup takes the Rust toolchain from the root rust-toolchain.toml.
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: crates/c-guest
+          cache-on-failure: true
+      # The OpenVM commit that crates/c-guest/Cargo.lock locks, and that commit's guest toolchain.
+      - name: Find the locked OpenVM commit and its toolchain
+        run: ci/openvm_toolchain.sh crates/c-guest >> "$GITHUB_ENV"
+      - name: Restore openvm toolchain from cache
+        uses: runs-on/cache@v4
+        with:
+          path: ~/.openvm/toolchains
+          key: openvm-toolchain-${{ env.OPENVM_RUST_TOOLCHAIN }}-${{ runner.os }}-${{ runner.arch }}
+
+      - name: Install OpenVM guest toolchain
+        run: |
+          cargo install --git https://github.com/openvm-org/openvm.git --rev "$OPENVM_REV" --locked --force cargo-openvm
+          cargo openvm toolchain install --version "$OPENVM_RUST_TOOLCHAIN"
+
+      # The root `cargo fmt --all` doesn't cover this crate, a workspace of its own.
+      - name: Check the format
+        run: cargo fmt --manifest-path crates/c-guest/Cargo.toml --check
+
+      # Also checks the symbols of the object with `_start`.
+      - name: Build the library
+        run: crates/c-guest/build.sh
+
+      - name: Install clang
+        run: command -v clang || (sudo apt-get update && sudo apt-get install -y clang)
+
+      - name: Link a C program against the library
+        run: crates/c-guest/tests/link.sh

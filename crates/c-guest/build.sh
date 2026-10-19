@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Builds target/libopenvm_c_guest.a, the static library for C guest programs.
+# Builds target/libopenvm_c_guest.a, the static library for C guest programs (see README.md).
 #
 # Cargo's static library keeps OpenVM's memory functions (`memcpy`, `memmove`, `memset`, `memcmp`
 # and `bcmp`, from `openvm-mem`) in an object of their own: `openvm-mem` is `#![no_builtins]`,

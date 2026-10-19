@@ -26,6 +26,7 @@ openvm-eth/
 │   ├── reth-verify/         # Standalone stark proof + VK verifier
 │   ├── stateless-guest/     # zkVM guest program
 └── crates/
+    ├── c-guest/             # Static library for C guest programs (zkevm-standards)
     ├── chainspec/           # Chain configuration (mainnet, dev)
     ├── mpt/                 # Merkle Patricia Trie implementation
     ├── mpt-tools/           # MPT profiling and benchmarking
@@ -98,6 +99,13 @@ OpenVM-optimized cryptographic operations for Revm and Alloy. Provides efficient
 - KZG commitments
 
 Uses OpenVM's ECC guest libraries when running in the zkVM, falling back to standard implementations on the host.
+
+### `crates/c-guest`
+
+Static library that runs C programs as OpenVM guests with the
+[zkevm-standards](https://github.com/eth-act/zkevm-standards) interfaces: the entry point and
+termination, I/O (`zkvm_io.h`), accelerators (`zkvm_accelerators.h`, from `crates/accelerators`)
+and accelerated memory operations. See [`crates/c-guest/README.md`](crates/c-guest/README.md).
 
 ### `crates/chainspec`
 
