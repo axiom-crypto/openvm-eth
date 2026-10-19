@@ -1,0 +1,11 @@
+# Build for the OpenVM guest with the compiler flags of `cargo openvm build` (openvm-build's
+# `encode_rust_flags`), without its link arguments, because this crate is a static library and the
+# C program's link sets the text address, and without its `--basic-block-address-map` LLVM
+# arguments, which only add profiling metadata to an ELF. `panic = "abort"` is in Cargo.toml.
+[build]
+target = "riscv64im-unknown-openvm-elf"
+rustflags = [
+    "-C", "passes=lower-atomic",
+    "--cfg", 'getrandom_backend="custom"',
+    "--cfg", "openvm_intrinsics",
+]

@@ -1,0 +1,30 @@
+[workspace]
+
+[package]
+name = "openvm-c-guest"
+description = "Static library that runs C programs as OpenVM guests with the zkevm-standards interfaces"
+version = "0.4.0"
+edition = "2024"
+publish = false
+
+[lib]
+crate-type = ["staticlib"]
+
+[dependencies]
+openvm-accelerators = { path = "../accelerators", default-features = false }
+
+# openvm
+openvm = { git = "https://github.com/openvm-org/openvm.git", branch = "develop-v2.x.0", default-features = false, features = ["getrandom-unsupported"] }
+openvm-algebra-guest = { git = "https://github.com/openvm-org/openvm.git", branch = "develop-v2.x.0", default-features = false }
+openvm-ecc-guest = { git = "https://github.com/openvm-org/openvm.git", branch = "develop-v2.x.0", default-features = false }
+
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = [
+    'cfg(openvm_intrinsics)',
+    'cfg(target_os, values("openvm"))',
+] }
+
+[profile.release]
+panic = "abort"
+lto = "fat"
+codegen-units = 1
