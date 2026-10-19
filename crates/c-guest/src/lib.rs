@@ -2,7 +2,9 @@
 //!
 //! It gives a C program the guest interfaces of [zkevm-standards]:
 //!
-//! - the entry point: OpenVM's `_start`, which calls the C `main` and then exits with code 0;
+//! - the entry point and termination ([`rt`]): OpenVM's `_start` runs the static constructors,
+//!   calls the C `main` and exits with its return value, after the exit handlers and static
+//!   destructors; `exit`, `_Exit`, `abort` and failed `assert`s terminate too;
 //! - the I/O interface `zkvm_io.h` ([`io`]);
 //! - the accelerator interface `zkvm_accelerators.h` (`openvm-accelerators`), for the VM
 //!   configuration in `openvm.toml`, which is OpenVM's standard configuration;
@@ -18,6 +20,7 @@ extern crate alloc;
 use openvm_accelerators as _;
 
 pub mod io;
+pub mod rt;
 
 // Sets up the moduli, complex extensions and curves of `openvm.toml` for the accelerators.
 openvm::init!();

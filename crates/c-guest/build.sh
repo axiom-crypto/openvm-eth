@@ -10,6 +10,11 @@
 # Every program links that object for `_start`, so OpenVM's memory functions take effect whatever
 # the link order.
 #
+# The merge also wraps `main` (`--wrap=main`): OpenVM's `__start` then calls the library's
+# `__wrap_main`, which runs the static constructors, calls the program's `main` and passes its
+# return value to `exit` (src/rt.rs). The script then makes `__wrap_main` a local symbol, so that
+# it doesn't clash with a program that wraps `main` itself.
+#
 # The OpenVM toolchain is the one of the OpenVM commit that Cargo.lock locks (see
 # ci/openvm_toolchain.sh), unless OPENVM_RUST_TOOLCHAIN selects another.
 set -euo pipefail
@@ -65,17 +70,27 @@ while IFS= read -r member; do
     *) MERGED+=("$member") ;;
   esac
 done <<< "$MEMBERS"
-"$BIN/rust-lld" -flavor gnu -r -o openvm_c_guest.o "${MERGED[@]}"
+"$BIN/rust-lld" -flavor gnu -r --wrap=main -o openvm_c_guest.o "${MERGED[@]}"
+"$BIN/llvm-objcopy" --localize-symbol=__wrap_main openvm_c_guest.o
 
-# The object with `_start` must define the memory functions and the library's interface strongly.
+# The object with `_start` must define the memory functions and the library's interface strongly,
+# and leave only the program's `main` undefined, not `__real_main`.
 SYMBOLS=$("$BIN/llvm-nm" openvm_c_guest.o)
-REQUIRED=("T _start" "T memcpy" "T memmove" "T memset" "T memcmp" "T read_input" "T write_output")
+REQUIRED=("T _start" "T memcpy" "T memmove" "T memset" "T memcmp" "T read_input" "T write_output"
+  "T exit" "T _Exit" "T abort" "T atexit" "T __cxa_atexit" "T __assert_fail" "T __assert_func"
+  "R __dso_handle" "t __wrap_main" "U main")
 for accelerator in $ACCELERATORS; do
   REQUIRED+=("T $accelerator")
 done
 for sym in "${REQUIRED[@]}"; do
   if ! grep -q " $sym\$" <<< "$SYMBOLS"; then
     echo "error: openvm_c_guest.o has no symbol '$sym'" >&2
+    exit 1
+  fi
+done
+for sym in "U __real_main" "T __wrap_main"; do
+  if grep -q " $sym\$" <<< "$SYMBOLS"; then
+    echo "error: openvm_c_guest.o has the symbol '$sym'" >&2
     exit 1
   fi
 done
