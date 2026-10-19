@@ -5,7 +5,7 @@ use openvm_ecc_guest::{algebra::IntMod, weierstrass::WeierstrassPoint};
 #[cfg(any(target_os = "none", target_os = "openvm"))]
 use openvm_k256 as k256;
 
-use crate::types::{zkvm_status, ZkvmBytes, ZKVM_EFAIL, ZKVM_EOK};
+use crate::types::{null_pointer, zkvm_status, ZkvmBytes, ZKVM_EFAIL, ZKVM_EOK};
 use k256::ecdsa::{signature::hazmat::PrehashVerifier, RecoveryId, Signature, VerifyingKey};
 
 pub type zkvm_secp256k1_hash = ZkvmBytes<32>;
@@ -25,7 +25,7 @@ pub unsafe extern "C" fn zkvm_secp256k1_ecrecover(
     output: *mut zkvm_secp256k1_pubkey,
 ) -> zkvm_status {
     if msg.is_null() || sig.is_null() || output.is_null() {
-        return ZKVM_EFAIL;
+        null_pointer("zkvm_secp256k1_ecrecover");
     }
     // SAFETY: the caller guarantees that the non-NULL inputs are valid for reads. Copying both
     // inputs before writing supports overlap with `output`.
@@ -51,7 +51,7 @@ pub unsafe extern "C" fn zkvm_secp256k1_verify(
     verified: *mut bool,
 ) -> zkvm_status {
     if msg.is_null() || sig.is_null() || pubkey.is_null() || verified.is_null() {
-        return ZKVM_EFAIL;
+        null_pointer("zkvm_secp256k1_verify");
     }
     // SAFETY: the caller guarantees that the non-NULL inputs are valid for reads. Copying every
     // input before writing supports overlap with `verified`.

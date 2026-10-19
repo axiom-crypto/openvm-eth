@@ -1,6 +1,6 @@
 //! secp256r1 ECDSA accelerator.
 
-use crate::types::{zkvm_status, ZkvmBytes, ZKVM_EFAIL, ZKVM_EOK};
+use crate::types::{null_pointer, zkvm_status, ZkvmBytes, ZKVM_EOK};
 use openvm_p256::{
     ecdsa::{signature::hazmat::PrehashVerifier, Signature, VerifyingKey},
     EncodedPoint,
@@ -23,7 +23,7 @@ pub unsafe extern "C" fn zkvm_secp256r1_verify(
     verified: *mut bool,
 ) -> zkvm_status {
     if msg.is_null() || sig.is_null() || pubkey.is_null() || verified.is_null() {
-        return ZKVM_EFAIL;
+        null_pointer("zkvm_secp256r1_verify");
     }
     // SAFETY: the caller guarantees that the non-NULL inputs are valid for reads. Copying every
     // input before writing supports overlap with `verified`.

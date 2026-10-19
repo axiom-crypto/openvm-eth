@@ -1,5 +1,8 @@
 //! secp256k1 C-interface conformance vectors.
 
+mod common;
+
+use common::assert_null_pointer_panic;
 use hex_literal::hex;
 use openvm_accelerators::{
     zkvm_keccak256, zkvm_keccak256_hash, zkvm_secp256k1_ecrecover, zkvm_secp256k1_hash,
@@ -69,35 +72,29 @@ fn secp256k1_recover_and_verify() {
 
 #[test]
 fn secp256k1_null_pointers() {
+    const TEST: &str = "secp256k1_null_pointers";
     let mut pubkey = zkvm_secp256k1_pubkey { data: [0; 64] };
-    assert_eq!(
-        unsafe { zkvm_secp256k1_ecrecover(core::ptr::null(), &SIG, 1, &mut pubkey) },
-        ZKVM_EFAIL
-    );
-    assert_eq!(
-        unsafe { zkvm_secp256k1_ecrecover(&MSG, core::ptr::null(), 1, &mut pubkey) },
-        ZKVM_EFAIL
-    );
-    assert_eq!(
-        unsafe { zkvm_secp256k1_ecrecover(&MSG, &SIG, 1, core::ptr::null_mut()) },
-        ZKVM_EFAIL
-    );
+    assert_null_pointer_panic(TEST, "ecrecover msg", || unsafe {
+        zkvm_secp256k1_ecrecover(core::ptr::null(), &SIG, 1, &mut pubkey);
+    });
+    assert_null_pointer_panic(TEST, "ecrecover sig", || unsafe {
+        zkvm_secp256k1_ecrecover(&MSG, core::ptr::null(), 1, &mut pubkey);
+    });
+    assert_null_pointer_panic(TEST, "ecrecover output", || unsafe {
+        zkvm_secp256k1_ecrecover(&MSG, &SIG, 1, core::ptr::null_mut());
+    });
 
     let mut verified = false;
-    assert_eq!(
-        unsafe { zkvm_secp256k1_verify(core::ptr::null(), &SIG, &pubkey, &mut verified) },
-        ZKVM_EFAIL
-    );
-    assert_eq!(
-        unsafe { zkvm_secp256k1_verify(&MSG, core::ptr::null(), &pubkey, &mut verified) },
-        ZKVM_EFAIL
-    );
-    assert_eq!(
-        unsafe { zkvm_secp256k1_verify(&MSG, &SIG, core::ptr::null(), &mut verified) },
-        ZKVM_EFAIL
-    );
-    assert_eq!(
-        unsafe { zkvm_secp256k1_verify(&MSG, &SIG, &pubkey, core::ptr::null_mut()) },
-        ZKVM_EFAIL
-    );
+    assert_null_pointer_panic(TEST, "verify msg", || unsafe {
+        zkvm_secp256k1_verify(core::ptr::null(), &SIG, &pubkey, &mut verified);
+    });
+    assert_null_pointer_panic(TEST, "verify sig", || unsafe {
+        zkvm_secp256k1_verify(&MSG, core::ptr::null(), &pubkey, &mut verified);
+    });
+    assert_null_pointer_panic(TEST, "verify pubkey", || unsafe {
+        zkvm_secp256k1_verify(&MSG, &SIG, core::ptr::null(), &mut verified);
+    });
+    assert_null_pointer_panic(TEST, "verify verified", || unsafe {
+        zkvm_secp256k1_verify(&MSG, &SIG, &pubkey, core::ptr::null_mut());
+    });
 }

@@ -2,10 +2,13 @@
 //!
 //! Vectors are from https://github.com/daimo-eth/p256-verifier/tree/master/test-vectors.
 
+mod common;
+
+use common::assert_null_pointer_panic;
 use hex_literal::hex;
 use openvm_accelerators::{
     zkvm_secp256r1_hash, zkvm_secp256r1_pubkey, zkvm_secp256r1_signature, zkvm_secp256r1_verify,
-    ZKVM_EFAIL, ZKVM_EOK,
+    ZKVM_EOK,
 };
 
 fn parts(
@@ -62,20 +65,17 @@ fn secp256r1_verify_null_pointers() {
     let (msg, sig, pubkey) = parts(&VALID);
     let mut verified = false;
 
-    assert_eq!(
-        unsafe { zkvm_secp256r1_verify(core::ptr::null(), &sig, &pubkey, &mut verified) },
-        ZKVM_EFAIL
-    );
-    assert_eq!(
-        unsafe { zkvm_secp256r1_verify(&msg, core::ptr::null(), &pubkey, &mut verified) },
-        ZKVM_EFAIL
-    );
-    assert_eq!(
-        unsafe { zkvm_secp256r1_verify(&msg, &sig, core::ptr::null(), &mut verified) },
-        ZKVM_EFAIL
-    );
-    assert_eq!(
-        unsafe { zkvm_secp256r1_verify(&msg, &sig, &pubkey, core::ptr::null_mut()) },
-        ZKVM_EFAIL
-    );
+    const TEST: &str = "secp256r1_verify_null_pointers";
+    assert_null_pointer_panic(TEST, "msg", || unsafe {
+        zkvm_secp256r1_verify(core::ptr::null(), &sig, &pubkey, &mut verified);
+    });
+    assert_null_pointer_panic(TEST, "sig", || unsafe {
+        zkvm_secp256r1_verify(&msg, core::ptr::null(), &pubkey, &mut verified);
+    });
+    assert_null_pointer_panic(TEST, "pubkey", || unsafe {
+        zkvm_secp256r1_verify(&msg, &sig, core::ptr::null(), &mut verified);
+    });
+    assert_null_pointer_panic(TEST, "verified", || unsafe {
+        zkvm_secp256r1_verify(&msg, &sig, &pubkey, core::ptr::null_mut());
+    });
 }

@@ -1,4 +1,8 @@
 //! OpenVM implementation of the standard zkVM accelerator C interface.
+//!
+//! A function called with a NULL pointer panics, as the interface asks (it says a function
+//! SHOULD panic on a NULL pointer). This crate treats a NULL buffer pointer with a zero length as
+//! an empty buffer instead of a NULL pointer, so that such a call succeeds.
 
 #![cfg_attr(not(feature = "std"), no_std)]
 #![allow(non_camel_case_types)]

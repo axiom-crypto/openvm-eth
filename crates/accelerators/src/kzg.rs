@@ -1,6 +1,6 @@
 //! KZG point-evaluation accelerator (EIP-4844).
 
-use crate::types::{zkvm_status, ZkvmBytes, ZKVM_EFAIL, ZKVM_EOK};
+use crate::types::{null_pointer, zkvm_status, ZkvmBytes, ZKVM_EOK};
 use openvm_kzg::{Bytes32, Bytes48, KzgProof};
 
 pub type zkvm_kzg_commitment = ZkvmBytes<48>;
@@ -11,7 +11,7 @@ pub type zkvm_kzg_field_element = ZkvmBytes<32>;
 ///
 /// # Safety
 ///
-/// Every pointer must be non-NULL and valid for one read or write of its pointee type.
+/// Every non-NULL pointer must be valid for one read or write of its pointee type.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn zkvm_kzg_point_eval(
     commitment: *const zkvm_kzg_commitment,
@@ -21,7 +21,7 @@ pub unsafe extern "C" fn zkvm_kzg_point_eval(
     verified: *mut bool,
 ) -> zkvm_status {
     if commitment.is_null() || z.is_null() || y.is_null() || proof.is_null() || verified.is_null() {
-        return ZKVM_EFAIL;
+        null_pointer("zkvm_kzg_point_eval");
     }
     // SAFETY: the caller guarantees valid reads. `verified` is written only after these
     // shared borrows are no longer used, so overlapping storage is supported.

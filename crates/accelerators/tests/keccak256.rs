@@ -1,7 +1,10 @@
 //! Keccak-256 C-interface conformance vectors.
 
+mod common;
+
+use common::assert_null_pointer_panic;
 use hex_literal::hex;
-use openvm_accelerators::{zkvm_keccak256, zkvm_keccak256_hash, ZKVM_EFAIL, ZKVM_EOK};
+use openvm_accelerators::{zkvm_keccak256, zkvm_keccak256_hash, ZKVM_EOK};
 
 #[test]
 fn keccak256_abc() {
@@ -28,9 +31,15 @@ fn keccak256_null_pointers() {
         hex!("c5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470")
     );
 
-    let status = unsafe { zkvm_keccak256(core::ptr::null(), data.len(), &mut output) };
-    assert_eq!(status, ZKVM_EFAIL);
-
-    let status = unsafe { zkvm_keccak256(data.as_ptr(), data.len(), core::ptr::null_mut()) };
-    assert_eq!(status, ZKVM_EFAIL);
+    const TEST: &str = "keccak256_null_pointers";
+    assert_null_pointer_panic(TEST, "data", || unsafe {
+        zkvm_keccak256(core::ptr::null(), data.len(), &mut output);
+    });
+    assert_null_pointer_panic(TEST, "output", || unsafe {
+        zkvm_keccak256(data.as_ptr(), data.len(), core::ptr::null_mut());
+    });
+    // The empty-input exception is for `data` only.
+    assert_null_pointer_panic(TEST, "output with empty data", || unsafe {
+        zkvm_keccak256(core::ptr::null(), 0, core::ptr::null_mut());
+    });
 }

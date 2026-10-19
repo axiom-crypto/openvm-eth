@@ -1,7 +1,10 @@
 //! Modexp conformance vectors.
 
+mod common;
+
+use common::assert_null_pointer_panic;
 use hex_literal::hex;
-use openvm_accelerators::{zkvm_modexp, ZKVM_EFAIL, ZKVM_EOK};
+use openvm_accelerators::{zkvm_modexp, ZKVM_EOK};
 
 /// BN254 Fr (the scalar field) modulus, big-endian. Not to be confused with
 /// the base field prime, which shares the leading bytes.
@@ -66,13 +69,20 @@ fn zkvm_modexp_null_pointers() {
     assert_eq!(status, ZKVM_EOK);
     assert_eq!(output, [1]);
 
-    // A NULL pointer with a non-zero length fails.
-    let status = unsafe {
-        zkvm_modexp(core::ptr::null(), 1, exp.as_ptr(), 1, modulus.as_ptr(), 1, output.as_mut_ptr())
-    };
-    assert_eq!(status, ZKVM_EFAIL);
-
-    let status = unsafe {
+    // A NULL pointer with a non-zero length panics.
+    const TEST: &str = "zkvm_modexp_null_pointers";
+    assert_null_pointer_panic(TEST, "base", || unsafe {
+        zkvm_modexp(
+            core::ptr::null(),
+            1,
+            exp.as_ptr(),
+            1,
+            modulus.as_ptr(),
+            1,
+            output.as_mut_ptr(),
+        );
+    });
+    assert_null_pointer_panic(TEST, "exp", || unsafe {
         zkvm_modexp(
             base.as_ptr(),
             1,
@@ -81,17 +91,12 @@ fn zkvm_modexp_null_pointers() {
             modulus.as_ptr(),
             1,
             output.as_mut_ptr(),
-        )
-    };
-    assert_eq!(status, ZKVM_EFAIL);
-
-    let status = unsafe {
-        zkvm_modexp(base.as_ptr(), 1, exp.as_ptr(), 1, core::ptr::null(), 1, output.as_mut_ptr())
-    };
-    assert_eq!(status, ZKVM_EFAIL);
-
-    let status = unsafe {
-        zkvm_modexp(base.as_ptr(), 1, exp.as_ptr(), 1, modulus.as_ptr(), 1, core::ptr::null_mut())
-    };
-    assert_eq!(status, ZKVM_EFAIL);
+        );
+    });
+    assert_null_pointer_panic(TEST, "modulus", || unsafe {
+        zkvm_modexp(base.as_ptr(), 1, exp.as_ptr(), 1, core::ptr::null(), 1, output.as_mut_ptr());
+    });
+    assert_null_pointer_panic(TEST, "output", || unsafe {
+        zkvm_modexp(base.as_ptr(), 1, exp.as_ptr(), 1, modulus.as_ptr(), 1, core::ptr::null_mut());
+    });
 }

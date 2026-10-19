@@ -5,7 +5,7 @@ mod map;
 
 use alloc::vec::Vec;
 
-use crate::types::{zkvm_status, ZkvmBytes, ZKVM_EFAIL, ZKVM_EOK};
+use crate::types::{null_pointer, zkvm_status, ZkvmBytes, ZKVM_EFAIL, ZKVM_EOK};
 use codec::{
     encode_g1, encode_g2, read_g1, read_g1_no_subgroup_check, read_g2, read_g2_no_subgroup_check,
     read_scalar,
@@ -49,7 +49,7 @@ pub struct zkvm_bls12_381_pairing_pair {
 ///
 /// # Safety
 ///
-/// Each pointer must be non-NULL and valid for one value of its pointee type.
+/// Each non-NULL pointer must be valid for one value of its pointee type.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn zkvm_bls12_g1_add(
     p1: *const zkvm_bls12_381_g1_point,
@@ -57,7 +57,7 @@ pub unsafe extern "C" fn zkvm_bls12_g1_add(
     result: *mut zkvm_bls12_381_g1_point,
 ) -> zkvm_status {
     if p1.is_null() || p2.is_null() || result.is_null() {
-        return ZKVM_EFAIL;
+        null_pointer("zkvm_bls12_g1_add");
     }
     // SAFETY: the caller guarantees valid reads. The output is written only after these
     // shared borrows are no longer used, so overlapping storage is supported.
@@ -76,8 +76,8 @@ pub unsafe extern "C" fn zkvm_bls12_g1_add(
 ///
 /// # Safety
 ///
-/// `pairs` must be valid for `num_pairs` reads when non-empty, and `result`
-/// must be non-NULL and valid for one write.
+/// `pairs` must be valid for `num_pairs` reads when non-empty, and `result`, if non-NULL,
+/// must be valid for one write.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn zkvm_bls12_g1_msm(
     pairs: *const zkvm_bls12_381_g1_msm_pair,
@@ -85,7 +85,7 @@ pub unsafe extern "C" fn zkvm_bls12_g1_msm(
     result: *mut zkvm_bls12_381_g1_point,
 ) -> zkvm_status {
     if result.is_null() || (pairs.is_null() && num_pairs != 0) {
-        return ZKVM_EFAIL;
+        null_pointer("zkvm_bls12_g1_msm");
     }
     // SAFETY: the caller guarantees that non-empty input is valid for `num_pairs` reads.
     let pairs =
@@ -104,7 +104,7 @@ pub unsafe extern "C" fn zkvm_bls12_g1_msm(
 ///
 /// # Safety
 ///
-/// Each pointer must be non-NULL and valid for one value of its pointee type.
+/// Each non-NULL pointer must be valid for one value of its pointee type.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn zkvm_bls12_g2_add(
     p1: *const zkvm_bls12_381_g2_point,
@@ -112,7 +112,7 @@ pub unsafe extern "C" fn zkvm_bls12_g2_add(
     result: *mut zkvm_bls12_381_g2_point,
 ) -> zkvm_status {
     if p1.is_null() || p2.is_null() || result.is_null() {
-        return ZKVM_EFAIL;
+        null_pointer("zkvm_bls12_g2_add");
     }
     // SAFETY: the caller guarantees valid reads. The output is written only after these
     // shared borrows are no longer used, so overlapping storage is supported.
@@ -131,8 +131,8 @@ pub unsafe extern "C" fn zkvm_bls12_g2_add(
 ///
 /// # Safety
 ///
-/// `pairs` must be valid for `num_pairs` reads when non-empty, and `result`
-/// must be non-NULL and valid for one write.
+/// `pairs` must be valid for `num_pairs` reads when non-empty, and `result`, if non-NULL,
+/// must be valid for one write.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn zkvm_bls12_g2_msm(
     pairs: *const zkvm_bls12_381_g2_msm_pair,
@@ -140,7 +140,7 @@ pub unsafe extern "C" fn zkvm_bls12_g2_msm(
     result: *mut zkvm_bls12_381_g2_point,
 ) -> zkvm_status {
     if result.is_null() || (pairs.is_null() && num_pairs != 0) {
-        return ZKVM_EFAIL;
+        null_pointer("zkvm_bls12_g2_msm");
     }
     // SAFETY: the caller guarantees that non-empty input is valid for `num_pairs` reads.
     let pairs =
@@ -159,8 +159,8 @@ pub unsafe extern "C" fn zkvm_bls12_g2_msm(
 ///
 /// # Safety
 ///
-/// `pairs` must be valid for `num_pairs` reads when non-empty, and `verified`
-/// must be non-NULL and valid for one write.
+/// `pairs` must be valid for `num_pairs` reads when non-empty, and `verified`, if non-NULL,
+/// must be valid for one write.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn zkvm_bls12_pairing(
     pairs: *const zkvm_bls12_381_pairing_pair,
@@ -168,7 +168,7 @@ pub unsafe extern "C" fn zkvm_bls12_pairing(
     verified: *mut bool,
 ) -> zkvm_status {
     if verified.is_null() || (pairs.is_null() && num_pairs != 0) {
-        return ZKVM_EFAIL;
+        null_pointer("zkvm_bls12_pairing");
     }
     // SAFETY: the caller guarantees that non-empty input is valid for `num_pairs` reads.
     let pairs =
@@ -187,14 +187,14 @@ pub unsafe extern "C" fn zkvm_bls12_pairing(
 ///
 /// # Safety
 ///
-/// Each pointer must be non-NULL and valid for one value of its pointee type.
+/// Each non-NULL pointer must be valid for one value of its pointee type.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn zkvm_bls12_map_fp_to_g1(
     field_element: *const zkvm_bls12_381_fp,
     result: *mut zkvm_bls12_381_g1_point,
 ) -> zkvm_status {
     if field_element.is_null() || result.is_null() {
-        return ZKVM_EFAIL;
+        null_pointer("zkvm_bls12_map_fp_to_g1");
     }
     // SAFETY: the caller guarantees a valid read. The output is written only after this
     // shared borrow is no longer used, so overlapping storage is supported.
@@ -213,14 +213,14 @@ pub unsafe extern "C" fn zkvm_bls12_map_fp_to_g1(
 ///
 /// # Safety
 ///
-/// Each pointer must be non-NULL and valid for one value of its pointee type.
+/// Each non-NULL pointer must be valid for one value of its pointee type.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn zkvm_bls12_map_fp2_to_g2(
     field_element: *const zkvm_bls12_381_fp2,
     result: *mut zkvm_bls12_381_g2_point,
 ) -> zkvm_status {
     if field_element.is_null() || result.is_null() {
-        return ZKVM_EFAIL;
+        null_pointer("zkvm_bls12_map_fp2_to_g2");
     }
     // SAFETY: the caller guarantees a valid read. The output is written only after this
     // shared borrow is no longer used, so overlapping storage is supported.
