@@ -9,6 +9,7 @@ on:
       - "crates/curve-utils/**"
       - "Cargo.toml"
       - "Cargo.lock"
+      - "ci/openvm_toolchain.sh"
       - ".github/workflows/tests-kzg.yml"
   pull_request:
     paths:
@@ -16,6 +17,7 @@ on:
       - "crates/curve-utils/**"
       - "Cargo.toml"
       - "Cargo.lock"
+      - "ci/openvm_toolchain.sh"
       - ".github/workflows/tests-kzg.yml"
 
 concurrency:
@@ -26,7 +28,6 @@ env:
   CARGO_TERM_COLOR: always
   CARGO_NET_GIT_FETCH_WITH_CLI: "true"
   OPENVM_FAST_TEST: "1"
-  OPENVM_BRANCH: develop-v2.x.0
 
 jobs:
   test:
@@ -44,11 +45,14 @@ jobs:
         with:
           cache-on-failure: true
       - uses: taiki-e/install-action@nextest
+      # The OpenVM commit that Cargo.lock locks, and that commit's guest toolchain.
+      - name: Find the locked OpenVM commit and its toolchain
+        run: ci/openvm_toolchain.sh >> "$GITHUB_ENV"
       - name: Restore openvm toolchain from cache
         uses: runs-on/cache@v4
         with:
           path: ~/.openvm/toolchains
-          key: openvm-toolchain-openvm-1.97.1-${{ runner.os }}-${{ runner.arch }}
+          key: openvm-toolchain-${{ env.OPENVM_RUST_TOOLCHAIN }}-${{ runner.os }}-${{ runner.arch }}
 
       # The KZG integration tests build a zkVM guest via the OpenVM SDK, which
       # compiles with OpenVM's named rustup toolchain.
@@ -56,8 +60,8 @@ jobs:
         run: |
           rustup install nightly-2026-09-10
           rustup component add rust-src --toolchain nightly-2026-09-10
-          cargo install --git https://github.com/openvm-org/openvm.git --branch "$OPENVM_BRANCH" --locked --force cargo-openvm
-          cargo openvm toolchain install
+          cargo install --git https://github.com/openvm-org/openvm.git --rev "$OPENVM_REV" --locked --force cargo-openvm
+          cargo openvm toolchain install --version "$OPENVM_RUST_TOOLCHAIN"
 
       - name: Run tests
         run: cargo nextest run -p openvm-kzg --release
@@ -79,18 +83,21 @@ jobs:
         with:
           cache-on-failure: true
       - uses: taiki-e/install-action@nextest
+      # The OpenVM commit that Cargo.lock locks, and that commit's guest toolchain.
+      - name: Find the locked OpenVM commit and its toolchain
+        run: ci/openvm_toolchain.sh >> "$GITHUB_ENV"
       - name: Restore openvm toolchain from cache
         uses: runs-on/cache@v4
         with:
           path: ~/.openvm/toolchains
-          key: openvm-toolchain-openvm-1.97.1-${{ runner.os }}-${{ runner.arch }}
+          key: openvm-toolchain-${{ env.OPENVM_RUST_TOOLCHAIN }}-${{ runner.os }}-${{ runner.arch }}
 
       - name: Install OpenVM guest toolchain
         run: |
           rustup install nightly-2026-09-10
           rustup component add rust-src --toolchain nightly-2026-09-10
-          cargo install --git https://github.com/openvm-org/openvm.git --branch "$OPENVM_BRANCH" --locked --force cargo-openvm
-          cargo openvm toolchain install
+          cargo install --git https://github.com/openvm-org/openvm.git --rev "$OPENVM_REV" --locked --force cargo-openvm
+          cargo openvm toolchain install --version "$OPENVM_RUST_TOOLCHAIN"
 
       - name: Prove all test vectors
         run: cargo nextest run -p openvm-kzg --release --run-ignored only test_prove_multiple_valid_verify_kzg

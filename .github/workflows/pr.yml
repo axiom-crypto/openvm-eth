@@ -30,6 +30,7 @@ jobs:
         run: |
           cargo tree
           (cd ./bin/stateless-guest && cargo tree)
+          ./crates/c-guest/sync-lock.sh
 
       - name: "Assert no changes"
         run: |

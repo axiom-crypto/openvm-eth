@@ -181,6 +181,9 @@ jobs:
           cargo update -p revm
           cargo tree
 
+      - name: Update C guest library Cargo.lock
+        run: crates/c-guest/sync-lock.sh
+
       - name: Configure git
         run: |
           git config user.name "${{ github.actor }}"
@@ -207,6 +210,7 @@ jobs:
           git add -f Cargo.lock
           git add -f bin/stateless-guest/Cargo.toml
           git add -f bin/stateless-guest/Cargo.lock
+          git add -f crates/c-guest/Cargo.lock
           git commit -m "Patch openvm commits in .cargo/config.toml and bin/stateless-guest/Cargo.toml"
           git push -f origin "$BRANCH_NAME"
           echo "branch_name=$BRANCH_NAME" >> $GITHUB_OUTPUT
