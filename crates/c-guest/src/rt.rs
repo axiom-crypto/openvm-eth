@@ -18,7 +18,8 @@
 //! [`__assert_func`] for newlib's) exit with code 1, like a Rust panic.
 //!
 //! The linker must define the bounds of the constructor and destructor arrays
-//! (`__init_array_start` and so on), as GNU ld and LLD do with their default linker scripts.
+//! (`__init_array_start` and so on), as `openvm.ld` and the default linker scripts of GNU ld and
+//! LLD do.
 
 use alloc::{format, vec::Vec};
 use core::ffi::{c_char, c_int, c_uint, c_void, CStr};

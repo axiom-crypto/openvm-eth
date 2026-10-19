@@ -62,8 +62,12 @@ jobs:
       - name: Build the library
         run: crates/c-guest/build.sh
 
-      - name: Install clang
-        run: command -v clang || (sudo apt-get update && sudo apt-get install -y clang)
+      # tests/link.sh compiles with clang and links with LLD and GNU ld.
+      - name: Install clang and GNU ld for RISC-V
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y binutils-riscv64-unknown-elf
+          command -v clang || sudo apt-get install -y clang
 
       - name: Link a C program against the library
         run: crates/c-guest/tests/link.sh

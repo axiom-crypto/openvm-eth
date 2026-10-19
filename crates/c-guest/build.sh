@@ -15,6 +15,10 @@
 # return value to `exit` (src/rt.rs). The script then makes `__wrap_main` a local symbol, so that
 # it doesn't clash with a program that wraps `main` itself.
 #
+# OpenVM's allocator takes the library's heap from `_end` up. The script renames that reference to
+# `__openvm_heap_start`, which openvm.ld puts above the program's heap, so that `_end` keeps its
+# usual meaning, the end of the program, where a C library's `sbrk` starts the program's heap.
+#
 # The OpenVM toolchain is the one of the OpenVM commit that Cargo.lock locks (see
 # ci/openvm_toolchain.sh), unless OPENVM_RUST_TOOLCHAIN selects another.
 set -euo pipefail
@@ -71,14 +75,15 @@ while IFS= read -r member; do
   esac
 done <<< "$MEMBERS"
 "$BIN/rust-lld" -flavor gnu -r --wrap=main -o openvm_c_guest.o "${MERGED[@]}"
-"$BIN/llvm-objcopy" --localize-symbol=__wrap_main openvm_c_guest.o
+"$BIN/llvm-objcopy" --localize-symbol=__wrap_main --redefine-sym _end=__openvm_heap_start \
+  openvm_c_guest.o
 
 # The object with `_start` must define the memory functions and the library's interface strongly,
-# and leave only the program's `main` undefined, not `__real_main`.
+# and refer to the program's `main`, not `__real_main`, and to `__openvm_heap_start`, not `_end`.
 SYMBOLS=$("$BIN/llvm-nm" openvm_c_guest.o)
 REQUIRED=("T _start" "T memcpy" "T memmove" "T memset" "T memcmp" "T read_input" "T write_output"
   "T exit" "T _Exit" "T abort" "T atexit" "T __cxa_atexit" "T __assert_fail" "T __assert_func"
-  "R __dso_handle" "t __wrap_main" "U main")
+  "R __dso_handle" "t __wrap_main" "U main" "U __openvm_heap_start")
 for accelerator in $ACCELERATORS; do
   REQUIRED+=("T $accelerator")
 done
@@ -88,7 +93,7 @@ for sym in "${REQUIRED[@]}"; do
     exit 1
   fi
 done
-for sym in "U __real_main" "T __wrap_main"; do
+for sym in "U __real_main" "T __wrap_main" "U _end"; do
   if grep -q " $sym\$" <<< "$SYMBOLS"; then
     echo "error: openvm_c_guest.o has the symbol '$sym'" >&2
     exit 1

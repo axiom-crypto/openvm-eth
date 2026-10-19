@@ -6,6 +6,7 @@ A static library that runs C programs as OpenVM guests, with the guest interface
 | Interface | Standard | Implementation |
 |---|---|---|
 | Entry point (`_start`) and termination | [static-library-and-linker-script](https://github.com/eth-act/zkevm-standards/tree/main/standards/static-library-and-linker-script), [standard-termination-semantics](https://github.com/eth-act/zkevm-standards/tree/main/standards/standard-termination-semantics) | [`src/rt.rs`](src/rt.rs) |
+| Linker script: segments, memory layout, `_heap_start` and `_heap_end` | [static-library-and-linker-script](https://github.com/eth-act/zkevm-standards/tree/main/standards/static-library-and-linker-script), [memory-layout-restrictions](https://github.com/eth-act/zkevm-standards/tree/main/standards/memory-layout-restrictions) | [`openvm.ld`](openvm.ld) |
 | I/O (`zkvm_io.h`) | [io-interface](https://github.com/eth-act/zkevm-standards/tree/main/standards/io-interface) | [`src/io.rs`](src/io.rs) |
 | Accelerators (`zkvm_accelerators.h`) | [c-interface-accelerators](https://github.com/eth-act/zkevm-standards/tree/main/standards/c-interface-accelerators) | [`crates/accelerators`](../accelerators) |
 | `memcpy`, `memmove`, `memset`, `memcmp` | [accelerated-memory-operations](https://github.com/eth-act/zkevm-standards/tree/main/standards/accelerated-memory-operations) | OpenVM's `openvm-mem` |
@@ -30,7 +31,7 @@ provides `_Exit`, which terminates at once, `abort`, and the handlers of failed 
 
 The linker must define the bounds of the constructor and destructor arrays
 (`__init_array_start`, `__init_array_end`, and the same for `__preinit_array` and
-`__fini_array`); GNU ld and LLD do with their default linker scripts.
+`__fini_array`), as `openvm.ld` does.
 
 ## Build
 
@@ -57,6 +58,8 @@ object:
 - The merge links with `--wrap=main`, so OpenVM's `__start` calls the library's `__wrap_main`,
   which runs the startup and termination above. Cargo's own `.a` leaves `__real_main` undefined.
   `build.sh` then makes `__wrap_main` a local symbol, so a program can wrap `main` itself.
+- `build.sh` renames the library's reference to `_end`, where OpenVM's allocator starts its heap,
+  to `__openvm_heap_start`, which `openvm.ld` defines above the program's heap (see below).
 
 `Cargo.lock` is the part of the root `Cargo.lock` that the library needs, so the library builds
 with the dependency versions that the root workspace tests. After changing dependencies, run
@@ -64,15 +67,41 @@ with the dependency versions that the root workspace tests. After changing depen
 
 ## Link a program
 
-Compile for RV64IM with the LP64 ABI, and link at OpenVM's text address after the program's
-objects:
+Compile for RV64IM with the LP64 ABI, and link with the library's linker script,
+[`openvm.ld`](openvm.ld), and the library after the program's objects:
 
 ```sh
-riscv64-unknown-elf-gcc -march=rv64im -mabi=lp64 -nostdlib -Wl,-Ttext=0x00200800,-z,separate-code \
+riscv64-unknown-elf-gcc -march=rv64im -mabi=lp64 -nostdlib -T crates/c-guest/openvm.ld \
     main.c crates/c-guest/target/libopenvm_c_guest.a -o main.elf
 ```
 
-`crates/c-guest/tests/link.sh` does the same with clang and LLD, and checks the result.
+`crates/c-guest/tests/link.sh` does the same with clang, links with LLD and with GNU ld, and checks
+the results.
+
+`openvm.ld` works with GNU ld and LLD, and the library needs it: it defines the library's
+`__openvm_heap_start`. It sets the entry point to `_start` and puts the code, the read-only data and
+the writable data in segments of their own: OpenVM transpiles every word of the executable segment
+as an instruction, and a data word can make the transpiler fail. It lays out OpenVM's 4 GiB of
+memory:
+
+| Addresses | Region |
+|---|---|
+| below `0x0020_0400` | The stack, about 2 MiB, which grows down from `0x0020_0400`, where OpenVM's `_start` starts it |
+| `0x0020_0800` to `_end` | The program: code, read-only data, data and BSS |
+| `_heap_start` (`_end`) to `_heap_end` (`0x7FFF_F000`) | The program's heap, which the library doesn't use |
+| `__openvm_heap_start` (`0x7FFF_F000`) to 4 GiB | The library's heap: OpenVM's allocator, which `read_input`, `atexit` and the accelerators use, and which never frees memory |
+
+A program can run an allocator of its own on its heap, or a C library's `malloc`, which must keep
+below `_heap_end`. `_end` is where an `sbrk` heap starts, and the script also defines `end` and
+picolibc's `__heap_start` and `__heap_end`. `_heap_end` is below 2 GiB, so that code built for the
+medlow code model can address it. The library's heap is about 2 GiB: `read_input` copies the whole
+input there.
+
+Large buffers are better on the heap than in the BSS: OpenVM's loader builds the initial memory
+image word by word, with the zeros of the BSS. Uninitialized data must be in `.bss` or `.noinit`
+sections, since a linker can put other uninitialized sections after `_heap_start`. The script
+rejects thread-local storage, which OpenVM's `_start` doesn't set up, and `.ctors` and `.dtors`
+tables, which nothing runs; RISC-V compilers use `.init_array` and `.fini_array`.
 
 The library's memory functions (`memcpy`, `memmove`, `memset`, `memcmp` and `bcmp`) are strong, so
 a program must not define them strongly, and a C library must come after this library on the
@@ -81,9 +110,7 @@ compiler-builtins', are fine.
 
 The library is not a C library: it has no `stdio.h` or `malloc`, for example. Besides the functions
 above, it exports OpenVM's runtime symbols, among them the C math functions of OpenVM's Rust runtime
-(`floor`, `exp`, ...), so a program must not define those or link another math library. The
-library's heap (OpenVM's bump allocator, which `read_input`, `atexit` and the accelerators use)
-starts at `_end` and grows up: a program must not use that memory for its own heap.
+(`floor`, `exp`, ...), so a program must not define those or link another math library.
 
 ## Run
 
