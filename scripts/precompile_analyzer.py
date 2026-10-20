@@ -5,6 +5,7 @@ Analyzes precompile calls in Ethereum blocks using debug_traceBlockByNumber.
 Usage:
     python3 precompile_analyzer.py <block_number>
     python3 precompile_analyzer.py <block_number> --rpc <url>
+    python3 precompile_analyzer.py <block_number> --rpc <url> --rpc <fallback_url>
     python3 precompile_analyzer.py <block_number> -v
     python3 precompile_analyzer.py <block_number> --top-k 10
     python3 precompile_analyzer.py <block_number> --filter bn254_add
@@ -15,10 +16,16 @@ Usage:
 import argparse
 import json
 import sys
+import time
 import urllib.request
 
 DEFAULT_RPC_URL = "http://localhost:8545"
 DEFAULT_TOP_K = 5
+
+# Public endpoints fail transiently (rate limits, free-plan request timeouts),
+# so every RPC call makes up to this many passes over the endpoints.
+RPC_ATTEMPTS = 3
+RPC_RETRY_DELAY_SECS = 5
 
 # Precompile addresses
 PRECOMPILES = {
@@ -67,21 +74,38 @@ TX_HEADER = (
 TX_SEP = f"|{'-' * (COL_RANK + 2)}|{'-' * (COL_TX + 2)}|{'-' * (COL_CALLS + 2)}|"
 
 
-def rpc_call(url: str, method: str, params: list) -> dict:
-    """Make a JSON-RPC call."""
+def rpc_call(urls: list[str], method: str, params: list):
+    """Make a JSON-RPC call, trying the endpoints in order, and return its result."""
     payload = {
         "jsonrpc": "2.0",
         "method": method,
         "params": params,
         "id": 1,
     }
-    req = urllib.request.Request(
-        url,
-        data=json.dumps(payload).encode(),
-        headers={"Content-Type": "application/json"},
-    )
-    with urllib.request.urlopen(req, timeout=120) as response:
-        return json.loads(response.read().decode())
+    error = None
+    for attempt in range(RPC_ATTEMPTS):
+        if attempt:
+            time.sleep(RPC_RETRY_DELAY_SECS)
+        for url in urls:
+            req = urllib.request.Request(
+                url,
+                data=json.dumps(payload).encode(),
+                # Some public endpoints reject urllib's default User-Agent.
+                headers={
+                    "Content-Type": "application/json",
+                    "User-Agent": "precompile-analyzer",
+                },
+            )
+            try:
+                with urllib.request.urlopen(req, timeout=120) as response:
+                    body = json.loads(response.read().decode())
+                if body.get("result") is not None:
+                    return body["result"]
+                error = body.get("error")
+            except Exception as e:
+                error = e
+            print(f"  {method} via {url} failed: {error}", file=sys.stderr)
+    raise Exception(f"{method} failed {RPC_ATTEMPTS} times on every endpoint: {error}")
 
 
 def process_call_for_tx(call: dict, counts: dict[str, int]) -> None:
@@ -103,18 +127,14 @@ def count_call_frames(call: dict) -> int:
     return n
 
 
-def analyze_block(rpc_url: str, block_number: int, verbose: bool = False) -> list:
+def analyze_block(
+    rpc_urls: list[str], block_number: int, verbose: bool = False
+) -> list:
     """Analyze a single block and return per-transaction precompile counts."""
     block_hex = hex(block_number)
     tracer_config = {"tracer": "callTracer"}
 
-    result = rpc_call(rpc_url, "debug_traceBlockByNumber", [block_hex, tracer_config])
-    if result is None:
-        raise Exception("RPC returned None")
-    if "error" in result:
-        raise Exception(f"RPC error: {result['error']}")
-
-    trace = result.get("result", [])
+    trace = rpc_call(rpc_urls, "debug_traceBlockByNumber", [block_hex, tracer_config])
     if verbose:
         total_calls = 0
         for tx in trace:
@@ -135,31 +155,21 @@ def analyze_block(rpc_url: str, block_number: int, verbose: bool = False) -> lis
     return tx_stats
 
 
-def check_rpc(rpc_url: str) -> bool:
-    """Check if RPC endpoint supports debug_traceBlockByNumber."""
+def check_rpc(rpc_urls: list[str]) -> bool:
+    """Check if the RPC endpoints support debug_traceBlockByNumber."""
     print("Checking for debug_traceBlockByNumber support...")
 
     try:
-        result = rpc_call(rpc_url, "eth_blockNumber", [])
-        if "error" in result:
-            print(f"  eth_blockNumber failed: {result['error']}")
-            return False
-        block_num = int(result["result"], 16)
+        block_num = int(rpc_call(rpc_urls, "eth_blockNumber", []), 16)
         print(f"  eth_blockNumber: {block_num}")
 
         # Use an older block for testing (100 blocks back)
         test_block = block_num - 100
         tracer_config = {"tracer": "callTracer"}
 
-        result = rpc_call(
-            rpc_url, "debug_traceBlockByNumber", [hex(test_block), tracer_config]
+        trace = rpc_call(
+            rpc_urls, "debug_traceBlockByNumber", [hex(test_block), tracer_config]
         )
-
-        if "error" in result:
-            print(f"  debug_traceBlockByNumber failed: {result['error']}")
-            return False
-
-        trace = result.get("result", [])
         print(f"  debug_traceBlockByNumber: OK ({len(trace)} transactions)")
         return True
     except Exception as e:
@@ -284,8 +294,8 @@ Examples:
     parser.add_argument(
         "--rpc",
         type=str,
-        default=DEFAULT_RPC_URL,
-        help=f"RPC endpoint URL (default: {DEFAULT_RPC_URL})",
+        action="append",
+        help=f"RPC endpoint URL; repeat to add fallbacks, tried in order (default: {DEFAULT_RPC_URL})",
     )
     parser.add_argument(
         "--check",
@@ -313,9 +323,10 @@ Examples:
     )
 
     args = parser.parse_args()
+    rpc_urls = args.rpc or [DEFAULT_RPC_URL]
 
     if args.check:
-        success = check_rpc(args.rpc)
+        success = check_rpc(rpc_urls)
         sys.exit(0 if success else 1)
 
     if args.block is None:
@@ -333,7 +344,7 @@ Examples:
     print(f"**Block:** {args.block}\n")
 
     try:
-        tx_stats = analyze_block(args.rpc, args.block, args.verbose)
+        tx_stats = analyze_block(rpc_urls, args.block, args.verbose)
 
         if not tx_stats:
             print("No precompile calls found in this block.")
@@ -342,9 +353,6 @@ Examples:
         print_summary(tx_stats, args.block, filter_names)
         print_top_transactions(tx_stats, args.top_k, filter_names)
 
-    except urllib.error.URLError as e:
-        print(f"\nError: {e}")
-        sys.exit(1)
     except Exception as e:
         print(f"\nError: {e}")
         sys.exit(1)

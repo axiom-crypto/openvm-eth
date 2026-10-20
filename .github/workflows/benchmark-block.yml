@@ -1,0 +1,47 @@
+name: "Resolve Benchmark Block"
+
+on:
+  workflow_call:
+    inputs:
+      block_preset:
+        description: Preset name in .github/benchmark-blocks.json
+        type: string
+        required: true
+      block_number:
+        description: Ethereum block number; overrides block_preset when set
+        type: string
+        required: false
+        default: ""
+    outputs:
+      block:
+        description: The Ethereum block number to benchmark
+        value: ${{ jobs.resolve.outputs.block }}
+      label:
+        description: The preset name, or "custom" when block_number overrides it
+        value: ${{ jobs.resolve.outputs.label }}
+
+jobs:
+  resolve:
+    name: "Resolve"
+    runs-on: ubuntu-latest
+    outputs:
+      block: ${{ steps.resolve.outputs.block }}
+      label: ${{ steps.resolve.outputs.label }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Resolve block number
+        id: resolve
+        env:
+          BLOCK_NUMBER: ${{ inputs.block_number }}
+          BLOCK_PRESET: ${{ inputs.block_preset }}
+        run: |
+          if [[ -n "$BLOCK_NUMBER" ]]; then
+            BLOCK="$BLOCK_NUMBER"
+            LABEL=custom
+          else
+            BLOCK=$(jq -er --arg preset "$BLOCK_PRESET" '.blocks[$preset].block' .github/benchmark-blocks.json)
+            LABEL="$BLOCK_PRESET"
+          fi
+          [[ "$BLOCK" =~ ^[0-9]+$ ]] || { echo "invalid block number: $BLOCK"; exit 1; }
+          echo "block=$BLOCK" >> "$GITHUB_OUTPUT"
+          echo "label=$LABEL" >> "$GITHUB_OUTPUT"
