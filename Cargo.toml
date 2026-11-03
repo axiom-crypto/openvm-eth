@@ -57,7 +57,7 @@ tracing-actix-web = "0.7"
 clap = "4.5.54"
 tower = "0.5"
 metrics = "0.24"
-zstd = { version = "0.13", default-features = false }
+zstd = { version = "0.14", default-features = false }
 
 # workspace
 openvm-curve-utils = { path = "./crates/curve-utils", default-features = false }
