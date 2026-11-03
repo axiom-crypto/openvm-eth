@@ -9,4 +9,4 @@ if ! command -v elan >/dev/null 2>&1; then
         echo "${ELAN_HOME:-$HOME/.elan}/bin" >> "$GITHUB_PATH"
     fi
 fi
-elan toolchain install leanprover/lean4:v4.26.0
+elan toolchain install leanprover/lean4:v4.34.0
