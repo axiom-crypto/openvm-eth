@@ -19,7 +19,7 @@ revm-primitives.workspace = true
 
 # alloy
 alloy-rlp.workspace = true
-alloy-trie = { workspace = true, features = ["ethereum"] }
+alloy-trie = { version = "0.9.7", default-features = false, features = ["ethereum"] }
 
 [dev-dependencies]
 hex-literal.workspace = true
