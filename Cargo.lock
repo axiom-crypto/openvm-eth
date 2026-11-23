@@ -358,7 +358,7 @@ dependencies = [
  "alloy-transport-http",
  "alloy-transport-ipc",
  "alloy-transport-ws",
- "alloy-trie 0.9.7",
+ "alloy-trie 0.9.9",
 ]
 
 [[package]]
@@ -384,7 +384,7 @@ dependencies = [
  "alloy-primitives",
  "alloy-rlp",
  "alloy-serde 2.5.0",
- "alloy-trie 0.9.7",
+ "alloy-trie 0.9.9",
  "alloy-tx-macros",
  "auto_impl",
  "borsh",
@@ -645,7 +645,7 @@ dependencies = [
  "alloy-eips 2.5.0",
  "alloy-primitives",
  "alloy-serde 2.5.0",
- "alloy-trie 0.9.7",
+ "alloy-trie 0.9.9",
  "borsh",
  "serde",
  "serde_with",
@@ -1002,7 +1002,7 @@ dependencies = [
  "alloy-rlp",
  "alloy-serde 2.5.0",
  "alloy-sol-types",
- "alloy-trie 0.9.7",
+ "alloy-trie 0.9.9",
  "itertools 0.14.0",
  "serde",
  "serde_json",
@@ -1277,9 +1277,9 @@ dependencies = [
 
 [[package]]
 name = "alloy-trie"
-version = "0.9.7"
+version = "0.9.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7895d0d2c946c0ae9253c227db77b9fc707383831058e6a5232fdfc774b28259"
+checksum = "70c7c04b6e5a7a2325f53d38c319a47d01c3609b44845ac2801bac9643fe26b9"
 dependencies = [
  "alloy-primitives",
  "alloy-rlp",
@@ -3324,7 +3324,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8d162beedaa69905488a8da94f5ac3edb4dd4788b732fadb7bd120b2625c1976"
 dependencies = [
  "data-encoding",
- "syn 1.0.109",
+ "syn 2.0.102",
 ]
 
 [[package]]
@@ -7529,7 +7529,7 @@ name = "openvm-mpt"
 version = "0.4.0"
 dependencies = [
  "alloy-rlp",
- "alloy-trie 0.9.7",
+ "alloy-trie 0.9.9",
  "bumpalo",
  "bytes",
  "hex-literal",
@@ -7806,7 +7806,7 @@ dependencies = [
  "alloy-provider",
  "alloy-rpc-types",
  "alloy-rpc-types-debug",
- "alloy-trie 0.9.7",
+ "alloy-trie 0.9.9",
  "clap",
  "eyre",
  "itertools 0.14.0",
@@ -8124,7 +8124,7 @@ dependencies = [
  "alloy-eips 2.5.0",
  "alloy-primitives",
  "alloy-rlp",
- "alloy-trie 0.9.7",
+ "alloy-trie 0.9.9",
  "bincode 2.0.1",
  "bumpalo",
  "itertools 0.14.0",
@@ -9607,7 +9607,7 @@ dependencies = [
  "alloy-evm",
  "alloy-genesis",
  "alloy-primitives",
- "alloy-trie 0.9.7",
+ "alloy-trie 0.9.9",
  "auto_impl",
  "derive_more 2.0.1",
  "reth-ethereum-forks",
@@ -9643,7 +9643,7 @@ dependencies = [
  "alloy-eips 2.5.0",
  "alloy-genesis",
  "alloy-primitives",
- "alloy-trie 0.9.7",
+ "alloy-trie 0.9.9",
  "bytes",
  "modular-bitfield",
  "parity-scale-codec",
@@ -10198,7 +10198,7 @@ dependencies = [
  "alloy-hardforks",
  "alloy-primitives",
  "alloy-rlp",
- "alloy-trie 0.9.7",
+ "alloy-trie 0.9.9",
  "bytes",
  "derive_more 2.0.1",
  "reth-chainspec",
@@ -11133,7 +11133,7 @@ dependencies = [
  "alloy-primitives",
  "alloy-rlp",
  "alloy-rpc-types-eth",
- "alloy-trie 0.9.7",
+ "alloy-trie 0.9.9",
  "byteorder",
  "bytes",
  "dashmap",
@@ -11912,7 +11912,7 @@ dependencies = [
  "alloy-eips 2.5.0",
  "alloy-primitives",
  "alloy-rlp",
- "alloy-trie 0.9.7",
+ "alloy-trie 0.9.9",
  "auto_impl",
  "itertools 0.14.0",
  "metrics 0.24.6",
@@ -11938,7 +11938,7 @@ dependencies = [
  "alloy-rlp",
  "alloy-rpc-types-eth",
  "alloy-serde 2.5.0",
- "alloy-trie 0.9.7",
+ "alloy-trie 0.9.9",
  "arrayvec",
  "bytes",
  "derive_more 2.0.1",
@@ -11998,7 +11998,7 @@ version = "2.7.0"
 source = "git+https://github.com/paradigmxyz/reth?tag=v2.7.0#3d592ece6de8c4559987416a544fc215fd6d6921"
 dependencies = [
  "alloy-primitives",
- "alloy-trie 0.9.7",
+ "alloy-trie 0.9.9",
  "either",
  "metrics 0.24.6",
  "rayon",
