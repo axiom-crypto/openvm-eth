@@ -509,7 +509,7 @@ jobs:
             exit 1
           fi
 
-          S3_CACHE_FILE="${S3_FIXTURE_PATH}/rpc-input/v1/mainnet/${BLOCK_NUMBER}.bin"
+          S3_CACHE_FILE="${S3_FIXTURE_PATH}/rpc-input/v2/mainnet/${BLOCK_NUMBER}.bin"
 
           echo "mode=${RPC_INPUT_CACHE_MODE}" >> "$GITHUB_OUTPUT"
           echo "cache_file=${CACHE_FILE}" >> "$GITHUB_OUTPUT"
