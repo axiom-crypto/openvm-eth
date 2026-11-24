@@ -323,3 +323,283 @@ fn test_write_back_requires_storage_trie() -> Result<(), Error> {
     }
     Ok(())
 }
+
+#[cfg(feature = "evm2")]
+mod evm2_bundle {
+    use evm2::{
+        block::{
+            bundle_state::{AccountStatus, BundleAccount, StorageSlot},
+            BundleState,
+        },
+        bytecode::Bytecode,
+        evm::AccountInfo,
+    };
+
+    use super::*;
+
+    fn slot_key(slot: u64) -> B256 {
+        keccak256(U256::from(slot).to_be_bytes::<32>())
+    }
+
+    fn storage_trie<'a>(bump: &'a bumpalo::Bump, slots: &[(u64, u64)]) -> Result<Mpt<'a>, Error> {
+        let mut trie = Mpt::new(bump);
+        for (slot, value) in slots {
+            trie.insert_rlp(slot_key(*slot).as_slice(), U256::from(*value))?;
+        }
+        Ok(trie)
+    }
+
+    fn leaf(info: &AccountInfo, storage_root: B256) -> TrieAccount {
+        TrieAccount {
+            nonce: info.nonce,
+            balance: info.balance,
+            storage_root,
+            code_hash: info.code_hash,
+        }
+    }
+
+    fn storage(slots: &[(u64, u64, u64)]) -> evm2::block::bundle_state::StorageWithOriginalValues {
+        slots
+            .iter()
+            .map(|(slot, original, present)| {
+                (
+                    U256::from(*slot),
+                    StorageSlot::new_changed(U256::from(*original), U256::from(*present)),
+                )
+            })
+            .collect()
+    }
+
+    /// Pre-block state and a block bundle covering every update shape: a storage write and
+    /// slot deletion with a code deployment, a destroyed-and-recreated account, a removed
+    /// account, and a newly created account.
+    struct Fixture {
+        changed: Address,
+        recreated: Address,
+        removed: Address,
+        created: Address,
+        changed_info: AccountInfo,
+        recreated_info: AccountInfo,
+        created_info: AccountInfo,
+        bundle: BundleState,
+    }
+
+    impl Fixture {
+        fn new() -> Self {
+            let changed = Address::repeat_byte(0x01);
+            let recreated = Address::repeat_byte(0x02);
+            let removed = Address::repeat_byte(0x03);
+            let created = Address::repeat_byte(0x04);
+
+            let pre = |nonce| AccountInfo::new(U256::from(100), nonce, KECCAK_EMPTY, None);
+            let code = Bytecode::new_raw(revm_primitives::Bytes::from_static(&[0x60, 0x00]));
+            let code_hash = code.hash_slow();
+            // evm2 detaches deployed code into `BundleState::contracts`.
+            let changed_info = AccountInfo::new(U256::from(90), 2, code_hash, None);
+            let recreated_info = AccountInfo::new(U256::from(1), 1, code_hash, None);
+            let created_info = AccountInfo::new(U256::from(7), 0, KECCAK_EMPTY, None);
+
+            let mut bundle = BundleState::default();
+            bundle.contracts.insert(code_hash, code);
+            bundle.state.insert(
+                changed,
+                BundleAccount::new(
+                    Some(pre(1)),
+                    Some(changed_info.clone()),
+                    storage(&[(1, 10, 11), (2, 20, 0)]),
+                    AccountStatus::Changed,
+                ),
+            );
+            bundle.state.insert(
+                recreated,
+                BundleAccount::new(
+                    Some(pre(1)),
+                    Some(recreated_info.clone()),
+                    storage(&[(3, 0, 7)]),
+                    AccountStatus::DestroyedChanged,
+                ),
+            );
+            bundle.state.insert(
+                removed,
+                BundleAccount::new(Some(pre(1)), None, storage(&[]), AccountStatus::Destroyed),
+            );
+            bundle.state.insert(
+                created,
+                BundleAccount::new(
+                    None,
+                    Some(created_info.clone()),
+                    storage(&[(5, 0, 50)]),
+                    AccountStatus::InMemoryChange,
+                ),
+            );
+
+            Self {
+                changed,
+                recreated,
+                removed,
+                created,
+                changed_info,
+                recreated_info,
+                created_info,
+                bundle,
+            }
+        }
+
+        /// The pre-block state, with an (empty) storage trie supplied for the new account as
+        /// the witness does for every account the block writes back.
+        fn pre_state<'a>(&self, bump: &'a bumpalo::Bump) -> Result<EthereumState<'a>, Error> {
+            let pre_storage = [
+                (self.changed, storage_trie(bump, &[(1, 10), (2, 20)])?),
+                (self.recreated, storage_trie(bump, &[(1, 5), (2, 6)])?),
+                (self.removed, storage_trie(bump, &[(9, 9)])?),
+                (self.created, Mpt::new(bump)),
+            ];
+            let mut state_trie = Mpt::new(bump);
+            for (address, trie) in &pre_storage[..3] {
+                let account = TrieAccount {
+                    nonce: 1,
+                    balance: U256::from(100),
+                    storage_root: trie.hash(),
+                    code_hash: KECCAK_EMPTY,
+                };
+                state_trie.insert_rlp(keccak256(address).as_slice(), account)?;
+            }
+            Ok(EthereumState::from_tries(
+                state_trie,
+                pre_storage.into_iter().map(|(address, trie)| (keccak256(address), trie)),
+                bump,
+            ))
+        }
+    }
+
+    #[test]
+    fn test_evm2_update_applies_every_account_shape() -> Result<(), Error> {
+        let bump = bumpalo::Bump::new();
+        let fixture = Fixture::new();
+        let mut state = fixture.pre_state(&bump)?;
+        state.update_from_evm2_bundle_state(&fixture.bundle)?;
+
+        // The zeroed slot is deleted; the destroyed account keeps only post-destruction writes.
+        let changed_storage = storage_trie(&bump, &[(1, 11)])?;
+        let recreated_storage = storage_trie(&bump, &[(3, 7)])?;
+        let created_storage = storage_trie(&bump, &[(5, 50)])?;
+        let mut expected = Mpt::new(&bump);
+        expected.insert_rlp(
+            keccak256(fixture.changed).as_slice(),
+            leaf(&fixture.changed_info, changed_storage.hash()),
+        )?;
+        expected.insert_rlp(
+            keccak256(fixture.recreated).as_slice(),
+            leaf(&fixture.recreated_info, recreated_storage.hash()),
+        )?;
+        expected.insert_rlp(
+            keccak256(fixture.created).as_slice(),
+            leaf(&fixture.created_info, created_storage.hash()),
+        )?;
+
+        assert_eq!(state.state_trie.hash(), expected.hash());
+        assert_eq!(state.storage_tries[&keccak256(fixture.changed)].hash(), changed_storage.hash());
+        assert_eq!(
+            state.storage_tries[&keccak256(fixture.recreated)].hash(),
+            recreated_storage.hash()
+        );
+        assert!(!state.storage_tries.contains_key(&keccak256(fixture.removed)));
+        Ok(())
+    }
+
+    /// The evm2 updater produces the same tries as the REVM updater on the equivalent bundle.
+    #[test]
+    fn test_evm2_update_matches_revm_update() -> Result<(), Error> {
+        use revm::{database as revm_db, state as revm_state};
+
+        let fixture = Fixture::new();
+        let revm_account = |info: &AccountInfo| revm_state::AccountInfo {
+            balance: info.balance,
+            nonce: info.nonce,
+            code_hash: info.code_hash,
+            ..Default::default()
+        };
+        let mut revm_bundle = revm_db::BundleState::default();
+        for (address, account) in &fixture.bundle.state {
+            let status = match account.status {
+                AccountStatus::Changed => revm_db::AccountStatus::Changed,
+                AccountStatus::DestroyedChanged => revm_db::AccountStatus::DestroyedChanged,
+                AccountStatus::Destroyed => revm_db::AccountStatus::Destroyed,
+                AccountStatus::InMemoryChange => revm_db::AccountStatus::InMemoryChange,
+                other => panic!("fixture does not use {other:?}"),
+            };
+            revm_bundle.state.insert(
+                *address,
+                revm_db::BundleAccount::new(
+                    account.original_info.as_ref().map(revm_account),
+                    account.info.as_ref().map(revm_account),
+                    account
+                        .storage
+                        .iter()
+                        .map(|(slot, value)| {
+                            (
+                                *slot,
+                                revm_db::states::StorageSlot::new_changed(
+                                    value.original_value(),
+                                    value.present_value(),
+                                ),
+                            )
+                        })
+                        .collect(),
+                    status,
+                ),
+            );
+        }
+
+        let bump = bumpalo::Bump::new();
+        let mut evm2_state = fixture.pre_state(&bump)?;
+        evm2_state.update_from_evm2_bundle_state(&fixture.bundle)?;
+        let mut revm_state = fixture.pre_state(&bump)?;
+        revm_state.update_from_bundle_state(&revm_bundle)?;
+
+        assert_eq!(evm2_state.state_trie.hash(), revm_state.state_trie.hash());
+        let roots = |state: &EthereumState<'_>| {
+            let mut roots: Vec<_> =
+                state.storage_tries.iter().map(|(address, trie)| (*address, trie.hash())).collect();
+            roots.sort();
+            roots
+        };
+        assert_eq!(roots(&evm2_state), roots(&revm_state));
+        Ok(())
+    }
+
+    #[test]
+    fn test_evm2_write_back_requires_storage_trie() -> Result<(), Error> {
+        let bump = bumpalo::Bump::new();
+        let address = Address::repeat_byte(0x11);
+        let hashed_address = keccak256(address);
+
+        let storage_trie = storage_trie(&bump, &[(1, 42)])?;
+        let mut state_trie = Mpt::new(&bump);
+        state_trie.insert_rlp(
+            hashed_address.as_slice(),
+            TrieAccount {
+                nonce: 1,
+                balance: U256::from(100),
+                storage_root: storage_trie.hash(),
+                code_hash: KECCAK_EMPTY,
+            },
+        )?;
+
+        // A balance credit, e.g. to the fee recipient, writes the account back without reading
+        // storage.
+        let credited = AccountInfo::new(U256::from(200), 1, KECCAK_EMPTY, None);
+        let mut bundle = BundleState::default();
+        bundle.state.insert(
+            address,
+            BundleAccount::new(None, Some(credited), Default::default(), AccountStatus::Changed),
+        );
+
+        let mut state = EthereumState::from_tries(state_trie, [], &bump);
+        match state.update_from_evm2_bundle_state(&bundle) {
+            Err(Error::MissingStorageTrie(missing)) => assert_eq!(missing, hashed_address),
+            other => panic!("expected MissingStorageTrie, got {other:?}"),
+        }
+        Ok(())
+    }
+}
