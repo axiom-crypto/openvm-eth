@@ -82,6 +82,7 @@ mod tests {
     use alloy_consensus::{BlockBody, Signed, TxLegacy};
     use alloy_primitives::Signature;
     use reth_ethereum_primitives::TransactionSigned;
+    use revm::bytecode::BytecodeDecodeError;
 
     fn encode_block(block: &Block) -> Vec<u8> {
         let mut bytes = Vec::with_capacity(block.length());
@@ -121,6 +122,29 @@ mod tests {
                 .expect("input should decode with bincode");
 
         assert_eq!(encode_block(&decoded.current_block), expected_rlp);
+    }
+
+    #[test]
+    fn witnessed_delegation_bytes_decode_as_delegation() {
+        let delegate = Address::repeat_byte(0x42);
+        let delegation = Bytecode::new_eip7702(delegate);
+        let legacy = Bytes::from_static(&[0x60, 0x00, 0x56]);
+        let codes = [delegation.original_bytes(), legacy.clone()];
+
+        let decoded = decode_bytecodes(codes.iter()).unwrap();
+
+        assert_eq!(decoded[&delegation.hash_slow()].eip7702_address(), Some(delegate));
+        assert!(decoded[&keccak256(&legacy)].is_legacy());
+    }
+
+    #[test]
+    fn malformed_delegation_bytes_are_rejected() {
+        let truncated = Bytes::from_static(&[0xef, 0x01, 0x00, 0x42]);
+
+        assert!(matches!(
+            decode_bytecodes([truncated].iter()),
+            Err(StatelessExecutorError::InvalidBytecode(BytecodeDecodeError::Eip7702(_)))
+        ));
     }
 }
 
@@ -376,35 +400,5 @@ impl DatabaseRef for WitnessDb<'_, '_> {
     /// Get block hash by block number.
     fn block_hash_ref(&self, number: u64) -> Result<B256, Self::Error> {
         self.block_hashes.get(&number).copied().ok_or(ProviderError::StateForNumberNotFound(number))
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use revm::bytecode::BytecodeDecodeError;
-
-    use super::*;
-
-    #[test]
-    fn witnessed_delegation_bytes_decode_as_delegation() {
-        let delegate = Address::repeat_byte(0x42);
-        let delegation = Bytecode::new_eip7702(delegate);
-        let legacy = Bytes::from_static(&[0x60, 0x00, 0x56]);
-        let codes = [delegation.original_bytes(), legacy.clone()];
-
-        let decoded = decode_bytecodes(codes.iter()).unwrap();
-
-        assert_eq!(decoded[&delegation.hash_slow()].eip7702_address(), Some(delegate));
-        assert!(decoded[&keccak256(&legacy)].is_legacy());
-    }
-
-    #[test]
-    fn malformed_delegation_bytes_are_rejected() {
-        let truncated = Bytes::from_static(&[0xef, 0x01, 0x00, 0x42]);
-
-        assert!(matches!(
-            decode_bytecodes([truncated].iter()),
-            Err(StatelessExecutorError::InvalidBytecode(BytecodeDecodeError::Eip7702(_)))
-        ));
     }
 }
