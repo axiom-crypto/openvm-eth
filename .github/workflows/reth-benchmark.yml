@@ -509,7 +509,10 @@ jobs:
             exit 1
           fi
 
-          S3_CACHE_FILE="${S3_FIXTURE_PATH}/rpc-input/v2/mainnet/${BLOCK_NUMBER}.bin"
+          # The checked-out code decides the serialized input format, so its version comes from
+          # the checkout rather than from this workflow. Refs without the file use format 1.
+          RPC_INPUT_CACHE_VERSION="$(cat bin/reth-benchmark/rpc-input-cache-version 2>/dev/null || echo 1)"
+          S3_CACHE_FILE="${S3_FIXTURE_PATH}/rpc-input/v${RPC_INPUT_CACHE_VERSION}/mainnet/${BLOCK_NUMBER}.bin"
 
           echo "mode=${RPC_INPUT_CACHE_MODE}" >> "$GITHUB_OUTPUT"
           echo "cache_file=${CACHE_FILE}" >> "$GITHUB_OUTPUT"
