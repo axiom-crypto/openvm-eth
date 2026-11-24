@@ -449,7 +449,7 @@ mod evm2_bundle {
         /// the witness does for every account the block writes back.
         fn pre_state<'a>(&self, bump: &'a bumpalo::Bump) -> Result<EthereumState<'a>, Error> {
             let pre_storage = [
-                (self.changed, storage_trie(bump, &[(1, 10), (2, 20)])?),
+                (self.changed, storage_trie(bump, &[(1, 10), (2, 20), (4, 40)])?),
                 (self.recreated, storage_trie(bump, &[(1, 5), (2, 6)])?),
                 (self.removed, storage_trie(bump, &[(9, 9)])?),
                 (self.created, Mpt::new(bump)),
@@ -479,8 +479,9 @@ mod evm2_bundle {
         let mut state = fixture.pre_state(&bump)?;
         state.update_from_evm2_bundle_state(&fixture.bundle)?;
 
-        // The zeroed slot is deleted; the destroyed account keeps only post-destruction writes.
-        let changed_storage = storage_trie(&bump, &[(1, 11)])?;
+        // The zeroed slot is deleted and the untouched slot kept; the destroyed account keeps
+        // only post-destruction writes.
+        let changed_storage = storage_trie(&bump, &[(1, 11), (4, 40)])?;
         let recreated_storage = storage_trie(&bump, &[(3, 7)])?;
         let created_storage = storage_trie(&bump, &[(5, 50)])?;
         let mut expected = Mpt::new(&bump);
@@ -588,11 +589,17 @@ mod evm2_bundle {
 
         // A balance credit, e.g. to the fee recipient, writes the account back without reading
         // storage.
+        let original = AccountInfo::new(U256::from(100), 1, KECCAK_EMPTY, None);
         let credited = AccountInfo::new(U256::from(200), 1, KECCAK_EMPTY, None);
         let mut bundle = BundleState::default();
         bundle.state.insert(
             address,
-            BundleAccount::new(None, Some(credited), Default::default(), AccountStatus::Changed),
+            BundleAccount::new(
+                Some(original),
+                Some(credited),
+                Default::default(),
+                AccountStatus::Changed,
+            ),
         );
 
         let mut state = EthereumState::from_tries(state_trie, [], &bump);
