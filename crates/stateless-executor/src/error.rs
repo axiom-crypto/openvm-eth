@@ -2,6 +2,7 @@ use alloy_consensus::crypto::RecoveryError;
 use alloy_primitives::BlockNumber;
 use reth_consensus::ConsensusError;
 use reth_evm::block::BlockExecutionError;
+use revm::bytecode::BytecodeDecodeError;
 use revm_primitives::B256;
 
 #[derive(thiserror::Error, Debug)]
@@ -38,6 +39,9 @@ pub enum StatelessExecutorError {
 
     #[error("state root mismatch: got {actual}, expected {expected}")]
     StateRootMismatch { actual: B256, expected: B256 },
+
+    #[error("invalid witnessed bytecode: {0}")]
+    InvalidBytecode(#[from] BytecodeDecodeError),
 
     #[error("MPT error: {0}")]
     MptError(#[from] openvm_mpt::Error),
