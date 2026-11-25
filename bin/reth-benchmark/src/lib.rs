@@ -1,6 +1,11 @@
 #![cfg_attr(feature = "tco", allow(incomplete_features))]
 #![cfg_attr(feature = "tco", feature(explicit_tail_calls))]
-use std::{fs, io::Write, path::PathBuf, time::Instant};
+use std::{
+    fs,
+    io::Write,
+    path::{Path, PathBuf},
+    time::Instant,
+};
 
 use alloy_provider::RootProvider;
 use alloy_rpc_client::RpcClient;
@@ -425,11 +430,15 @@ pub async fn run_reth_benchmark(args: HostArgs, openvm_client_eth_elf: &[u8]) ->
                 eyre::bail!("unknown chain ID: {}", provider_config.chain_id);
             }
         };
-        let stateless_input_from_cache = try_load_input_from_cache(
-            args.cache_dir.as_ref(),
-            provider_config.chain_id,
-            block_number,
-        )?;
+        let cache_path = args.cache_dir.as_ref().map(|dir| {
+            let version = include_str!("../rpc-input-cache-version").trim();
+            let chain_id = provider_config.chain_id;
+            dir.join(format!("input/v{version}/{chain_id}/{block_number}.bin"))
+        });
+        let stateless_input_from_cache = match &cache_path {
+            Some(path) if path.try_exists()? => Some(try_load_input_from_path(path)?),
+            _ => None,
+        };
 
         match (stateless_input_from_cache, provider_config.rpc_url) {
             (Some(stateless_input_from_cache), _) => stateless_input_from_cache,
@@ -448,15 +457,9 @@ pub async fn run_reth_benchmark(args: HostArgs, openvm_client_eth_elf: &[u8]) ->
                 let stateless_input =
                     rpc_executor.execute(block_number).await.expect("failed to execute host");
 
-                if let Some(cache_dir) = args.cache_dir {
-                    let input_folder =
-                        cache_dir.join(format!("input/{}", provider_config.chain_id));
-                    if !input_folder.exists() {
-                        std::fs::create_dir_all(&input_folder)?;
-                    }
-
-                    let input_path = input_folder.join(format!("{}.bin", block_number));
-                    let mut cache_file = std::fs::File::create(input_path)?;
+                if let Some(path) = cache_path {
+                    fs::create_dir_all(path.parent().expect("input cache path has a directory"))?;
+                    let mut cache_file = fs::File::create(path)?;
 
                     bincode::serde::encode_into_std_write(
                         &stateless_input,
@@ -756,30 +759,7 @@ fn max_rule_length<F>(dag: &SymbolicExpressionDag<F>) -> usize {
     max_len
 }
 
-fn try_load_input_from_cache(
-    cache_dir: Option<&PathBuf>,
-    chain_id: u64,
-    block_number: u64,
-) -> Result<Option<StatelessExecutorInput>> {
-    Ok(if let Some(cache_dir) = cache_dir {
-        let cache_path = cache_dir.join(format!("input/{chain_id}/{block_number}.bin"));
-
-        if cache_path.exists() {
-            // TODO: prune the cache if invalid instead
-            let mut cache_file = std::fs::File::open(cache_path)?;
-            let stateless_input: StatelessExecutorInput =
-                bincode::serde::decode_from_std_read(&mut cache_file, bincode::config::standard())?;
-
-            Some(stateless_input)
-        } else {
-            None
-        }
-    } else {
-        None
-    })
-}
-
-fn try_load_input_from_path(path: &PathBuf) -> Result<StatelessExecutorInput> {
+fn try_load_input_from_path(path: &Path) -> Result<StatelessExecutorInput> {
     let ext = path.extension().and_then(|s| s.to_str()).unwrap_or("");
     if ext.eq_ignore_ascii_case("json") {
         let s = std::fs::read_to_string(path)?;
