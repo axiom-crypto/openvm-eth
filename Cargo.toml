@@ -91,6 +91,7 @@ reth-provider = { git = "https://github.com/paradigmxyz/reth", tag = "v2.7.0", d
 # revm
 revm = { version = "=43.0.3", features = ["serde"], default-features = false }
 revm-primitives = { version = "=43.0.0", default-features = false }
+evm2 = { git = "https://github.com/alloy-rs/evm2", rev = "66687c18b34d3bdbb899f5eb7605070615c03475", default-features = false }
 
 # alloy
 alloy-chains = { version = "=0.2.33", default-features = false }

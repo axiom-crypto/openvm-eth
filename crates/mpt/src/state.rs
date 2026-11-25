@@ -1,7 +1,7 @@
 use alloy_trie::TrieAccount;
 use bumpalo::Bump;
 use revm::database::BundleState;
-use revm_primitives::{keccak256, map::DefaultHashBuilder, HashMap, B256};
+use revm_primitives::{keccak256, map::DefaultHashBuilder, HashMap, B256, U256};
 
 use crate::{Error, Mpt};
 
@@ -17,6 +17,14 @@ pub struct EthereumState<'a> {
     pub state_trie: Mpt<'a>,
     pub storage_tries: HashMap<B256, Mpt<'a>>,
     pub bump: &'a Bump,
+}
+
+/// The post-block fields of an account that the state trie commits to, other than its storage
+/// root.
+struct AccountLeaf {
+    nonce: u64,
+    balance: U256,
+    code_hash: B256,
 }
 
 impl<'a> EthereumState<'a> {
@@ -39,13 +47,54 @@ impl<'a> EthereumState<'a> {
         Self { state_trie, storage_tries: storage_tries.into_iter().collect(), bump }
     }
 
+    /// Applies a block's REVM bundle state to the tries.
     pub fn update_from_bundle_state(&mut self, bundle_state: &BundleState) -> Result<(), Error> {
+        self.apply_accounts(bundle_state.state.iter().map(|(address, account)| {
+            let leaf = account.info.as_ref().map(|info| AccountLeaf {
+                nonce: info.nonce,
+                balance: info.balance,
+                code_hash: info.code_hash,
+            });
+            let storage = account.storage.iter().map(|(slot, value)| (*slot, value.present_value));
+            (keccak256(address), leaf, account.status.was_destroyed(), storage)
+        }))
+    }
+
+    /// Applies a block's evm2 bundle state to the tries.
+    ///
+    /// Only account infos, destruction status, and present storage values are read: bytecode
+    /// enters the trie through `code_hash`, so code detached into `BundleState::contracts` is not
+    /// needed.
+    #[cfg(feature = "evm2")]
+    pub fn update_from_evm2_bundle_state(
+        &mut self,
+        bundle_state: &evm2::block::BundleState,
+    ) -> Result<(), Error> {
+        self.apply_accounts(bundle_state.state.iter().map(|(address, account)| {
+            let leaf = account.info.as_ref().map(|info| AccountLeaf {
+                nonce: info.nonce,
+                balance: info.balance,
+                code_hash: info.code_hash,
+            });
+            let storage = account.storage.iter().map(|(slot, value)| (*slot, value.present_value));
+            (keccak256(address), leaf, account.status.was_destroyed(), storage)
+        }))
+    }
+
+    /// Applies one block's account updates. Each update is the hashed address, the post-block
+    /// leaf (`None` if the account no longer exists), whether the block wiped the account's
+    /// storage, and the touched slots with their present values.
+    fn apply_accounts<S>(
+        &mut self,
+        accounts: impl IntoIterator<Item = (B256, Option<AccountLeaf>, bool, S)>,
+    ) -> Result<(), Error>
+    where
+        S: IntoIterator<Item = (U256, U256)>,
+    {
         // removals must happen last, otherwise unresolved orphans might still exist
         let mut removed_accounts = vec![];
-        for (address, account) in &bundle_state.state {
-            let hashed_address = keccak256(address);
-
-            let Some(info) = &account.info else {
+        for (hashed_address, leaf, was_destroyed, storage) in accounts {
+            let Some(leaf) = leaf else {
                 removed_accounts.push(hashed_address);
                 continue;
             };
@@ -57,15 +106,15 @@ impl<'a> EthereumState<'a> {
                 .get_mut(&hashed_address)
                 .ok_or(Error::MissingStorageTrie(hashed_address))?;
 
-            if account.status.was_destroyed() {
+            if was_destroyed {
                 *storage_trie = Mpt::new(self.bump);
             }
 
             let mut removed_slots = vec![];
-            for (slot, value) in &account.storage {
+            for (slot, present_value) in storage {
                 let hashed_slot = keccak256(slot.to_be_bytes::<32>());
-                if !value.present_value.is_zero() {
-                    storage_trie.insert_rlp(hashed_slot.as_slice(), value.present_value)?;
+                if !present_value.is_zero() {
+                    storage_trie.insert_rlp(hashed_slot.as_slice(), present_value)?;
                 } else {
                     removed_slots.push(hashed_slot);
                 }
@@ -79,10 +128,10 @@ impl<'a> EthereumState<'a> {
 
             let storage_root = storage_trie.hash();
             let state_account = TrieAccount {
-                nonce: info.nonce,
-                balance: info.balance,
+                nonce: leaf.nonce,
+                balance: leaf.balance,
                 storage_root,
-                code_hash: info.code_hash,
+                code_hash: leaf.code_hash,
             };
             self.state_trie.insert_rlp(hashed_address.as_slice(), state_account)?;
         }

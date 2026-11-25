@@ -17,6 +17,8 @@ bytes.workspace = true
 revm.workspace = true
 revm-primitives.workspace = true
 
+evm2 = { workspace = true, optional = true, features = ["block"] }
+
 # alloy
 alloy-rlp.workspace = true
 alloy-trie = { version = "0.9.7", default-features = false, features = ["ethereum"] }
@@ -30,3 +32,5 @@ workspace = true
 [features]
 default = []
 host = []
+# `EthereumState::update_from_evm2_bundle_state`, over evm2's `BundleState`.
+evm2 = ["dep:evm2"]
