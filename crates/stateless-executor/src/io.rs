@@ -327,15 +327,20 @@ impl<'a, 'b> WitnessDb<'a, 'b> {
     }
 }
 
-/// Decodes witnessed bytecodes, keyed by the hash of their original bytes.
+/// Decodes account code from its original bytes.
 ///
 /// Only a complete EIP-7702 designator delegates. EIP-3541 restricts new deployments, so
-/// existing legacy code can share the prefix. The witness supplies only the original bytes.
+/// existing legacy code can share the prefix.
+pub fn decode_bytecode(code: Bytes) -> Bytecode {
+    Bytecode::new_eip7702_raw(code.clone()).unwrap_or_else(|_| Bytecode::new_legacy(code))
+}
+
+/// Decodes witnessed bytecodes, keyed by the hash of their original bytes. The witness supplies
+/// only the original bytes, so the executor derives each kind with [`decode_bytecode`].
 fn decode_bytecodes<'c>(codes: impl Iterator<Item = &'c Bytes>) -> HashMap<B256, Bytecode> {
     codes
         .map(|code| {
-            let bytecode = Bytecode::new_eip7702_raw(code.clone())
-                .unwrap_or_else(|_| Bytecode::new_legacy(code.clone()));
+            let bytecode = decode_bytecode(code.clone());
             (bytecode.hash_slow(), bytecode)
         })
         .collect()
