@@ -47,7 +47,9 @@ jobs:
       - name: Prepare input data
         run: |
           block_number="${{ inputs.block_number }}"
-          s3_url="https://${{ vars.S3_PUBLIC_DATA_BUCKET }}.s3.${{ vars.S3_REGION }}.amazonaws.com/reth/input/${block_number}.json"
+          # Inputs are stored per serialized format, which the checked-out code decides.
+          input_version="$(cat bin/reth-benchmark/rpc-input-cache-version)"
+          s3_url="https://${{ vars.S3_PUBLIC_DATA_BUCKET }}.s3.${{ vars.S3_REGION }}.amazonaws.com/reth/input/v${input_version}/${block_number}.json"
 
           echo "Checking if input file exists for block $block_number..."
           if curl --output /dev/null --silent --head --fail "$s3_url"; then
