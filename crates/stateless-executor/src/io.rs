@@ -82,7 +82,6 @@ mod tests {
     use alloy_consensus::{BlockBody, Signed, TxLegacy};
     use alloy_primitives::Signature;
     use reth_ethereum_primitives::TransactionSigned;
-    use revm::bytecode::BytecodeDecodeError;
 
     fn encode_block(block: &Block) -> Vec<u8> {
         let mut bytes = Vec::with_capacity(block.length());
@@ -131,20 +130,25 @@ mod tests {
         let legacy = Bytes::from_static(&[0x60, 0x00, 0x56]);
         let codes = [delegation.original_bytes(), legacy.clone()];
 
-        let decoded = decode_bytecodes(codes.iter()).unwrap();
+        let decoded = decode_bytecodes(codes.iter());
 
         assert_eq!(decoded[&delegation.hash_slow()].eip7702_address(), Some(delegate));
         assert!(decoded[&keccak256(&legacy)].is_legacy());
     }
 
     #[test]
-    fn malformed_delegation_bytes_are_rejected() {
+    fn stored_legacy_code_can_start_with_the_delegation_prefix() {
         let truncated = Bytes::from_static(&[0xef, 0x01, 0x00, 0x42]);
+        let mut wrong_version = Bytecode::new_eip7702(Address::ZERO).original_bytes().to_vec();
+        wrong_version[2] = 1;
+        let codes = [truncated, Bytes::from(wrong_version)];
 
-        assert!(matches!(
-            decode_bytecodes([truncated].iter()),
-            Err(StatelessExecutorError::InvalidBytecode(BytecodeDecodeError::Eip7702(_)))
-        ));
+        let decoded = decode_bytecodes(codes.iter());
+        for code in codes {
+            let bytecode = &decoded[&keccak256(&code)];
+            assert!(bytecode.is_legacy());
+            assert_eq!(bytecode.original_bytes(), code);
+        }
     }
 }
 
@@ -275,7 +279,7 @@ pub trait WitnessInput<'a> {
     fn witness_db(&self) -> Result<WitnessDb<'a, '_>, StatelessExecutorError> {
         let state = self.state();
 
-        let bytecode_by_hash = decode_bytecodes(self.bytecodes())?;
+        let bytecode_by_hash = decode_bytecodes(self.bytecodes());
 
         // Verify and build block hashes
         let mut block_hashes: HashMap<u64, B256, _> =
@@ -323,18 +327,21 @@ impl<'a, 'b> WitnessDb<'a, 'b> {
     }
 }
 
-/// Decodes witnessed bytecodes, keyed by the hash of their original bytes.
+/// Decodes account code from its original bytes.
 ///
-/// The kind of each bytecode (legacy or EIP-7702 delegation) is derived from its bytes, as a
-/// node does when it loads code from its database. The code hash authenticates only the bytes, so
-/// a witness that chose the kind could make a delegated account execute as legacy code.
-fn decode_bytecodes<'c>(
-    codes: impl Iterator<Item = &'c Bytes>,
-) -> Result<HashMap<B256, Bytecode>, StatelessExecutorError> {
+/// Only a complete EIP-7702 designator delegates. EIP-3541 restricts new deployments, so
+/// existing legacy code can share the prefix.
+pub fn decode_bytecode(code: Bytes) -> Bytecode {
+    Bytecode::new_eip7702_raw(code.clone()).unwrap_or_else(|_| Bytecode::new_legacy(code))
+}
+
+/// Decodes witnessed bytecodes, keyed by the hash of their original bytes. The witness supplies
+/// only the original bytes, so the executor derives each kind with [`decode_bytecode`].
+fn decode_bytecodes<'c>(codes: impl Iterator<Item = &'c Bytes>) -> HashMap<B256, Bytecode> {
     codes
         .map(|code| {
-            let bytecode = Bytecode::new_raw_checked(code.clone())?;
-            Ok((bytecode.hash_slow(), bytecode))
+            let bytecode = decode_bytecode(code.clone());
+            (bytecode.hash_slow(), bytecode)
         })
         .collect()
 }

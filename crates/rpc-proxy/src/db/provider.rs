@@ -5,6 +5,7 @@ use alloy::{
     transports::TransportError,
 };
 use alloy_primitives::{map::B256HashMap, Address, BlockHash, StorageKey, B256, U256};
+use openvm_stateless_executor::io::decode_bytecode;
 use revm::{
     database::DBErrorMarker,
     primitives::KECCAK_EMPTY,
@@ -103,7 +104,7 @@ impl<N: Network, P: Provider<N>> ProviderDb<N, P> {
             return Ok(Bytecode::new());
         }
 
-        let bytecode = Bytecode::new_raw(code.0.into());
+        let bytecode = decode_bytecode(code);
         self.contracts.insert(bytecode.hash_slow(), bytecode.clone());
 
         Ok(bytecode)
@@ -201,7 +202,7 @@ impl<N: Network, P: Provider<N>> RevmDatabase for ProviderDb<N, P> {
         let nonce = nonce.map_err(|err| Error::Rpc("eth_getTransactionCount", err))?;
         let balance = balance.map_err(|err| Error::Rpc("eth_getBalance", err))?;
         let code = code.map_err(|err| Error::Rpc("eth_getCode", err))?;
-        let bytecode = Bytecode::new_raw(code.0.into());
+        let bytecode = decode_bytecode(code);
 
         // if the account is empty return None
         // in the EVM, emptiness is treated as equivalent to nonexistence

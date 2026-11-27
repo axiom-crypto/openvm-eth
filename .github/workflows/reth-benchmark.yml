@@ -525,7 +525,10 @@ jobs:
             exit 0
           fi
 
-          mkdir -p "$(dirname "$CACHE_FILE")"
+          # Branch comparisons can run a binary with either local cache layout. Both paths
+          # refer to the one input staged for this job, with its format selected by the checkout.
+          mkdir -p "$(dirname "$CACHE_FILE")" "rpc-cache/input/v${RPC_INPUT_CACHE_VERSION}"
+          ln -s ../1 "rpc-cache/input/v${RPC_INPUT_CACHE_VERSION}/1"
 
           if [[ "${RPC_INPUT_CACHE_MODE}" == "refresh" ]]; then
             echo "Skipping restore for refresh mode"
