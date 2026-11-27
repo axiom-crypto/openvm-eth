@@ -19,7 +19,6 @@ use reth_provider::{HeaderProvider, StateProvider, StateProviderFactory};
 use reth_revm::{
     database::StateProviderDatabase,
     primitives::{keccak256, Bytes, HashMap, B256},
-    state::Bytecode,
     witness::ExecutionWitnessRecord,
     State,
 };
@@ -79,20 +78,12 @@ pub fn generate_stateless_input_from_witness_and_ancestor_headers(
         resolve_ethereum_state(&bump, witness.parent_state_root, reth_state, keys)
     )?;
 
-    let bytecodes = {
-        let mut bytecodes = Vec::with_capacity(codes.len());
-        for code in codes {
-            bytecodes.push(Bytecode::new_raw(code));
-        }
-        bytecodes
-    };
-
     let parent_state_bytes = ethereum_state.encode_to_state_bytes();
     Ok(StatelessExecutorInput {
         current_block: witness.current_block,
         ancestor_headers,
         parent_state_bytes,
-        bytecodes,
+        bytecodes: codes,
     })
 }
 

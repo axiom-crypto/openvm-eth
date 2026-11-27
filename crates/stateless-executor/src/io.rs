@@ -13,7 +13,7 @@ use revm::{
     state::{AccountInfo, Bytecode},
     DatabaseRef,
 };
-use revm_primitives::{keccak256, map::DefaultHashBuilder, Address, HashMap, B256, U256};
+use revm_primitives::{keccak256, map::DefaultHashBuilder, Address, Bytes, HashMap, B256, U256};
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 
@@ -31,8 +31,10 @@ pub struct StatelessExecutorInput {
     pub ancestor_headers: Vec<Header>,
     /// Network state as of the parent block.
     pub parent_state_bytes: EthereumStateBytes,
-    /// Account bytecodes.
-    pub bytecodes: Vec<Bytecode>,
+    /// Original bytes of every account bytecode referenced during execution. The executor
+    /// decodes each one itself, so the bytes alone decide whether code is legacy bytecode or an
+    /// EIP-7702 delegation.
+    pub bytecodes: Vec<Bytes>,
 }
 
 pub mod serde_bincode_compat {
@@ -120,6 +122,34 @@ mod tests {
 
         assert_eq!(encode_block(&decoded.current_block), expected_rlp);
     }
+
+    #[test]
+    fn witnessed_delegation_bytes_decode_as_delegation() {
+        let delegate = Address::repeat_byte(0x42);
+        let delegation = Bytecode::new_eip7702(delegate);
+        let legacy = Bytes::from_static(&[0x60, 0x00, 0x56]);
+        let codes = [delegation.original_bytes(), legacy.clone()];
+
+        let decoded = decode_bytecodes(codes.iter());
+
+        assert_eq!(decoded[&delegation.hash_slow()].eip7702_address(), Some(delegate));
+        assert!(decoded[&keccak256(&legacy)].is_legacy());
+    }
+
+    #[test]
+    fn stored_legacy_code_can_start_with_the_delegation_prefix() {
+        let truncated = Bytes::from_static(&[0xef, 0x01, 0x00, 0x42]);
+        let mut wrong_version = Bytecode::new_eip7702(Address::ZERO).original_bytes().to_vec();
+        wrong_version[2] = 1;
+        let codes = [truncated, Bytes::from(wrong_version)];
+
+        let decoded = decode_bytecodes(codes.iter());
+        for code in codes {
+            let bytecode = &decoded[&keccak256(&code)];
+            assert!(bytecode.is_legacy());
+            assert_eq!(bytecode.original_bytes(), code);
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -203,7 +233,7 @@ impl<'a> WitnessInput<'a> for StatelessExecutorInputWithState<'a> {
     }
 
     #[inline(always)]
-    fn bytecodes(&self) -> impl Iterator<Item = &Bytecode> {
+    fn bytecodes(&self) -> impl Iterator<Item = &Bytes> {
         self.input.bytecodes.iter()
     }
 
@@ -228,8 +258,8 @@ pub trait WitnessInput<'a> {
     /// [state()](trait.WitnessInput#tymethod.state) must conform to.
     fn state_anchor(&self) -> B256;
 
-    /// Gets an iterator over account bytecodes.
-    fn bytecodes(&self) -> impl Iterator<Item = &Bytecode>;
+    /// Gets an iterator over the original bytes of account bytecodes.
+    fn bytecodes(&self) -> impl Iterator<Item = &Bytes>;
 
     /// Gets an iterator over references to a consecutive, reverse-chronological block headers
     /// starting from the current block header.
@@ -249,8 +279,7 @@ pub trait WitnessInput<'a> {
     fn witness_db(&self) -> Result<WitnessDb<'a, '_>, StatelessExecutorError> {
         let state = self.state();
 
-        let bytecode_by_hash =
-            self.bytecodes().map(|code| (code.hash_slow(), code)).collect::<HashMap<_, _>>();
+        let bytecode_by_hash = decode_bytecodes(self.bytecodes());
 
         // Verify and build block hashes
         let mut block_hashes: HashMap<u64, B256, _> =
@@ -280,22 +309,41 @@ pub trait WitnessInput<'a> {
 
 /// A database that loads account info and storage slots from a borrowed [`EthereumState`]. The
 /// lifetime parameter `'a` is the lifetime of the bump arena backing the state's tries, and `'b`
-/// is the lifetime of the borrows of the state and bytecodes.
+/// is the lifetime of the borrow of the state.
 #[derive(Debug)]
 pub struct WitnessDb<'a, 'b> {
     inner: &'b EthereumState<'a>,
     block_hashes: HashMap<u64, B256>,
-    bytecode_by_hash: HashMap<B256, &'b Bytecode>,
+    bytecode_by_hash: HashMap<B256, Bytecode>,
 }
 
 impl<'a, 'b> WitnessDb<'a, 'b> {
     pub fn new(
         inner: &'b EthereumState<'a>,
         block_hashes: HashMap<u64, B256>,
-        bytecode_by_hash: HashMap<B256, &'b Bytecode>,
+        bytecode_by_hash: HashMap<B256, Bytecode>,
     ) -> Self {
         Self { inner, block_hashes, bytecode_by_hash }
     }
+}
+
+/// Decodes account code from its original bytes.
+///
+/// Only a complete EIP-7702 designator delegates. EIP-3541 restricts new deployments, so
+/// existing legacy code can share the prefix.
+pub fn decode_bytecode(code: Bytes) -> Bytecode {
+    Bytecode::new_eip7702_raw(code.clone()).unwrap_or_else(|_| Bytecode::new_legacy(code))
+}
+
+/// Decodes witnessed bytecodes, keyed by the hash of their original bytes. The witness supplies
+/// only the original bytes, so the executor derives each kind with [`decode_bytecode`].
+fn decode_bytecodes<'c>(codes: impl Iterator<Item = &'c Bytes>) -> HashMap<B256, Bytecode> {
+    codes
+        .map(|code| {
+            let bytecode = decode_bytecode(code.clone());
+            (bytecode.hash_slow(), bytecode)
+        })
+        .collect()
 }
 
 fn trie_error_to_provider_error(trie_error: openvm_mpt::Error) -> ProviderError {
@@ -333,7 +381,7 @@ impl DatabaseRef for WitnessDb<'_, '_> {
     /// Get account code by its hash.
     fn code_by_hash_ref(&self, hash: B256) -> Result<Bytecode, Self::Error> {
         // Cloning here is fine as `Bytes` is cheap to clone.
-        self.bytecode_by_hash.get(&hash).map(|code| (*code).clone()).ok_or_else(|| {
+        self.bytecode_by_hash.get(&hash).cloned().ok_or_else(|| {
             ProviderError::TrieWitnessError(format!("bytecode for {hash} not found"))
         })
     }

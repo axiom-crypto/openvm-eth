@@ -509,7 +509,10 @@ jobs:
             exit 1
           fi
 
-          S3_CACHE_FILE="${S3_FIXTURE_PATH}/rpc-input/v1/mainnet/${BLOCK_NUMBER}.bin"
+          # The checked-out code decides the serialized input format, so its version comes from
+          # the checkout rather than from this workflow. Refs without the file use format 1.
+          RPC_INPUT_CACHE_VERSION="$(cat bin/reth-benchmark/rpc-input-cache-version 2>/dev/null || echo 1)"
+          S3_CACHE_FILE="${S3_FIXTURE_PATH}/rpc-input/v${RPC_INPUT_CACHE_VERSION}/mainnet/${BLOCK_NUMBER}.bin"
 
           echo "mode=${RPC_INPUT_CACHE_MODE}" >> "$GITHUB_OUTPUT"
           echo "cache_file=${CACHE_FILE}" >> "$GITHUB_OUTPUT"
@@ -522,7 +525,10 @@ jobs:
             exit 0
           fi
 
-          mkdir -p "$(dirname "$CACHE_FILE")"
+          # Branch comparisons can run a binary with either local cache layout. Both paths
+          # refer to the one input staged for this job, with its format selected by the checkout.
+          mkdir -p "$(dirname "$CACHE_FILE")" "rpc-cache/input/v${RPC_INPUT_CACHE_VERSION}"
+          ln -s ../1 "rpc-cache/input/v${RPC_INPUT_CACHE_VERSION}/1"
 
           if [[ "${RPC_INPUT_CACHE_MODE}" == "refresh" ]]; then
             echo "Skipping restore for refresh mode"
