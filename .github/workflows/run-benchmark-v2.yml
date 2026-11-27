@@ -78,20 +78,18 @@ jobs:
 
             # Create necessary directories
             mkdir -p rpc-cache
-            mkdir -p params
 
             # Build the benchmark binary
             export JEMALLOC_SYS_WITH_MALLOC_CONF="retain:true,background_thread:true,metadata_thp:always,thp:always,dirty_decay_ms:10000,muzzy_decay_ms:10000,abort_conf:true"
-            cargo build --bin openvm-reth-benchmark --profile=release --no-default-features --features="bench-metrics,jemalloc,evm-verify,certified-verifier"
+            cargo build --bin openvm-reth-benchmark --profile=release --no-default-features --features="metrics,jemalloc"
 
             # Generate input data
             echo "Generating input for block $block_number..."
             ./target/release/openvm-reth-benchmark \
-              --kzg-params-dir params \
               --mode make-input \
               --block-number $block_number \
               --rpc-url ${{ secrets.RPC_URL_1 }} \
-              --input-path input.json \
+              --generated-input-path input.json \
               --cache-dir rpc-cache
 
             echo "Input file generated successfully"
